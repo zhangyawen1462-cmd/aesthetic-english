@@ -1,24 +1,35 @@
 @import "tailwindcss";
 
 @theme {
+  /* --- 核心色板 --- */
   --color-ecru: #F2EFE5;
   --color-plum-wine: #2D0F15;
-  --color-carbon: #101211;
+  --color-carbon: #101211; 
   
-  /* 新增：日常英语的温柔浅蓝 (Powder Blue) */
+  /* --- 辅助色板 --- */
   --color-powder-blue: #D8E3E7;
-  /* 确认：认知提升的金檀色 */
   --color-golden-sand: #857861;
+  --color-bone-white: #D6CBB9;
   
+  /* --- 字体 --- */
   --font-sans: Verdana, sans-serif;
 }
 
 @layer base {
   body {
-    background-color: var(--color-ecru);
-    color: var(--color-carbon);
+    background-color: transparent;
+    
+    /* 强制使用最深色，确保即使开启抗锯齿也足够清晰 */
+    color: #000000;
+    
+    /* ✅ 优化：回归抗锯齿 (Matte Finish) 
+       既然我们已经在组件里强制了纯黑 (#000000)，
+       这里开启抗锯齿能消除像素棱角，带来像纸张印刷一样的“亚光”柔和感。
+    */
     -webkit-font-smoothing: antialiased;
-    letter-spacing: -0.02em;
+    -moz-osx-font-smoothing: grayscale;
+    
+    letter-spacing: -0.015em;
   }
 }
 
@@ -27,18 +38,23 @@
   background: transparent;
 }
 
-/* 极淡纸张纹理 (保持上一步的完美状态) */
+/* 🎨 亚光磨砂纹理层 (Matte Grain)
+   优化思路：
+   1. 提高 baseFrequency -> 颗粒更细，像高档磨砂纸，不像脏点。
+   2. 使用 mix-blend-mode: overlay -> 让纹理融入背景色，而不是浮在表面。
+   3. 极低透明度 -> 若隐若现，提供质感但不干扰阅读。
+*/
 .bg-noise {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.06'/%3E%3C/svg%3E");
-  mix-blend-mode: multiply;
-}
-@theme {
-  /* ...之前的颜色保持不变... */
-  --color-ecru: #F2EFE5;
-  --color-plum-wine: #2D0F15;
+  pointer-events: none;
+  z-index: 0; /* 确保在最底层，但在背景色之上 */
   
-  /* 新增：骨白 (用于极细边框) */
-  --color-bone-white: #D6CBB9; 
+  /* 升级版 SVG：更细腻的高频噪点 */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
   
-  /* ...其他颜色... */
+  /* 关键：使用 overlay 混合模式，让颗粒感“吃”进背景里，
+     在浅色背景上它会增加质感，而不会导致颜色发灰变脏。 */
+  mix-blend-mode: overlay;
+  
+  /* 调整透明度：太高会脏，太低没质感，0.15 是 overlay 模式下的黄金值 */
+  opacity: 0.15; 
 }
