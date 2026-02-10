@@ -13,15 +13,23 @@ import ModuleBlind from "@/components/ModuleBlind";
 import ModuleShadow from "@/components/ModuleShadow";
 import ModuleVocab from "@/components/ModuleVocab";
 import ModuleGrammar from "@/components/ModuleGrammar";
-import ModuleRecall from "@/components/ModuleRecall"; // ✅ Module 06
-import ModuleSalon from "@/components/ModuleSalon";   // ✅ Module 07
+import ModuleRecall from "@/components/ModuleRecall"; 
+import ModuleSalon from "@/components/ModuleSalon";   
+
+// --- 0. 核心数据 (新增：确保数据流完整，防止编译报错) ---
+const COURSE_DATA = {
+  salon: {
+    openingLine: "Waiting for curation...",
+    bgImage: "https://images.unsplash.com/photo-1514525253440-b393452e8d26?q=80&w=1000&auto=format&fit=crop"
+  }
+};
 
 // --- 主题配置 ---
 type ThemeKey = 'rice' | 'blue' | 'wine';
 const THEMES = {
-  rice: { label: "Rice Gallery", bg: "#EAE7DC", sidebar: "#E3E0D3", text: "#1C1C1C", accent: "#4A0404", highlight: "rgba(74, 4, 4, 0.06)", lineColor: "rgba(28, 28, 28, 0.06)" },
-  blue: { label: "Ice Bookstore", bg: "#F0F4F8", sidebar: "#E1E7EC", text: "#243447", accent: "#0F4C81", highlight: "rgba(15, 76, 129, 0.06)", lineColor: "rgba(36, 52, 71, 0.06)" },
-  wine: { label: "Vintage Cellar", bg: "#2E1C21", sidebar: "#25161A", text: "#E6DCCA", accent: "#D4A5A5", highlight: "rgba(255, 255, 255, 0.08)", lineColor: "rgba(255, 255, 255, 0.05)" }
+  rice: { id: 'daily', label: "Rice Gallery", bg: "#EAE7DC", sidebar: "#E3E0D3", text: "#1C1C1C", accent: "#4A0404", highlight: "rgba(74, 4, 4, 0.06)", lineColor: "rgba(28, 28, 28, 0.06)", border: "border-black/10", panel: "bg-white/50" },
+  blue: { id: 'cognitive', label: "Ice Bookstore", bg: "#F0F4F8", sidebar: "#E1E7EC", text: "#243447", accent: "#0F4C81", highlight: "rgba(15, 76, 129, 0.06)", lineColor: "rgba(36, 52, 71, 0.06)", border: "border-blue-900/10", panel: "bg-blue-50/50" },
+  wine: { id: 'business', label: "Vintage Cellar", bg: "#2E1C21", sidebar: "#25161A", text: "#E6DCCA", accent: "#D4A5A5", highlight: "rgba(255, 255, 255, 0.08)", lineColor: "rgba(255, 255, 255, 0.05)", border: "border-white/10", panel: "bg-black/20" }
 };
 
 const TABS = [
@@ -106,9 +114,10 @@ export default function ScarlettGalleryPage() {
            {activeTab === 'shadow' && <ModuleShadow theme={theme} currentTime={currentTime} videoRef={videoRef} />}
            {activeTab === 'vocab' && <ModuleVocab theme={theme} onSeek={handleSeek} />}
            {activeTab === 'grammar' && <ModuleGrammar theme={theme} onSeek={handleSeek} />}
-           {/* ✅ 新增模块 */}
            {activeTab === 'recall' && <ModuleRecall theme={theme} />}
-           {activeTab === 'salon' && <ModuleSalon />}
+           
+           {/* ✅ 修复后的 ModuleSalon 调用：传入了必须的 theme 和 data */}
+           {activeTab === 'salon' && <ModuleSalon theme={theme} data={COURSE_DATA.salon} />}
            
            {/* 底部播放胶囊 (Shadow 和 Salon 模式隐藏) */}
            {activeTab !== 'shadow' && activeTab !== 'salon' && (

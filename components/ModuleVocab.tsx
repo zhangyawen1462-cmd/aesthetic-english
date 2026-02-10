@@ -1,198 +1,132 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
-import { Volume2, Check, RotateCw } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { RotateCcw, Volume2 } from "lucide-react";
 
-interface ModuleVocabProps {
-  theme: any;
-  onSeek: (time: number) => void; 
-}
-
-const VOCAB_LIST = [
-  { id: 1, word: "EXTRAVAGANZA", phonetics: "/ɪkˌstræv.əˈɡæn.zə/", cn: "盛大的庆典", note: "通常指场面宏大、色彩斑斓的演出，带有戏剧性。", start: 2.6 },
-  { id: 2, word: "SYMPHONY", phonetics: "/ˈsɪm.fə.ni/", cn: "交响乐", note: "多种元素的复杂融合，呈现出和谐的整体感。", start: 8.6 },
-  { id: 3, word: "VELVET", phonetics: "/ˈvel.vɪt/", cn: "天鹅绒", note: "形容触感柔软、光滑，常与奢华感相关联。", start: 12.1 },
-  { id: 4, word: "ATTITUDE", phonetics: "/ˈæt.ɪ.tjuːd/", cn: "风度姿态", note: "在时尚语境中，特指一种自信、个性的风度。", start: 15.1 },
+const MOCK_VOCAB = [
+  { id: 1, word: "Discipline", phonetic: "/ˈdɪs.ə.plɪn/", def: "The practice of training people to obey rules.", ex: "It is about the discipline behind the smile." },
+  { id: 2, word: "Precision", phonetic: "/prɪˈsɪʒ.ən/", def: "The quality of being accurate and exact.", ex: "Every move requires absolute precision." },
+  { id: 3, word: "Aesthetics", phonetic: "/esˈθet.ɪks/", def: "A set of principles concerned with nature and appreciation of beauty.", ex: "This is the aesthetics of power." },
 ];
 
-export default function ModuleVocab({ theme, onSeek }: ModuleVocabProps) {
-  const [cards, setCards] = useState(VOCAB_LIST);
-  const [isFlipped, setIsFlipped] = useState(false);
+export default function ModuleVocab({ theme }: any) {
+  const [cards, setCards] = useState(MOCK_VOCAB);
+  const [direction, setDirection] = useState(0);
 
-  const speak = (text: string, e: React.MouseEvent) => {
-    e.stopPropagation(); 
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US'; 
-      utterance.rate = 0.85;     
-      window.speechSynthesis.speak(utterance);
+  const handleDragEnd = (event: any, info: any) => {
+    if (info.offset.x > 100) {
+      // 向右滑动：掌握
+      popCard();
+    } else if (info.offset.x < -100) {
+      // 向左滑动：不熟练，放回底部
+      reorderCard();
     }
   };
 
-  // ✅ 左右滑动逻辑处理
-  const handleDismiss = (direction: 'left' | 'right') => {
-    setIsFlipped(false);
-    const [currentCard, ...remaining] = cards;
-
-    if (direction === 'left') {
-      // 👈 向左滑：没学会，放到数组末尾，循环再来
-      setCards([...remaining, currentCard]);
-    } else {
-      // 👉 向右滑：学会了，直接移除
-      setCards(remaining);
-    }
+  const popCard = () => {
+    setCards((prev) => prev.slice(1));
   };
 
-  const getCardColors = () => {
-    if (theme.bg === "#FAF9F6") return { frontBg: "#FFFFFF", backBg: "#5D4037", frontText: "#1C1C1C", backText: "#FAF9F6" };
-    if (theme.bg === "#E6F2F5") return { frontBg: "#FFFFFF", backBg: "#164E63", frontText: "#243447", backText: "#E6F2F5" };
-    return { frontBg: "#FAF9F6", backBg: "#360E14", frontText: "#2E1C21", backText: "#E6DCCA" };
+  const reorderCard = () => {
+    setCards((prev) => {
+      const newCards = [...prev.slice(1)];
+      newCards.push(prev[0]);
+      return newCards;
+    });
   };
-
-  const colors = getCardColors();
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden">
+    <div className="h-full flex flex-col items-center justify-center p-6 relative">
       
-      {/* 艺术纸质感滤镜 */}
-      <svg className="absolute pointer-events-none opacity-0" width="0" height="0">
-        <filter id="art-paper">
-          <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="4" result="noise" />
-          <feDiffuseLighting in="noise" lightingColor="#fff" surfaceScale="1.2">
-            <feDistantLight azimuth="45" elevation="60" />
-          </feDiffuseLighting>
-          <feComposite operator="in" in2="SourceGraphic"/>
-          <feBlend mode="multiply" in="SourceGraphic" />
-        </filter>
-      </svg>
+      {/* 1. 艺术感悬停指令 (Artistic Hover Instructions) */}
+      <div className="w-full max-w-[400px] mb-8 group relative h-6">
+          <div className="flex justify-between items-center w-full px-2 transition-all duration-1000 ease-out opacity-0 blur-sm group-hover:opacity-40 group-hover:blur-0">
+             <span className="text-[9px] uppercase tracking-[0.3em] italic" style={{ color: theme.text }}>
+                ← Unknown / Reappear
+             </span>
+             <span className="text-[9px] uppercase tracking-[0.3em] italic" style={{ color: theme.text }}>
+                Mastered / Known →
+             </span>
+          </div>
+          {/* 装饰线：仅在悬停时显现 */}
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-[1px] bg-current transition-all duration-1000 group-hover:w-full opacity-10" style={{ backgroundColor: theme.text }} />
+      </div>
 
-      <div className="relative w-full max-w-sm h-[480px] flex items-center justify-center">
-        <AnimatePresence mode="popLayout">
-          {cards.length > 0 && (
-            <Card
-              key={cards[0].id}
-              data={cards[0]}
-              isFlipped={isFlipped}
-              setIsFlipped={setIsFlipped}
-              onDismiss={handleDismiss}
-              speak={speak}
-              onSeek={onSeek} 
-              colors={colors}
-              theme={theme}
-            />
+      {/* 2. 卡片堆叠逻辑 */}
+      <div className="relative w-full max-w-[400px] h-[500px]">
+        <AnimatePresence>
+          {cards.length > 0 ? (
+            cards.map((card, index) => {
+              const isFirst = index === 0;
+              return (
+                <motion.div
+                  key={card.id}
+                  style={{
+                    zIndex: cards.length - index,
+                    backgroundColor: theme.bg,
+                    color: theme.text,
+                    borderColor: theme.lineColor,
+                  }}
+                  className={`absolute inset-0 rounded-sm border shadow-2xl p-10 flex flex-col justify-between cursor-grab active:cursor-grabbing`}
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ 
+                    scale: 1 - index * 0.05, 
+                    opacity: 1 - index * 0.3, 
+                    y: index * -15 
+                  }}
+                  exit={{ 
+                    x: direction > 0 ? 500 : -500, 
+                    opacity: 0, 
+                    rotate: direction > 0 ? 20 : -20 
+                  }}
+                  drag={isFirst ? "x" : false}
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragStart={() => setDirection(0)}
+                  onDrag={(e, info) => setDirection(info.offset.x)}
+                  onDragEnd={handleDragEnd}
+                >
+                  {/* 卡片纹理 (Noise Texture) */}
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.03] bg-noise mix-blend-multiply" />
+
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                      <span className="text-[10px] font-mono opacity-30">#0{card.id}</span>
+                      <button className="opacity-20 hover:opacity-100 transition-opacity">
+                        <Volume2 size={16} />
+                      </button>
+                    </div>
+
+                    <h2 className="text-5xl font-bold tracking-tight mb-2 font-sans">{card.word}</h2>
+                    <p className="font-serif italic opacity-40 text-sm mb-8">{card.phonetic}</p>
+                    
+                    <div className="h-[1px] w-8 mb-8" style={{ backgroundColor: theme.accent }} />
+                    
+                    <p className="text-sm leading-relaxed opacity-70 mb-4">{card.def}</p>
+                  </div>
+
+                  <div className="relative z-10 border-t pt-8" style={{ borderColor: theme.lineColor }}>
+                     <p className="text-xs font-serif italic opacity-40 leading-relaxed">
+                       "{card.ex}"
+                     </p>
+                  </div>
+                </motion.div>
+              );
+            })
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              className="absolute inset-0 flex flex-col items-center justify-center opacity-30"
+            >
+              <p className="text-[10px] uppercase tracking-[0.4em] mb-4">Gallery Empty</p>
+              <button onClick={() => setCards(MOCK_VOCAB)} className="p-2 hover:scale-110 transition-transform">
+                <RotateCcw size={20} />
+              </button>
+            </motion.div>
           )}
         </AnimatePresence>
-        
-        {cards.length === 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center space-y-4 opacity-40">
-            <Check size={40} strokeWidth={1} className="mx-auto"/>
-            <p className="font-serif italic text-base">Finished for now.</p>
-            <button onClick={() => setCards(VOCAB_LIST)} className="text-[10px] uppercase tracking-[0.2em] border-b border-current pb-1">Review Again</button>
-          </motion.div>
-        )}
       </div>
-
-      {/* 底部交互指引 - 极其淡化 */}
-      {cards.length > 0 && (
-        <div className="absolute bottom-12 flex gap-12 opacity-20 text-[10px] tracking-widest uppercase font-medium">
-          <span className="flex items-center gap-2">← Repeat</span>
-          <span className="flex items-center gap-2">Mastered →</span>
-        </div>
-      )}
     </div>
-  );
-}
-
-function Card({ data, isFlipped, setIsFlipped, onDismiss, speak, onSeek, colors, theme }: any) {
-  const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 200], [-12, 12]); 
-  const opacity = useTransform(x, [-150, -100, 0, 100, 150], [0, 1, 1, 1, 0]); 
-  
-  // 背景色反馈：左滑变淡红，右滑变淡绿（可选，这里为了清爽暂不加，仅保留位移）
-  
-  const handleDragEnd = (_: any, info: any) => {
-    if (info.offset.x < -100) {
-      onDismiss('left');
-    } else if (info.offset.x > 100) {
-      onDismiss('right');
-    }
-  };
-
-  return (
-    <motion.div
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.6}
-      onDragEnd={handleDragEnd}
-      style={{ x, rotate, opacity }}
-      initial={{ scale: 0.9, opacity: 0, y: 10 }}
-      animate={{ scale: 1, opacity: 1, y: 0, rotateY: isFlipped ? 180 : 0 }}
-      exit={{ x: x.get() < 0 ? -400 : 400, opacity: 0, transition: { duration: 0.4 } }}
-      transition={{ 
-        rotateY: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
-        scale: { duration: 0.4 },
-        opacity: { duration: 0.2 }
-      }}
-      className="absolute w-[300px] h-[440px] cursor-grab active:cursor-grabbing perspective-1000"
-      onClick={() => setIsFlipped(!isFlipped)}
-    >
-      <div className="w-full h-full relative" style={{ transformStyle: "preserve-3d" }}>
-        
-        {/* --- FRONT --- */}
-        <div 
-          className="absolute inset-0 rounded-sm shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-12 flex flex-col items-center justify-center backface-hidden"
-          style={{ 
-            backgroundColor: colors.frontBg, color: colors.frontText, 
-            backfaceVisibility: "hidden", filter: "url(#art-paper)" 
-          }}
-        >
-          {/* Main Word */}
-          <div className="text-center w-full">
-            <h3 
-              onClick={(e) => { e.stopPropagation(); onSeek(data.start); }}
-              className="text-[32px] font-bold tracking-normal leading-tight hover:opacity-60 transition-opacity mb-4" 
-              style={{ fontFamily: 'Verdana, sans-serif' }}
-            >
-              {data.word}
-            </h3>
-            <p className="text-sm font-serif italic opacity-30">{data.phonetics}</p>
-          </div>
-          
-          {/* 极其隐蔽的发音按钮 */}
-          <button 
-            onClick={(e) => speak(data.word, e)} 
-            className="absolute bottom-10 p-4 opacity-10 hover:opacity-100 transition-opacity"
-          >
-            <Volume2 size={16} />
-          </button>
-        </div>
-
-        {/* --- BACK --- */}
-        <div 
-          className="absolute inset-0 rounded-sm shadow-xl p-12 flex flex-col items-center justify-center backface-hidden text-center"
-          style={{ 
-            backgroundColor: colors.backBg, color: colors.backText, 
-            transform: "rotateY(180deg)", backfaceVisibility: "hidden", filter: "url(#art-paper)" 
-          }}
-        >
-          {/* 中文标题 */}
-          <h3 className="text-2xl font-bold mb-8 w-full" style={{ fontFamily: '"Songti SC", serif' }}>
-            {data.cn}
-          </h3>
-          
-          {/* 解析文字 - 居中排版 */}
-          <p className="text-[15px] leading-[1.7] opacity-80 font-serif max-w-[200px]">
-            {data.note}
-          </p>
-
-          <div className="absolute bottom-10 opacity-10">
-            <RotateCw size={14} />
-          </div>
-        </div>
-
-      </div>
-    </motion.div>
   );
 }

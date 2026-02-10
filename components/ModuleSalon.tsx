@@ -1,270 +1,144 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion"; 
-import { Send, Camera, MoreHorizontal, ChevronLeft, Phone, Video, Info } from "lucide-react";
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { RotateCcw, Volume2, Bookmark, Check } from "lucide-react";
 
-// 模拟 AI 主编的剧本 (基于课程内容的 Roleplay)
-const CHAT_SCRIPT = [
-  {
-    id: 1,
-    role: "ai",
-    text: "Scarlett here. I'm looking at your draft for the 'Midnight Symphony' piece.",
-    delay: 800
-  },
-  {
-    id: 2,
-    role: "ai",
-    text: "The opening line: 'This city is a symphony of secrets.' \nHonestly, why 'Symphony'? Give me a reason to keep it.",
-    delay: 2000,
-    options: [
-      { label: "It sounds poetic.", reply: "Poetic isn't enough. We need substance." },
-      { label: "It implies ordered chaos.", reply: "Exactly. Chaos, but elegant. Good defense." }, // 正解
-      { label: "Because it's loud.", reply: "We are selling dreams, not noise. Try again." }
-    ]
-  },
-  {
-    id: 3,
-    role: "ai",
-    text: "Next. The 'Velvet Rope' metaphor. \nIt's a barrier, yes. But what is it REALLY selling?",
-    delay: 1500,
-    options: [
-      { label: "Safety regulations.", reply: "We are not an insurance company, darling." },
-      { label: "Exclusivity and Desire.", reply: "Bingo. The barrier creates the want." } // 正解
-    ]
-  },
-  {
-    id: 4,
-    role: "ai",
-    text: "Final check. 'Fashion is not just clothes, it's attitude.' \nTranslate this for the China issue cover line. Make it punchy.",
-    delay: 1500,
-    options: [
-      { label: "时尚不仅仅是衣服...", reply: "Too long. I fell asleep reading that." },
-      { label: "风格，即是态度。", reply: "Short. Punchy. Iconic. Print it." } // 正解
-    ]
-  },
-  {
-    id: 5,
-    role: "ai",
-    text: "Not bad. See you at the shoot tomorrow. \nDon't be late.",
-    delay: 1000,
-    end: true
-  }
+const MOCK_VOCAB = [
+  { id: 1, word: "Discipline", phonetic: "/ˈdɪs.ə.plɪn/", def: "The practice of training people to obey rules.", ex: "It is about the discipline behind the smile." },
+  { id: 2, word: "Precision", phonetic: "/prɪˈsɪʒ.ən/", def: "The quality of being accurate and exact.", ex: "Every move requires absolute precision." },
+  { id: 3, word: "Aesthetics", phonetic: "/esˈθet.ɪks/", def: "A set of principles concerned with nature and appreciation of beauty.", ex: "This is the aesthetics of power." },
 ];
 
-// 接收 theme 参数
-interface ModuleSalonProps {
-  theme: any;
-}
+export default function ModuleVocab({ theme }: any) {
+  const [cards, setCards] = useState(MOCK_VOCAB);
+  const [direction, setDirection] = useState(0);
+  const [savedIds, setSavedIds] = useState<number[]>([]);
 
-export default function ModuleSalon({ theme }: ModuleSalonProps) {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [step, setStep] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
-  const [showOptions, setShowOptions] = useState(false);
-  
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  // 确保 theme 存在，防止报错 (如果父组件没传)
-  const safeTheme = theme || { bg: "#F2EFE5", text: "#101211", accent: "#857861" };
-  const color = safeTheme.text;
-  const bgColor = safeTheme.bg;
-  const accent = safeTheme.accent;
-
-  // 自动滚动
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping, showOptions]);
-
-  // 启动对话
-  useEffect(() => {
-    triggerAiMessage(0);
-  }, []);
-
-  const triggerAiMessage = (index: number) => {
-    if (index >= CHAT_SCRIPT.length) return;
+  // --- 朗读插件核心逻辑 ---
+  const handleSpeak = (text: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 防止触发卡片滑动
     
-    const script = CHAT_SCRIPT[index];
-    setIsTyping(true);
-    setShowOptions(false);
+    // 取消当前正在进行的朗读
+    window.speechSynthesis.cancel();
 
-    // 模拟 AI 打字延迟
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => [...prev, { role: "ai", text: script.text }]);
-      
-      if (script.options) {
-        setShowOptions(true);
-      } else if (!script.end) {
-        // 如果是纯陈述，自动下一句
-        triggerAiMessage(index + 1);
-      }
-    }, script.delay);
-    
-    setStep(index);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 0.85; // 稍微放慢，增加优雅感
+    utterance.pitch = 1.0;
+
+    // 尝试获取系统内的高级女声
+    const voices = window.speechSynthesis.getVoices();
+    const premiumVoice = voices.find(v => v.name.includes("Samantha") || v.name.includes("Google US English"));
+    if (premiumVoice) utterance.voice = premiumVoice;
+
+    window.speechSynthesis.speak(utterance);
   };
 
-  const handleUserChoice = (option: any) => {
-    // 1. 用户发送
-    setMessages(prev => [...prev, { role: "user", text: option.label }]);
-    setShowOptions(false);
+  const handleDragEnd = (event: any, info: any) => {
+    if (info.offset.x > 100) popCard();
+    else if (info.offset.x < -100) reorderCard();
+  };
 
-    // 2. AI 回复评价
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages(prev => [...prev, { role: "ai", text: option.reply }]);
-      
-      // 3. 继续下一题
-      setTimeout(() => {
-        triggerAiMessage(step + 1);
-      }, 1200);
-    }, 1000);
+  const popCard = () => setCards((prev) => prev.slice(1));
+  const reorderCard = () => setCards((prev) => [...prev.slice(1), prev[0]]);
+
+  const toggleSave = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSavedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
   return (
-    <div className="flex-1 w-full h-full flex flex-col relative overflow-hidden" style={{ color: color }}>
+    <div className="h-full flex flex-col items-center justify-center p-6 relative">
       
-      {/* --- Header: Instagram Direct 风格 --- */}
-      <div className="w-full px-4 py-3 border-b flex items-center justify-between z-30 sticky top-0 backdrop-blur-xl"
-           style={{ borderColor: `${color}15`, backgroundColor: bgColor + 'CC' }}>
-        <div className="flex items-center gap-4">
-          <ChevronLeft size={26} strokeWidth={1.5} className="cursor-pointer opacity-70 hover:opacity-100" />
-          <div className="flex items-center gap-3">
-            {/* 头像 */}
-            <div className="w-8 h-8 rounded-full bg-current opacity-10 relative overflow-hidden flex items-center justify-center">
-               <span className="text-[10px] font-bold opacity-100">SZ</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[13px] font-bold leading-none flex items-center gap-1">
-                Scarlett Zhang <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block ml-1"/>
-              </span>
-              <span className="text-[10px] opacity-50 mt-0.5">Editor-in-Chief</span>
-            </div>
+      {/* 1. 艺术感悬停指令 */}
+      <div className="w-full max-w-[400px] mb-8 group relative h-6">
+          <div className="flex justify-between items-center w-full px-2 transition-all duration-1000 ease-out opacity-0 blur-sm group-hover:opacity-40 group-hover:blur-0">
+             <span className="text-[9px] uppercase tracking-[0.3em] italic" style={{ color: theme.text }}>← Unknown / Reappear</span>
+             <span className="text-[9px] uppercase tracking-[0.3em] italic" style={{ color: theme.text }}>Mastered / Known →</span>
           </div>
-        </div>
-        <div className="flex items-center gap-5 opacity-60">
-           <Phone size={22} strokeWidth={1.5} />
-           <Video size={24} strokeWidth={1.5} />
-           <Info size={22} strokeWidth={1.5} />
-        </div>
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-[1px] bg-current transition-all duration-1000 group-hover:w-full opacity-10" style={{ backgroundColor: theme.text }} />
       </div>
 
-      {/* --- Chat Area --- */}
-      <div className="flex-1 w-full max-w-xl mx-auto overflow-y-auto p-4 space-y-6 no-scrollbar">
-        {/* 时间戳 */}
-        <div className="text-center py-4">
-           <span className="text-[10px] font-medium opacity-30 uppercase tracking-widest">Today 12:03 AM</span>
-        </div>
+      {/* 2. 卡片堆叠 */}
+      <div className="relative w-full max-w-[400px] h-[500px]">
+        <AnimatePresence>
+          {cards.length > 0 ? (
+            cards.map((card, index) => {
+              const isFirst = index === 0;
+              const isSaved = savedIds.includes(card.id);
 
-        {messages.map((msg, idx) => (
-          <motion.div 
-            key={idx}
-            initial={{ opacity: 0, y: 10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            {/* AI 头像 (小) */}
-            {msg.role === "ai" && (
-              <div className="w-7 h-7 rounded-full bg-current opacity-10 mr-2 self-end mb-1 shrink-0" />
-            )}
+              return (
+                <motion.div
+                  key={card.id}
+                  style={{
+                    zIndex: cards.length - index,
+                    backgroundColor: theme.bg,
+                    color: theme.text,
+                    borderColor: theme.lineColor,
+                  }}
+                  className={`absolute inset-0 rounded-sm border shadow-2xl p-10 flex flex-col justify-between cursor-grab active:cursor-grabbing overflow-hidden`}
+                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                  animate={{ scale: 1 - index * 0.05, opacity: 1 - index * 0.3, y: index * -15 }}
+                  exit={{ x: direction > 0 ? 500 : -500, opacity: 0, rotate: direction > 0 ? 20 : -20 }}
+                  drag={isFirst ? "x" : false}
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragStart={() => setDirection(0)}
+                  onDrag={(e, info) => setDirection(info.offset.x)}
+                  onDragEnd={handleDragEnd}
+                >
+                  {/* --- 做旧磨砂效果叠加层 --- */}
+                  <div className="pointer-events-none absolute inset-0 opacity-[0.05] bg-noise mix-blend-multiply" />
+                  <div className="pointer-events-none absolute inset-0 backdrop-blur-[0.5px] bg-orange-900/5 mix-blend-soft-light" />
+                  
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-6">
+                      <span className="text-[10px] font-mono opacity-30">#0{card.id}</span>
+                      
+                      <div className="flex gap-4">
+                        {/* 收藏按钮 */}
+                        <button 
+                          onClick={(e) => toggleSave(card.id, e)}
+                          className={`transition-all duration-500 hover:scale-110 ${isSaved ? 'opacity-100' : 'opacity-20 hover:opacity-60'}`}
+                          style={{ color: isSaved ? theme.accent : theme.text }}
+                        >
+                          {isSaved ? <Check size={16} /> : <Bookmark size={16} />}
+                        </button>
+                        
+                        {/* 朗读按钮 */}
+                        <button 
+                          onClick={(e) => handleSpeak(card.word, e)}
+                          className="opacity-20 hover:opacity-100 transition-all hover:scale-110 active:scale-90"
+                        >
+                          <Volume2 size={16} />
+                        </button>
+                      </div>
+                    </div>
 
-            {/* 气泡 */}
-            <div 
-              className={`px-5 py-3 max-w-[85%] text-[15px] leading-relaxed shadow-sm`}
-              style={{
-                borderRadius: "22px",
-                // AI (Scarlett): 透明空心框 (冷静)
-                // User (You): 实心强调色 (态度)
-                backgroundColor: msg.role === "user" ? accent : "transparent",
-                border: msg.role === "ai" ? `1px solid ${color}30` : "none",
-                color: msg.role === "user" ? bgColor : color, // 反转字色
-                
-                // 气泡尾巴
-                borderBottomLeftRadius: msg.role === "ai" ? "4px" : "22px",
-                borderBottomRightRadius: msg.role === "user" ? "4px" : "22px",
-              }}
-            >
-              <p style={{ fontFamily: msg.role === "user" ? '"Songti SC", serif' : 'Verdana, sans-serif' }}>
-                {msg.text}
-              </p>
-            </div>
-          </motion.div>
-        ))}
+                    <h2 className="text-5xl tracking-tight mb-2 font-sans font-normal" style={{ fontFamily: 'Verdana, sans-serif' }}>
+                      {card.word}
+                    </h2>
+                    <p className="font-serif italic opacity-40 text-sm mb-8">{card.phonetic}</p>
+                    <div className="h-[1px] w-8 mb-8" style={{ backgroundColor: theme.accent, opacity: 0.3 }} />
+                    <p className="text-sm leading-relaxed opacity-70 mb-4 font-serif italic">{card.def}</p>
+                  </div>
 
-        {/* Typing Indicator */}
-        {isTyping && (
-           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start w-full pl-9">
-              <div className="px-4 py-3 rounded-full rounded-bl-sm border flex gap-1 items-center h-[40px]"
-                   style={{ borderColor: `${color}20`, backgroundColor: `${color}05` }}>
-                 <div className="w-1.5 h-1.5 rounded-full bg-current opacity-40 animate-bounce" style={{ animationDelay: "0ms" }} />
-                 <div className="w-1.5 h-1.5 rounded-full bg-current opacity-40 animate-bounce" style={{ animationDelay: "150ms" }} />
-                 <div className="w-1.5 h-1.5 rounded-full bg-current opacity-40 animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-           </motion.div>
-        )}
-        
-        <div ref={bottomRef} className="h-4" />
-      </div>
-
-      {/* --- Footer: 交互区 --- */}
-      <div className="w-full p-4 z-30 sticky bottom-0 backdrop-blur-xl border-t"
-           style={{ backgroundColor: bgColor + 'E6', borderColor: `${color}10` }}>
-        
-        <AnimatePresence mode="wait">
-          {showOptions ? (
-            /* 1. 选项模式 (预设回答) */
-            <motion.div 
-               initial={{ opacity: 0, y: 10 }}
-               animate={{ opacity: 1, y: 0 }}
-               exit={{ opacity: 0, y: 10 }}
-               className="flex flex-col gap-3"
-            >
-              <div className="flex items-center justify-center gap-2 opacity-30">
-                 <div className="h-[1px] w-8 bg-current"/>
-                 <span className="text-[9px] uppercase tracking-widest font-bold">Reply Suggestion</span>
-                 <div className="h-[1px] w-8 bg-current"/>
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                {CHAT_SCRIPT[step]?.options?.map((opt: any, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => handleUserChoice(opt)}
-                    className="px-5 py-3 rounded-full text-sm font-medium transition-all active:scale-95 border hover:bg-current hover:bg-opacity-5"
-                    style={{ 
-                      borderColor: color, 
-                      color: color,
-                      fontFamily: '"Songti SC", serif'
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
+                  <div className="relative z-10 border-t pt-8" style={{ borderColor: theme.lineColor }}>
+                     <p className="text-[13px] font-sans opacity-40 leading-relaxed tracking-wide italic">"{card.ex}"</p>
+                  </div>
+                  
+                  <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.02)]" />
+                </motion.div>
+              );
+            })
           ) : (
-            /* 2. 伪装输入框 (Instagram Style) */
-            <motion.div 
-               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-               className="flex items-center gap-3 px-4 py-3 rounded-full border border-transparent"
-               style={{ backgroundColor: `${color}08` }} // 极淡背景
-            >
-               <div className="w-8 h-8 rounded-full bg-current opacity-100 flex items-center justify-center text-white" 
-                    style={{ backgroundColor: accent }}>
-                  <Camera size={16} />
-               </div>
-               <div className="flex-1 text-[15px] opacity-40 font-normal select-none">
-                  {isTyping ? "Scarlett is typing..." : "Message..."}
-               </div>
-               <div className="flex gap-4 opacity-40">
-                  <MoreHorizontal size={20} />
-                  <Send size={20} />
-               </div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center opacity-30">
+              <p className="text-[10px] uppercase tracking-[0.4em] mb-4">Deck Complete</p>
+              <button onClick={() => setCards(MOCK_VOCAB)} className="p-2 hover:scale-110 transition-transform"><RotateCcw size={20} /></button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-
     </div>
   );
 }
