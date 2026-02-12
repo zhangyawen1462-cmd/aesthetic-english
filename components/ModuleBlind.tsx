@@ -4,10 +4,12 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Music } from "lucide-react";
 
+import type { ThemeConfig } from "@/lib/theme-config";
+
 interface ModuleBlindProps {
   isPlaying: boolean;
   playbackRate: number;
-  theme: any;
+  theme: ThemeConfig;
   setPlaybackRate: (rate: number) => void;
 }
 
@@ -18,6 +20,17 @@ export default function ModuleBlind({ isPlaying, playbackRate, theme, setPlaybac
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden">
       
+      {/* 幽灵图层背景 - 推荐比例 1:1 方形图（黑胶唱片氛围） */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-[0.04] mix-blend-multiply"
+          style={{ 
+            backgroundImage: `url('/images/module-bg/blind.jpg')`,
+            filter: 'blur(2px) grayscale(70%) contrast(1.1)'
+          }}
+        />
+      </div>
+
       {/* 全局做旧纹理背景 */}
       <div className="absolute inset-0 opacity-[0.15] pointer-events-none mix-blend-overlay z-0"
            style={{ 
@@ -56,8 +69,12 @@ export default function ModuleBlind({ isPlaying, playbackRate, theme, setPlaybac
               ? { repeat: Infinity, ease: "linear", duration: rotationDuration } // 播放时：无限匀速旋转
               : { duration: 0.5, ease: "easeOut" } // 暂停时：0.5秒平滑复位
           }}
+          style={{
+            backgroundColor: "#0C0C0C",
+            willChange: isPlaying ? 'transform' : 'auto',
+            transform: 'translateZ(0)',
+          }}
           className="relative w-80 h-80 rounded-full shadow-[0_30px_60px_-15px_rgba(0,0,0,0.7)] z-10 flex items-center justify-center overflow-hidden border-[1px] border-white/5"
-          style={{ backgroundColor: "#0C0C0C" }} // 极深色底
         >
            {/* A. 物理刻痕纹理 */}
            <div className="absolute inset-0 rounded-full opacity-80"

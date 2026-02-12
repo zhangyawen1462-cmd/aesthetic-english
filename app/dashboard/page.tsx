@@ -1,170 +1,371 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Sidebar from "@/components/Sidebar";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Menu, X } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
 
-// --- 策展数据 ---
-const SECTIONS = [
+/* ─── 视觉混合流数据 (3:4、1:1 和 9:16 比例) ─── */
+const VISUAL_STREAM = [
+  /* Column 1 (Left) */
   {
-    id: "daily",
-    title: "Daily Aesthetics",
-    subtitle: "Vlog / Lifestyle",
-    description: "La dolce vita. English through the lens of romantic living.",
-    bg: "bg-powder-blue",
-    text: "text-plum-wine",
-    grid: "col-span-1 md:col-span-8 md:row-span-2",
+    id: "cheer-01",
+    type: "episode",
+    category: "DAILY",
+    title: "Dallas Cowboys Christmas",
+    img: "https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com/cover-cheer.jpg",
+    height: "aspect-[3/4]",
+    ep: "01",
+    href: "/course/daily/cheer-01",
+  },
+  {
+    id: "mood-1",
+    type: "mood",
     img: "/images/daily-sketch.jpg",
+    height: "aspect-square", // 1:1
+    caption: "Quiet mornings.",
   },
   {
-    id: "cognitive",
-    title: "Cognitive Growth",
-    subtitle: "Psychology / Deep Dive",
-    description: "Soulful conversations for the mind.",
-    bg: "bg-[#EAE6D6]",
-    text: "text-plum-wine",
-    grid: "col-span-1 md:col-span-4 md:row-span-4",
-    img: "/images/cognitive-text.jpg",
-  },
-  {
-    id: "business",
-    title: "Business Elite",
-    subtitle: "Leadership / Negotiation",
-    description: "Professional expressions for the modern workplace.",
-    bg: "bg-[#1A1A1A]",
-    text: "text-[#E8E4D9]",
-    grid: "col-span-1 md:col-span-8 md:row-span-2",
+    id: "vertical-story-left",
+    type: "mood",
     img: "/images/business-elite.jpg",
+    height: "aspect-[9/16]", // 竖屏 9:16
+    caption: "Vertical moment.",
+  },
+  {
+    id: "mood-3",
+    type: "mood",
+    img: "/images/daily-sketch.jpg",
+    height: "aspect-square", // 1:1
+    caption: "Center moment.",
+  },
+  /* Column 2 (Right) */
+  {
+    id: "vertical-story",
+    type: "mood",
+    img: "/images/cognitive-text.jpg",
+    height: "aspect-[9/16]", // 竖屏 9:16
+    caption: "Vertical story.",
+  },
+  {
+    id: "mood-2",
+    type: "mood",
+    img: "/images/business-elite.jpg",
+    height: "aspect-square", // 1:1
+    caption: "Words are free.",
+  },
+  {
+    id: "flow-01",
+    type: "episode",
+    category: "COGNITIVE",
+    title: "Flow: The Art of Deep Focus",
+    img: "/images/cognitive-text.jpg",
+    height: "aspect-[3/4]",
+    ep: "01",
+    href: "/course/cognitive/flow-01",
+  },
+  {
+    id: "business-01",
+    type: "episode",
+    category: "BUSINESS",
+    title: "Elite Communication",
+    img: "/images/business-elite.jpg",
+    height: "aspect-[3/4]",
+    ep: "01",
+    href: "/course/business/business-01",
   },
 ];
 
 export default function Dashboard() {
+  const containerRef = useRef(null);
+  const { scrollY } = useScroll();
+  
+  // 控制手机菜单的状态
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // 修复滚动穿透：当菜单打开时锁定 body 滚动
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      // 锁定 body 滚动
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+      document.body.style.height = "100%";
+    } else {
+      // 恢复滚动
+      document.body.style.overflow = "unset";
+      document.body.style.position = "unset";
+      document.body.style.width = "unset";
+      document.body.style.height = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+      document.body.style.position = "unset";
+      document.body.style.width = "unset";
+      document.body.style.height = "unset";
+    };
+  }, [isMobileMenuOpen]);
+
+  /* ✅ 水印标题 (Sticky & Fade) */
+  const headerOpacity = useTransform(scrollY, [0, 500], [1, 0.08]);
+  const headerBlur = useTransform(scrollY, [0, 500], ["0px", "8px"]);
+  const headerScale = useTransform(scrollY, [0, 500], [1, 0.95]);
+
   return (
-    <div className="min-h-screen w-full bg-ecru relative selection:bg-plum-wine selection:text-ecru">
-      
-      {/* 1. 全局纹理背景 */}
-      <div className="pointer-events-none fixed inset-0 z-0 bg-noise" />
+    <div
+      ref={containerRef}
+      className="min-h-screen w-full bg-[#F7F8F9] text-[#2D0F15] relative selection:bg-[#2D0F15] selection:text-[#F7F8F9]"
+    >
+      {/* 纹理层 */}
+      <div 
+        className="pointer-events-none fixed inset-0 z-0 opacity-[0.04] mix-blend-multiply" 
+        style={{
+             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper-fine'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper-fine)'/%3E%3C/svg%3E")`,
+        }}
+      />
 
-      {/* 2. 侧边栏 */}
-      <Sidebar />
-
-      {/* 3. 顶部导航 */}
-      <header className="relative z-10 flex w-full items-center justify-between px-8 py-8 md:px-16">
-        <Link href="/" className="text-xs font-bold tracking-[0.2em] text-plum-wine uppercase hover:opacity-70 transition-opacity">
-          Aesthetic English
+      {/* ── 顶部导航 ── */}
+      <header className="fixed top-0 z-50 w-full px-6 py-5 flex items-center justify-between mix-blend-multiply pointer-events-none">
+        <Link
+          href="/"
+          className="group flex items-center gap-2 opacity-40 hover:opacity-100 transition-opacity duration-500 pointer-events-auto"
+        >
+          <ArrowLeft size={16} strokeWidth={1} className="group-hover:-translate-x-1 transition-transform text-[#2D0F15]" />
+          <span className="hidden md:inline text-[9px] uppercase tracking-[0.2em] font-sans text-[#2D0F15]">
+            Landing
+          </span>
         </Link>
-        <div className="flex items-center gap-2 text-[10px] tracking-widest text-plum-wine/60">
-          <span className="h-2 w-2 rounded-full bg-plum-wine/30 animate-pulse" />
-          GALLERY VIEW
-        </div>
+
+        {/* 手机端菜单按钮 */}
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="md:hidden pointer-events-auto flex items-center gap-2 opacity-60 active:opacity-100 text-[#2D0F15]"
+        >
+          <Menu size={20} strokeWidth={1} />
+        </button>
+
       </header>
 
-      {/* 4. 主要内容区 */}
-      <main className="relative z-10 mx-auto max-w-7xl px-6 pb-20 md:px-16">
+      {/* 手机端侧滑抽屉 (The Plum Wine Drawer) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            {/* 黑色遮罩 (点击关闭) */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.4 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 z-[60] bg-[#101211] md:hidden backdrop-blur-[2px]"
+            />
+
+            {/* 侧滑内容区 (铺满整个屏幕, Plum Wine 纯色背景) */}
+            <motion.aside
+              initial={{ x: "-100%" }}
+              animate={{ x: "0%" }}
+              exit={{ x: "-100%" }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 300, 
+                damping: 35,
+                mass: 1 
+              }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={{ left: 0.1, right: 0 }}
+              onDragEnd={(e, { offset, velocity }) => {
+                 if (offset.x < -100 || velocity.x < -500) setIsMobileMenuOpen(false);
+              }}
+              className="fixed inset-0 z-[70] bg-[#2D0F15] text-[#F7F8F9] flex flex-col justify-center items-center p-8 md:hidden overflow-hidden"
+            >
+              {/* 轻微噪点纹理 */}
+              <div 
+                 className="absolute inset-0 pointer-events-none opacity-[0.02]" 
+                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }} 
+              />
+
+              {/* 中间：目录列表 - 完全居中 */}
+              <nav className="flex flex-col gap-6 relative z-10 items-center justify-center">
+                 {[
+                   { label: "Daily Aesthetics", href: "/course/daily", isMain: true },
+                   { label: "Cognitive Growth", href: "/course/cognitive", isMain: true },
+                   { label: "Business Female", href: "/course/business", isMain: true }
+                 ].map((item, i) => (
+                    <motion.div
+                      key={item.label}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 + (i * 0.05), duration: 0.5 }}
+                    >
+                      <Link 
+                        href={item.href} 
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="group flex items-center justify-center pb-4"
+                      >
+                         <span className="text-[#150609] opacity-90 text-center text-4xl font-serif font-bold tracking-[0.25em] uppercase" style={{ WebkitTextStroke: "1px #F7F8F9", textShadow: "-1.5px -1.5px 0 #000000, 1.5px -1.5px 0 #000000, -1.5px 1.5px 0 #000000, 1.5px 1.5px 0 #000000, 0 -1.5px 0 #000000, 0 1.5px 0 #000000, -1.5px 0 0 #000000, 1.5px 0 0 #000000" }}>
+                           {item.label}
+                         </span>
+                      </Link>
+                    </motion.div>
+                 ))}
+              </nav>
+
+              {/* 底部：Notes 和 Subscribe - 固定在底部 */}
+              <div className="absolute bottom-8 left-0 right-0 z-10 flex flex-col items-center gap-4">
+                 <Link 
+                   href="/dashboard/notebook" 
+                   onClick={() => setIsMobileMenuOpen(false)}
+                   className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
+                 >
+                   Notes
+                 </Link>
+                 <Link 
+                   href="/subscribe" 
+                   onClick={() => setIsMobileMenuOpen(false)}
+                   className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
+                 >
+                   Subscribe
+                 </Link>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── 标题：大字号 + 固定水印 ── */}
+      <motion.section
+        style={{ 
+          opacity: headerOpacity, 
+          filter: `blur(${headerBlur as any})`, 
+          scale: headerScale 
+        }}
+        className="fixed top-28 left-0 w-full px-6 z-[5] md:z-0 pointer-events-none origin-top-left bg-[#F7F8F9] md:bg-transparent"
+      >
+        <h1 className="font-serif font-bold text-[13vw] md:text-[9.5rem] leading-[0.85] tracking-[-0.04em] text-[#2D0F15] mix-blend-multiply">
+          Aesthetic <br /> English
+        </h1>
+      </motion.section>
+
+      {/* 占位高度 */}
+      <div className="h-[40vh] md:h-[50vh] w-full pointer-events-none" />
+
+      {/* ── 核心布局 ── */}
+      <main className="relative z-10 px-0 grid grid-cols-1 md:grid-cols-12 min-h-screen pb-20">
         
-        {/* 标题区 */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-12 flex flex-col gap-3"
-        >
-          <h1 className="font-serif text-4xl md:text-5xl text-plum-wine italic">
-            Curated Collections
-          </h1>
-          <div className="flex items-center gap-4">
-            <div className="h-[1px] w-12 bg-plum-wine/30" />
-            <p className="text-xs uppercase tracking-[0.15em] text-plum-wine/80">
-              Select your path
-            </p>
-          </div>
-        </motion.div>
-
-        {/* 网格卡片区 */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-12 md:gap-6 md:auto-rows-[180px]">
-          {SECTIONS.map((section, index) => {
-            const isDark = section.id === "business";
-
-            return (
-              <Link 
-                key={section.id} 
-                href={`/course/${section.id}`} 
-                className={`${section.grid} group relative block overflow-hidden rounded-sm shadow-sm hover:shadow-2xl transition-shadow duration-500`}
-              >
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.1, duration: 0.6 }}
-                  className={`h-full w-full ${section.bg} ${section.text} relative flex flex-col justify-between overflow-hidden p-8 transition-all duration-700`}
-                >
-                  {/* --- 背景显影层 (Business高亮版) --- */}
-                  <div className={`
-                    absolute inset-0 z-0 
-                    opacity-0 transition-all duration-1000 
-                    /* Business (isDark): 
-                       - opacity-80: 大幅提升可见度
-                       - mix-blend-overlay: 保持金属光泽
-                    */
-                    ${isDark ? 'group-hover:opacity-80 mix-blend-overlay' : 'group-hover:opacity-25 mix-blend-multiply'}
-                  `}>
-                    <img 
-                      src={section.img} 
-                      alt="" 
-                      className={`
-                        h-full w-full object-cover transition-transform duration-[3000ms] group-hover:scale-105
-                        /* Daily: 暖调 */
-                        ${index === 0 ? 'sepia-[0.2] contrast-[1.1]' : ''}
-                        /* Cognitive: 灰调 */
-                        ${index === 1 ? 'grayscale-[90%] contrast-[1.2] brightness-110' : ''}
-                        /* Business: 亮度大幅提升 (brightness-150)，让白线发光 */
-                        ${index === 2 ? 'grayscale-[100%] contrast-[1.4] brightness-150' : ''}
-                      `} 
-                    />
-                  </div>
-
-                  {/* --- 双层边框 --- */}
-                  <div className={`absolute inset-0 border pointer-events-none ${isDark ? 'border-ecru/5' : 'border-plum-wine/5'}`} />
-                  <div className={`
-                    absolute inset-4 border opacity-0 scale-95 transition-all duration-500 group-hover:opacity-100 group-hover:scale-100 pointer-events-none
-                    ${isDark ? 'border-ecru/30' : 'border-plum-wine/30'}
-                  `} />
-
-                  {/* --- 策展印章 --- */}
-                  <div className="absolute top-6 right-6 z-20 flex flex-col items-end opacity-40 group-hover:opacity-100 transition-opacity duration-500">
-                    <div className={`text-3xl font-serif italic ${isDark ? 'text-ecru/20' : 'text-plum-wine/20'} group-hover:text-plum-wine transition-colors duration-500`}>
-                      0{index + 1}
-                    </div>
-                    <div className={`h-[1px] w-8 ${isDark ? 'bg-ecru/20' : 'bg-plum-wine/20'} mt-1`} />
-                  </div>
-
-                  {/* --- 内容层 --- */}
-                  <div className="relative z-10">
-                    <span className="text-[9px] uppercase tracking-[0.25em] opacity-70 block mb-2">
-                      {section.subtitle}
-                    </span>
-                    <h2 className="font-serif text-3xl md:text-4xl italic leading-tight">
-                      {section.title}
-                    </h2>
-                  </div>
-
-                  <div className="relative z-10 flex items-end justify-between mt-8 md:mt-0">
-                    <p className="max-w-[220px] text-[11px] font-light leading-relaxed opacity-80">
-                      {section.description}
-                    </p>
-                    
-                    {/* 箭头交互 */}
-                    <div className={`flex items-center justify-center w-9 h-9 rounded-full border ${isDark ? 'border-ecru/30 text-ecru' : 'border-plum-wine/30 text-plum-wine'} transition-all duration-500 group-hover:bg-plum-wine group-hover:border-plum-wine group-hover:text-ecru`}>
-                      <ArrowUpRight className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                </motion.div>
+        {/* === 左侧菜单 (Index) - 仅网页端显示 === */}
+        <aside className="hidden md:flex md:col-span-5 p-10 sticky top-[15vh] h-[70vh] flex-col justify-between mix-blend-multiply z-20 -translate-y-12">
+          <div /> 
+          <ul className="space-y-0 w-full text-right pr-18"> 
+            {["Daily", "Cognitive", "Business"].map((item) => (
+              <li key={item} className="group relative w-full flex justify-end">
+                <Link href={`/course/${item.toLowerCase()}`} className="block relative z-10">
+                  <span className="font-serif text-[2.75rem] md:text-[3.25rem] block transition-all duration-500 group-hover:italic cursor-pointer text-[#2D0F15] hover:opacity-70 tracking-tight">
+                    {item}
+                  </span>
+                </Link>
+              </li>
+            ))}
+            <li className="pt-8 mt-4 border-t border-[#2D0F15]/10">
+              <Link href="/dashboard/notebook" className="block text-right group">
+                <span className="font-serif text-4xl italic text-[#2D0F15]/60 group-hover:text-[#2D0F15] transition-colors">
+                  Notes
+                </span>
               </Link>
-            );
-          })}
+            </li>
+          </ul>
+          <div className="w-full flex justify-end pr-18">
+            <span className="font-sans text-[9px] uppercase tracking-[0.25em] opacity-40 text-[#2D0F15]">
+              Subscribe
+            </span>
+          </div>
+        </aside>
+
+        {/* === 右侧：瀑布流 (Right High, Left Low) === */}
+        <div className="col-span-1 md:col-span-7 px-5 md:px-0 md:pr-12 mt-6 md:-mt-20 md:-ml-20">
+          
+          {/* 移动端：单列错落布局 */}
+          <div className="flex flex-col gap-9 md:hidden">
+            <MoodCard item={VISUAL_STREAM[1]} index={1} />
+            <EpisodeCard item={VISUAL_STREAM[0]} index={0} />
+            <MoodCard item={VISUAL_STREAM[2]} index={2} />
+            <EpisodeCard item={VISUAL_STREAM[6]} index={6} />
+            <MoodCard item={VISUAL_STREAM[4]} index={4} />
+          </div>
+
+          {/* 网页端：双列布局 */}
+          <div className="hidden md:grid md:grid-cols-[1.4fr_1.6fr] gap-9">
+            
+            {/* 左列 (Left Low) */}
+            <div className="flex flex-col gap-9 pt-32">
+               <EpisodeCard item={VISUAL_STREAM[0]} index={0} />
+               <MoodCard item={VISUAL_STREAM[1]} index={1} />
+               <MoodCard item={VISUAL_STREAM[2]} index={2} />
+               <MoodCard item={VISUAL_STREAM[3]} index={3} />
+            </div>
+
+            {/* 右列 (Right High) */}
+            <div className="flex flex-col gap-9 pt-4">
+               <MoodCard item={VISUAL_STREAM[5]} index={5} />
+               <MoodCard item={VISUAL_STREAM[4]} index={4} />
+               <EpisodeCard item={VISUAL_STREAM[6]} index={6} />
+               <EpisodeCard item={VISUAL_STREAM[7]} index={7} />
+            </div>
+
+          </div>
+
         </div>
       </main>
+
+      <footer className="py-8 text-center border-t border-[#2D0F15]/5 opacity-40 relative z-10 bg-[#F7F8F9]">
+        <p className="text-[8px] uppercase tracking-[0.3em] font-sans text-[#2D0F15]">
+          Created by Scarlett Zhang
+        </p>
+      </footer>
     </div>
+  );
+}
+
+// ─── 子组件定义 (确保这些在 Dashboard 函数外部) ───
+function EpisodeCard({ item, index }: { item: any; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 0 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-10%" }}
+      transition={{ duration: 0.6, delay: 0, ease: [0.22, 1, 0.36, 1] }}
+      className="group cursor-pointer w-full"
+    >
+      <Link href={item.href || "#"}>
+        <div className={`relative w-full ${item.height} overflow-hidden bg-[#2D0F15]/5`}>
+          <img src={item.img} alt={item.title} className="w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-[3.26] scale-[3.2]" />
+        </div>
+        <div className="mt-5 pr-2">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-[#2D0F15]/40 mb-3">{item.category} — EP.{item.ep}</p>
+          <h3 className="font-serif text-3xl md:text-3xl text-[#2D0F15] leading-[1.1] group-hover:italic transition-all">{item.title}</h3>
+        </div>
+      </Link>
+    </motion.div>
+  );
+}
+
+function MoodCard({ item, index }: { item: any; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 1, delay: index * 0.1 }}
+      className="pointer-events-none select-none relative w-full"
+    >
+      <div className={`relative w-full ${item.height} overflow-hidden`}>
+        <motion.img
+          src={item.img}
+          alt="mood"
+          animate={{ scale: [3.2, 3.26, 3.2] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="w-full h-full object-cover grayscale-[20%] opacity-90 mix-blend-multiply"
+        />
+      </div>
+    </motion.div>
   );
 }

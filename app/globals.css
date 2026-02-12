@@ -1,60 +1,156 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Aesthetic English — Global Design System
+   
+   Visual References:
+   - Cosmos.so: Visual hierarchy, glassmorphism, subtle motion
+   - FWRD.com: Serif/sans mixing, uppercase labels, editorial feel
+   
+   Font Strategy (China-safe, zero network loading):
+   - Serif (headings): Didot → Georgia → Times New Roman → Songti SC
+   - Sans (body/UI):   Verdana → PingFang SC → system-ui
+   - Mono (code):      SF Mono → Menlo → Courier New
+   ============================================================ */
+
 @theme {
-  /* --- 核心色板 --- */
-  --color-ecru: #F2EFE5;
+  /* --- Core Palette (Paper White & Wine) --- */
+  --color-paper-white: #F7F8F9;
   --color-plum-wine: #2D0F15;
-  --color-carbon: #101211; 
-  
-  /* --- 辅助色板 --- */
+  --color-carbon: #101211;
+
+  /* --- Supporting Palette --- */
   --color-powder-blue: #D8E3E7;
   --color-golden-sand: #857861;
   --color-bone-white: #D6CBB9;
-  
-  /* --- 字体 --- */
-  --font-sans: Verdana, sans-serif;
+
+  /* --- Font Stacks (system-level, China-safe) --- */
+  --font-sans: Verdana, -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: Didot, Georgia, "Times New Roman", "Noto Serif", "Songti SC", "SimSun", serif;
+  --font-mono: "SF Mono", Menlo, "Courier New", monospace;
 }
 
+/* ============================================================
+   Base Layer
+   ============================================================ */
+
 @layer base {
+  html {
+    /* Prevent iOS text size adjust on rotation */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Smooth scroll for anchor links */
+    scroll-behavior: smooth;
+  }
+
   body {
-    background-color: transparent;
-    
-    /* 强制使用最深色，确保即使开启抗锯齿也足够清晰 */
-    color: #000000;
-    
-    /* ✅ 优化：回归抗锯齿 (Matte Finish) 
-       既然我们已经在组件里强制了纯黑 (#000000)，
-       这里开启抗锯齿能消除像素棱角，带来像纸张印刷一样的“亚光”柔和感。
-    */
+    background-color: var(--color-paper-white);
+    /* 严禁纯黑 #000 — 使用 plum-wine 作为基础文字色 */
+    color: var(--color-plum-wine);
+    font-family: var(--font-sans);
+
+    /* Matte Finish: 亚光印刷感 + 轻微对比度营造哑光印刷感 */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    
-    letter-spacing: -0.015em;
+    filter: contrast(1.015);
+
+    /* FWRD-style: Body text 轻微收紧字间距 */
+    letter-spacing: -0.01em;
+    line-height: 1.6;
+
+    /* Prevent overscroll bounce on mobile */
+    overscroll-behavior: none;
+  }
+
+  /* FWRD-style typography hierarchy */
+  h1, h2, h3, h4 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.02em;
+    line-height: 0.95;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background-color: var(--color-plum-wine);
+    color: var(--color-paper-white);
   }
 }
 
+/* ============================================================
+   Scrollbar: Hidden globally for clean aesthetic
+   ============================================================ */
+
 ::-webkit-scrollbar {
   width: 0px;
+  height: 0px;
   background: transparent;
 }
 
-/* 🎨 亚光磨砂纹理层 (Matte Grain)
-   优化思路：
-   1. 提高 baseFrequency -> 颗粒更细，像高档磨砂纸，不像脏点。
-   2. 使用 mix-blend-mode: overlay -> 让纹理融入背景色，而不是浮在表面。
-   3. 极低透明度 -> 若隐若现，提供质感但不干扰阅读。
-*/
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   Noise Texture: 300g Art Paper grain
+   ============================================================ */
+
 .bg-noise {
   pointer-events: none;
-  z-index: 0; /* 确保在最底层，但在背景色之上 */
-  
-  /* 升级版 SVG：更细腻的高频噪点 */
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
-  
-  /* 关键：使用 overlay 混合模式，让颗粒感“吃”进背景里，
-     在浅色背景上它会增加质感，而不会导致颜色发灰变脏。 */
-  mix-blend-mode: overlay;
-  
-  /* 调整透明度：太高会脏，太低没质感，0.15 是 overlay 模式下的黄金值 */
-  opacity: 0.15; 
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 800 800' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='fineGrain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.8' numOctaves='5' seed='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23fineGrain)' opacity='0.15'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+  opacity: 1;
+}
+
+.matte-surface {
+  backdrop-filter: blur(0.4px);
+  -webkit-backdrop-filter: blur(0.4px);
+  filter: contrast(1.02);
+}
+
+/* ============================================================
+   Glassmorphism Utilities (Cosmos-inspired)
+   ============================================================ */
+
+.glass {
+  background: rgba(242, 239, 229, 0.65);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.glass-dark {
+  background: rgba(45, 15, 21, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* ============================================================
+   Mobile Safe Area (iPhone X+ notch/home bar)
+   ============================================================ */
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ============================================================
+   Touch Feedback (Mobile)
+   ============================================================ */
+
+@media (hover: none) {
+  .touch-active:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+    transition: all 0.1s ease-out;
+  }
 }
