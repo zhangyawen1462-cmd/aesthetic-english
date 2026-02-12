@@ -46,22 +46,25 @@ Get to the point quickly and efficiently.
 快速高效地切入重点。`,
 
     vocab: [
-      { word: "concise", phonetic: "/kənˈsaɪs/", meaning: "简洁的", example: "Keep your message concise." },
-      { word: "clarity", phonetic: "/ˈklærəti/", meaning: "清晰", example: "Clarity is key in communication." },
+      { id: 1, word: "concise", phonetic: "/kənˈsaɪs/", def: "brief and clear", defCn: "简洁的", ex: "Keep your message concise." },
+      { id: 2, word: "clarity", phonetic: "/ˈklærəti/", def: "the quality of being clear", defCn: "清晰", ex: "Clarity is key in communication." },
     ],
 
     grammar: [
-      { title: "Value A over B", explanation: "表示更重视A而非B", example: "CEOs value clarity over complexity.", timestamp: 2.6 },
+      { id: 1, point: "Value A over B", desc: "表示更重视A而非B", ex: "CEOs value clarity over complexity.", start: 2.6 },
     ],
 
     recall: {
-      question: "What is the first tip for speaking like a CEO?",
-      answer: "Be concise and direct.",
+      cn: "第一条建议：简洁直接。CEO们重视清晰胜过复杂。",
+      en: "Tip number one: Be concise and direct. CEOs value clarity over complexity.",
     },
 
     salon: {
-      topic: "Executive Communication",
-      prompts: ["How do you practice concise communication?", "What makes a CEO's speech effective?"],
+      openingLine: "Executive Communication Strategies",
+      topics: [
+        { id: "1", title: "Concise Communication", description: "How do you practice concise communication?" },
+        { id: "2", title: "Executive Presence", description: "What makes a CEO's speech effective?" },
+      ],
     },
   },
 
