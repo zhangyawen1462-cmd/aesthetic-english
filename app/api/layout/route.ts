@@ -78,7 +78,7 @@ export async function GET() {
     for (const page of response.results) {
       if (!('properties' in page)) continue;
       
-      const props = page.properties;
+      const props = page.properties as any;
       const lessonId = props.Lesson_ID?.title?.[0]?.plain_text || '';
       const displayPosition = props.Display_Position?.select?.name || '';
       const sortOrder = props.Sort_Order?.number || 0;
