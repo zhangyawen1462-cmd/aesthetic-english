@@ -120,7 +120,7 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
                     {/* 图片 */}
                     <img 
                       src={course.coverImg} 
-                      alt={course.titleEN} 
+                      alt={course.titleEn} 
                       className="w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-105"
                     />
                     
