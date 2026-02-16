@@ -5,8 +5,8 @@
 import { NextResponse } from 'next/server';
 import { getDailyCinemaLayout } from '@/lib/notion-client';
 
-// ISR: 每小时重新验证一次
-export const revalidate = 3600;
+// ISR: 每5分钟重新验证一次
+export const revalidate = 300;
 
 export async function GET() {
   try {
