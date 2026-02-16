@@ -88,7 +88,17 @@ export default function CoursePage() {
         const response = await fetch(`/api/lessons/${courseId}`);
         const data = await response.json();
         if (data.success) {
-          setLesson(data.data);
+          const lessonData = data.data;
+          
+          // 调试日志：检查视频 URL
+          console.log('📹 Lesson Data:', {
+            id: lessonData.id,
+            videoUrl: lessonData.videoUrl,
+            coverImg: lessonData.coverImg,
+            hasVideo: !!lessonData.videoUrl,
+          });
+          
+          setLesson(lessonData);
         }
       } catch (error) {
         console.error('Failed to fetch lesson:', error);
@@ -408,7 +418,7 @@ export default function CoursePage() {
           </p>
         </div>
 
-        {lesson.videoUrl ? (
+        {lesson.videoUrl && lesson.videoUrl.trim() !== '' ? (
           <video
             ref={videoRef}
             src={lesson.videoUrl}
@@ -416,13 +426,22 @@ export default function CoursePage() {
             onClick={togglePlay}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
+            onError={(e) => {
+              console.error('❌ Video load error:', {
+                src: lesson.videoUrl,
+                error: e,
+              });
+            }}
             playsInline
             aria-label={`${lesson.titleEn} 视频播放器`}
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-white/30">
+          <div className="w-full h-full flex flex-col items-center justify-center text-white/30 px-6">
             <Play size={32} className="mb-3 opacity-30" />
-            <p className="text-[10px] uppercase tracking-[0.15em]">Video Coming Soon</p>
+            <p className="text-[10px] uppercase tracking-[0.15em] mb-2">Video Coming Soon</p>
+            <p className="text-[8px] text-white/20 text-center max-w-xs">
+              This lesson doesn&apos;t have a video yet. Please check back later.
+            </p>
           </div>
         )}
 
@@ -432,7 +451,7 @@ export default function CoursePage() {
           style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}
         />
 
-        {!isPlaying && lesson.videoUrl && (
+        {!isPlaying && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
           <div onClick={togglePlay} className="absolute inset-0 flex flex-col items-center justify-center bg-black/20 cursor-pointer z-[25] touch-manipulation">
             <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg active:scale-95 transition-transform">
               <Play size={isMobile ? 28 : 32} className="text-white ml-0.5" fill="currentColor" />
@@ -443,7 +462,7 @@ export default function CoursePage() {
         )}
 
         {/* 视频进度条：流畅的液态动画 - 根据状态显示/隐藏 */}
-        {lesson.videoUrl && (
+        {lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
           <motion.div 
             className="absolute bottom-0 left-0 right-0 z-30 group/progress"
             initial={{ opacity: 0, y: 10 }}

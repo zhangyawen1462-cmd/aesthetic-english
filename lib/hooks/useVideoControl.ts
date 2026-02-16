@@ -13,8 +13,18 @@ export function useVideoControl(videoRef: RefObject<HTMLVideoElement | null>) {
 
   const togglePlay = useCallback(() => {
     if (!videoRef.current) return;
+    
+    // 检查视频源是否有效
+    if (!videoRef.current.src || videoRef.current.src === '') {
+      console.warn('Video source is empty or invalid');
+      return;
+    }
+    
     if (videoRef.current.paused) {
-      videoRef.current.play();
+      videoRef.current.play().catch((error) => {
+        console.error('Failed to play video:', error);
+        setIsPlaying(false);
+      });
       setIsPlaying(true);
     } else {
       videoRef.current.pause();
@@ -25,8 +35,18 @@ export function useVideoControl(videoRef: RefObject<HTMLVideoElement | null>) {
   const handleSeek = useCallback(
     (time: number) => {
       if (!videoRef.current) return;
+      
+      // 检查视频源是否有效
+      if (!videoRef.current.src || videoRef.current.src === '') {
+        console.warn('Video source is empty or invalid');
+        return;
+      }
+      
       videoRef.current.currentTime = time;
-      videoRef.current.play();
+      videoRef.current.play().catch((error) => {
+        console.error('Failed to play video after seek:', error);
+        setIsPlaying(false);
+      });
       setIsPlaying(true);
     },
     [videoRef]

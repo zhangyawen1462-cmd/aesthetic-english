@@ -121,7 +121,7 @@ export async function POST(request: Request) {
         title: [{ text: { content: lessonId } }]
       },
       [NOTION_FIELDS.LESSON.STATUS]: {
-        select: { name: 'Published' }  // 直接设为 Published，立即可见
+        select: { name: 'Draft' }  // 先设为 Draft，审核后再改为 Published
       },
       [NOTION_FIELDS.LESSON.DATE]: {
         date: { start: new Date().toISOString().split('T')[0] }

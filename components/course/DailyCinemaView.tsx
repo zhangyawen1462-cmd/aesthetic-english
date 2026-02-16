@@ -100,7 +100,49 @@ export default function DailyCinemaView() {
   if (isLoading) {
     return (
       <div className="min-h-screen w-full bg-[#F7F8F9] flex items-center justify-center">
-        <div className="text-[#2D0F15] text-sm">加载中...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-[#2D0F15] border-t-transparent rounded-full animate-spin" />
+          <p className="text-[#2D0F15] text-sm opacity-60">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 检查是否所有槽位都为空
+  const hasContent = slots.some(slot => slot !== null);
+
+  if (!hasContent) {
+    return (
+      <div className="min-h-screen w-full bg-[#F7F8F9] flex flex-col items-center justify-center px-6">
+        {/* 全局纹理 */}
+        <div
+          className="pointer-events-none fixed inset-0 z-0 opacity-[0.03] mix-blend-multiply"
+          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }}
+        />
+        
+        {/* Header */}
+        <header className="fixed top-0 left-0 right-0 z-50 px-4 md:px-5 py-3 md:py-4 flex items-center justify-between bg-[#F7F8F9]/90 backdrop-blur-md border-b border-[#2D0F15]/5">
+          <Link href="/dashboard" className="opacity-60 hover:opacity-100 transition-opacity">
+            <ArrowLeft size={18} className="md:w-5 md:h-5" strokeWidth={1} />
+          </Link>
+          <h1 className="text-[14px] md:text-[20px] uppercase tracking-[0.2em] md:tracking-[0.25em] font-bold text-[#2D0F15]">Daily Aesthetic</h1>
+          <div className="w-[18px] md:w-5" />
+        </header>
+
+        {/* 空状态提示 */}
+        <div className="text-center text-[#2D0F15]/60 relative z-10">
+          <div className="mb-6 opacity-20">
+            <Play size={64} className="mx-auto" />
+          </div>
+          <h2 className="text-2xl font-serif mb-3 text-[#2D0F15]">暂无内容</h2>
+          <p className="text-sm mb-6 opacity-60">请在后台上传课程后刷新页面</p>
+          <Link 
+            href="/admin/publish" 
+            className="inline-block text-xs uppercase tracking-wider px-6 py-3 border border-[#2D0F15]/20 hover:bg-[#2D0F15] hover:text-[#F7F8F9] transition-all"
+          >
+            前往上传
+          </Link>
+        </div>
       </div>
     );
   }

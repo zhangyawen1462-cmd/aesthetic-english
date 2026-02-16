@@ -50,8 +50,10 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
           <img 
             src={MANHATTAN_BG} 
             alt="Manhattan Skyline" 
-            className="w-full h-full object-cover opacity-60 mix-blend-luminosity"
+            className="w-full h-full object-cover"
           />
+          {/* 深色遮罩层 */}
+          <div className="absolute inset-0 bg-[#2D0F15]/40" />
         </div>
       </div>
 
@@ -93,8 +95,12 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
               <div className="w-8 h-8 border-2 border-[#F7F8F9] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : featuredData.length === 0 ? (
-            <div className="text-center text-[#F7F8F9]/60">
-              <p className="text-lg">暂无课程</p>
+            <div className="text-center text-[#F7F8F9]/60 px-6">
+              <div className="mb-4 opacity-30">
+                <Play size={48} className="mx-auto" />
+              </div>
+              <p className="text-lg mb-2">暂无课程</p>
+              <p className="text-sm opacity-60">请在后台上传课程后刷新页面</p>
             </div>
           ) : (
             <>

@@ -12,7 +12,7 @@ interface CognitiveCatalogViewProps {
 
 export default function CognitiveCatalogView({ category }: CognitiveCatalogViewProps) {
   // 深邃星空背景（符合 Cognitive 主题）
-  const COSMIC_BG = "/images/cosmic-night.jpg"; 
+  const COSMIC_BG = "/images/daily-sketch_16x9.jpg"; 
   
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -50,8 +50,10 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
           <img 
             src={COSMIC_BG} 
             alt="Cosmic Background" 
-            className="w-full h-full object-cover opacity-60 mix-blend-luminosity"
+            className="w-full h-full object-cover"
           />
+          {/* 深色遮罩层 */}
+          <div className="absolute inset-0 bg-[#0A1628]/40" />
         </div>
       </div>
 
@@ -94,8 +96,12 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
               <div className="w-8 h-8 border-2 border-[#E8F4F8] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : featuredData.length === 0 ? (
-            <div className="text-center text-[#E8F4F8]/60">
-              <p className="text-lg">暂无课程</p>
+            <div className="text-center text-[#E8F4F8]/60 px-6">
+              <div className="mb-4 opacity-30">
+                <Play size={48} className="mx-auto" />
+              </div>
+              <p className="text-lg mb-2">暂无课程</p>
+              <p className="text-sm opacity-60">请在后台上传课程后刷新页面</p>
             </div>
           ) : (
             <>

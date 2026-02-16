@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Upload, Sparkles, Layout, FileText, Scissors, Image } from 'lucide-react';
+import { Upload, Sparkles, Layout, FileText, Scissors, Image, Link as LinkIcon } from 'lucide-react';
 
 export default function AdminPage() {
   const tools = [
@@ -39,6 +39,13 @@ export default function AdminPage() {
       href: '/admin/upload',
       icon: Upload,
       color: 'from-green-500 to-emerald-500',
+    },
+    {
+      title: '🔗 OSS 链接转换器',
+      description: '一键将旧的 OSS 链接转换为正式 CDN 链接',
+      href: '/admin/link-converter',
+      icon: LinkIcon,
+      color: 'from-cyan-500 to-blue-500',
     },
   ];
 

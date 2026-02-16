@@ -26,12 +26,16 @@ export default function ModuleBlind({ isPlaying, playbackRate, theme, setPlaybac
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden" style={{ backgroundColor: theme.bg }}>
       
-      {/* ─── 1. 背景层：极致柔化 ─── */}
+      {/* ─── 1. 背景层：极致柔化 - 使用 CSS 渐变替代缺失的图片 ─── */}
       <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
         <div 
           className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000"
           style={{ 
-            backgroundImage: `url('/images/module-bg/blind.jpg')`, 
+            background: `
+              radial-gradient(circle at 50% 50%, rgba(0,0,0,0.08) 0%, transparent 70%),
+              radial-gradient(circle at 20% 80%, rgba(0,0,0,0.05) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(0,0,0,0.05) 0%, transparent 50%)
+            `,
             opacity: 0.03,
             mixBlendMode: 'multiply',
             filter: 'blur(4px) grayscale(80%)',

@@ -2,82 +2,12 @@
 
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Menu, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Menu, X, Play } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import * as React from "react";
 import type { Lesson } from "@/data/types";
 
-/* ─── 视觉混合流数据 (3:4、1:1 和 9:16 比例) - 后备数据 ─── */
-const MOCK_VISUAL_STREAM = [
-  /* Column 1 (Left) */
-  {
-    id: "cheer-01",
-    type: "episode",
-    category: "DAILY",
-    title: "Dallas Cowboys Christmas",
-    img: "https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com/cover-cheer.jpg",
-    height: "aspect-[3/4]",
-    ep: "01",
-    href: "/course/daily/cheer-01",
-  },
-  {
-    id: "mood-1",
-    type: "mood",
-    img: "/images/daily-sketch.jpg",
-    height: "aspect-square", // 1:1
-    caption: "Quiet mornings.",
-  },
-  {
-    id: "vertical-story-left",
-    type: "episode",
-    category: "DAILY",
-    title: "Vertical Story",
-    img: "/images/business-elite.jpg",
-    height: "aspect-[3/4]",
-    ep: "02",
-    href: "/course/daily/vertical-story-left",
-    caption: "Vertical moment.",
-  },
-  {
-    id: "mood-3",
-    type: "mood",
-    img: "/images/daily-sketch.jpg",
-    height: "aspect-square", // 1:1
-    caption: "Center moment.",
-  },
-  /* Column 2 (Right) */
-  {
-    id: "mood-2",
-    type: "mood",
-    img: "/images/business-elite.jpg",
-    height: "aspect-square", // 1:1 - 右列第一个
-    caption: "Words are free.",
-  },
-  {
-    id: "vertical-story",
-    type: "mood",
-    img: "/images/cognitive-text.jpg",
-    height: "aspect-[3/4]", // 改为 3:4 - 右列第二个
-    caption: "Vertical story.",
-  },
-  {
-    id: "flow-01",
-    type: "mood",
-    img: "/images/cognitive-text.jpg",
-    height: "aspect-[9/16]",
-    caption: "Flow moment.",
-  },
-  {
-    id: "business-01",
-    type: "episode",
-    category: "BUSINESS",
-    title: "Elite Communication",
-    img: "/images/business-elite.jpg",
-    height: "aspect-[3/4]",
-    ep: "01",
-    href: "/course/business/business-01",
-  },
-];
+
 
 export default function Dashboard() {
   const containerRef = useRef(null);
@@ -148,7 +78,7 @@ export default function Dashboard() {
         
         return stream;
       })()
-    : MOCK_VISUAL_STREAM;
+    : [];
 
   // 修复滚动穿透：当菜单打开时锁定 body 滚动
   useEffect(() => {
@@ -353,6 +283,20 @@ export default function Dashboard() {
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 border-2 border-[#2D0F15] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : lessons.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+              <div className="mb-6 opacity-20">
+                <Play size={64} className="mx-auto text-[#2D0F15]" />
+              </div>
+              <h2 className="text-2xl font-serif mb-3 text-[#2D0F15]">暂无内容</h2>
+              <p className="text-sm mb-6 text-[#2D0F15]/60">请在后台上传课程后刷新页面</p>
+              <Link 
+                href="/admin/publish" 
+                className="inline-block text-xs uppercase tracking-wider px-6 py-3 border border-[#2D0F15]/20 hover:bg-[#2D0F15] hover:text-[#F7F8F9] transition-all"
+              >
+                前往上传
+              </Link>
             </div>
           ) : (
           <>

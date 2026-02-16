@@ -24,9 +24,9 @@ const LAYOUT_SLOTS = {
     { id: 'slot-3', col: 'left', ratio: 'aspect-square', type: 'card', label: '左4' },
     // 右列（从上到下）- Dashboard 渲染顺序：4, 5, 6, 7
     { id: 'slot-4', col: 'right', ratio: 'aspect-square', type: 'card', label: '右1' },
-    { id: 'slot-5', col: 'right', ratio: 'aspect-[3/4]', type: 'card', label: '右2' },
+    { id: 'slot-5', col: 'right', ratio: 'aspect-[3/4]', type: 'video', label: '右2' },
     { id: 'slot-6', col: 'right', ratio: 'aspect-[9/16]', type: 'card', label: '右3' },
-    { id: 'slot-7', col: 'right', ratio: 'aspect-[3/4]', type: 'video', label: '右4' },
+    { id: 'slot-7', col: 'right', ratio: 'aspect-[3/4]', type: 'card', label: '右4' },
   ],
   dailyCinema: [
     // 实际渲染顺序：左列 0,2,4  右列 1,3,5
