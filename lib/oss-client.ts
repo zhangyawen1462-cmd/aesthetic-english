@@ -41,6 +41,29 @@ function getOSSClient() {
 }
 
 /**
+ * 将 OSS 默认 URL 转换为自定义 CDN URL
+ * @param ossUrl - OSS 返回的原始 URL
+ * @returns CDN URL
+ */
+function convertToCDNUrl(ossUrl: string): string {
+  const cdnDomain = process.env.OSS_CDN_DOMAIN;
+  
+  // 如果没有配置 CDN 域名，直接返回原始 URL
+  if (!cdnDomain) {
+    return ossUrl;
+  }
+
+  try {
+    const urlObj = new URL(ossUrl);
+    // 替换域名为 CDN 域名，保留路径
+    return `${cdnDomain}${urlObj.pathname}`;
+  } catch (error) {
+    devLog('⚠️ URL 转换失败，返回原始 URL:', error);
+    return ossUrl;
+  }
+}
+
+/**
  * 上传文件到阿里云 OSS
  * @param file - 文件对象
  * @param folder - 存储文件夹 ('images' | 'videos' | 'srt')
@@ -98,8 +121,11 @@ export async function uploadToOSS(
       }) as any;
     }
 
+    // 转换为 CDN URL
+    const cdnUrl = convertToCDNUrl(result.url);
     devLog('✅ OSS 上传成功:', result.url);
-    return result.url;
+    devLog('🌐 CDN URL:', cdnUrl);
+    return cdnUrl;
   } catch (error) {
     console.error('❌ OSS 上传失败:', error);
     throw new Error(`文件上传失败: ${error instanceof Error ? error.message : '未知错误'}`);
