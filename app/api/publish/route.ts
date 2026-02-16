@@ -197,7 +197,7 @@ export async function POST(request: Request) {
     const lessonPage = await notion.pages.create({
       parent: { database_id: DATABASES.lessons },
       properties: notionProperties
-    });
+    }) as any;
 
     // 5. 批量创建词汇、语法、回译数据（仅视频课程）
     const promises = [];
@@ -302,7 +302,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: baseMessage + aiWarning,
-      notionUrl: lessonPage.url,
+      notionUrl: (lessonPage as any).url,
       lessonId: lessonId,
       contentType: contentType,
       publishTarget: publishTarget,

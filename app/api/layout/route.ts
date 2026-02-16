@@ -141,8 +141,8 @@ export async function POST(request: NextRequest) {
         const pageId = await getPageIdByLessonId(lessonId);
         if (pageId) {
           // 获取课程信息以判断是否为纯图片卡片
-          const page = await notion.pages.retrieve({ page_id: pageId });
-          const properties = (page as any).properties;
+          const page = await notion.pages.retrieve({ page_id: pageId }) as any;
+          const properties = page.properties;
           
           // 判断是否为纯图片卡片（没有视频URL和标题）
           const hasVideo = properties.Video_URL?.url;
@@ -170,8 +170,8 @@ export async function POST(request: NextRequest) {
       if (lessonId) {
         const pageId = await getPageIdByLessonId(lessonId);
         if (pageId) {
-          const page = await notion.pages.retrieve({ page_id: pageId });
-          const properties = (page as any).properties;
+          const page = await notion.pages.retrieve({ page_id: pageId }) as any;
+          const properties = page.properties;
           
           const hasVideo = properties.Video_URL?.url;
           const hasTitle = properties.Title_CN?.rich_text?.[0]?.plain_text || properties.Title_EN?.rich_text?.[0]?.plain_text;
