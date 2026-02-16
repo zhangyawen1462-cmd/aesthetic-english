@@ -18,32 +18,32 @@ interface LayoutConfig {
 const LAYOUT_SLOTS = {
   dashboard: [
     // 左列（从上到下）- Dashboard 渲染顺序：0, 1, 2, 3
-    { id: 'slot-0', col: 'left', ratio: 'aspect-[3/4]', type: 'video' },     // 左1
-    { id: 'slot-1', col: 'left', ratio: 'aspect-square', type: 'card' },     // 左2
-    { id: 'slot-2', col: 'left', ratio: 'aspect-[3/4]', type: 'video' },     // 左3 (改为视频)
-    { id: 'slot-3', col: 'left', ratio: 'aspect-square', type: 'card' },     // 左4
+    { id: 'slot-0', col: 'left', ratio: 'aspect-[3/4]', type: 'video', label: '左1' },
+    { id: 'slot-1', col: 'left', ratio: 'aspect-square', type: 'card', label: '左2' },
+    { id: 'slot-2', col: 'left', ratio: 'aspect-[3/4]', type: 'video', label: '左3' },
+    { id: 'slot-3', col: 'left', ratio: 'aspect-square', type: 'card', label: '左4' },
     // 右列（从上到下）- Dashboard 渲染顺序：4, 5, 6, 7
-    { id: 'slot-4', col: 'right', ratio: 'aspect-square', type: 'card' },    // 右1
-    { id: 'slot-5', col: 'right', ratio: 'aspect-[3/4]', type: 'card' },     // 右2
-    { id: 'slot-6', col: 'right', ratio: 'aspect-[9/16]', type: 'card' },    // 右3 (改为 9:16 卡片)
-    { id: 'slot-7', col: 'right', ratio: 'aspect-[3/4]', type: 'video' },    // 右4
+    { id: 'slot-4', col: 'right', ratio: 'aspect-square', type: 'card', label: '右1' },
+    { id: 'slot-5', col: 'right', ratio: 'aspect-[3/4]', type: 'card', label: '右2' },
+    { id: 'slot-6', col: 'right', ratio: 'aspect-[9/16]', type: 'card', label: '右3' },
+    { id: 'slot-7', col: 'right', ratio: 'aspect-[3/4]', type: 'video', label: '右4' },
   ],
   dailyCinema: [
     // 实际渲染顺序：左列 0,2,4  右列 1,3,5
-    { id: 'slot-0', col: 'left', ratio: 'aspect-[9/16]', type: 'card', label: '左1' },      // index 0 -> 左列第1个
-    { id: 'slot-1', col: 'right', ratio: 'aspect-square', type: 'video', label: '右1' },    // index 1 -> 右列第1个
-    { id: 'slot-2', col: 'left', ratio: 'aspect-[3/4]', type: 'video', label: '左2' },      // index 2 -> 左列第2个
-    { id: 'slot-3', col: 'right', ratio: 'aspect-[9/16]', type: 'card', label: '右2' },     // index 3 -> 右列第2个
-    { id: 'slot-4', col: 'left', ratio: 'aspect-square', type: 'card', label: '左3' },      // index 4 -> 左列第3个
-    { id: 'slot-5', col: 'right', ratio: 'aspect-[3/4]', type: 'video', label: '右3' },     // index 5 -> 右列第3个
+    { id: 'slot-0', col: 'left', ratio: 'aspect-[9/16]', type: 'card', label: '左1' },
+    { id: 'slot-1', col: 'right', ratio: 'aspect-square', type: 'video', label: '右1' },
+    { id: 'slot-2', col: 'left', ratio: 'aspect-[3/4]', type: 'video', label: '左2' },
+    { id: 'slot-3', col: 'right', ratio: 'aspect-[9/16]', type: 'card', label: '右2' },
+    { id: 'slot-4', col: 'left', ratio: 'aspect-square', type: 'card', label: '左3' },
+    { id: 'slot-5', col: 'right', ratio: 'aspect-[3/4]', type: 'video', label: '右3' },
   ],
   cognitive: [
-    { id: 'slot-0', col: 'left', ratio: 'aspect-video', type: 'video' },
-    { id: 'slot-1', col: 'right', ratio: 'aspect-video', type: 'video' },
+    { id: 'slot-0', col: 'left', ratio: 'aspect-video', type: 'video', label: '左1' },
+    { id: 'slot-1', col: 'right', ratio: 'aspect-video', type: 'video', label: '右1' },
   ],
   business: [
-    { id: 'slot-0', col: 'left', ratio: 'aspect-video', type: 'video' },
-    { id: 'slot-1', col: 'right', ratio: 'aspect-video', type: 'video' },
+    { id: 'slot-0', col: 'left', ratio: 'aspect-video', type: 'video', label: '左1' },
+    { id: 'slot-1', col: 'right', ratio: 'aspect-video', type: 'video', label: '右1' },
   ],
 };
 
