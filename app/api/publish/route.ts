@@ -206,24 +206,25 @@ export async function POST(request: Request) {
       // 创建词汇
       if (DATABASES.vocabulary && aiContent.vocabulary.length > 0) {
         for (const vocab of aiContent.vocabulary) {
+          const v = vocab as any;
           promises.push(
             notion.pages.create({
               parent: { database_id: DATABASES.vocabulary },
               properties: {
                 [NOTION_FIELDS.VOCABULARY.WORD]: {
-                  title: [{ text: { content: vocab.word } }]
+                  title: [{ text: { content: v.word } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.PHONETIC]: {
-                  rich_text: [{ text: { content: vocab.phonetic } }]
+                  rich_text: [{ text: { content: v.phonetic } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.DEFINITION]: {
-                  rich_text: [{ text: { content: vocab.definition } }]
+                  rich_text: [{ text: { content: v.definition } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.DEFINITION_CN]: {
-                  rich_text: [{ text: { content: vocab.definition_cn } }]
+                  rich_text: [{ text: { content: v.definition_cn } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.EXAMPLE]: {
-                  rich_text: [{ text: { content: vocab.example } }]
+                  rich_text: [{ text: { content: v.example } }]
                 },
                 // Source 字段暂时注释掉，等 Notion 添加后再启用
                 // [NOTION_FIELDS.VOCABULARY.SOURCE]: {
@@ -241,18 +242,19 @@ export async function POST(request: Request) {
       // 创建语法
       if (DATABASES.grammar && aiContent.grammar.length > 0) {
         for (const grammar of aiContent.grammar) {
+          const g = grammar as any;
           promises.push(
             notion.pages.create({
               parent: { database_id: DATABASES.grammar },
               properties: {
                 [NOTION_FIELDS.GRAMMAR.POINT]: {
-                  title: [{ text: { content: grammar.point } }]
+                  title: [{ text: { content: g.point } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.DESCRIPTION]: {
-                  rich_text: [{ text: { content: grammar.description } }]
+                  rich_text: [{ text: { content: g.description } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.EXAMPLE]: {
-                  rich_text: [{ text: { content: grammar.example } }]
+                  rich_text: [{ text: { content: g.example } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.LESSON]: {
                   relation: [{ id: lessonPage.id }]
