@@ -209,7 +209,7 @@ async function getVocabularyByLessonId(lessonPageId: string): Promise<VocabCard[
         relation: {
           contains: lessonPageId
         }
-        }
+      }
     });
 
     return response.results.map((page: any, index: number) => {
@@ -244,7 +244,7 @@ async function getGrammarByLessonId(lessonPageId: string): Promise<GrammarNote[]
         relation: {
           contains: lessonPageId
         }
-        }
+      }
     });
 
     return response.results.map((page: any, index: number) => {

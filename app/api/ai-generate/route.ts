@@ -145,7 +145,7 @@ async function callDeepSeek(prompt: string, content: string): Promise<any> {
     throw new Error(`DeepSeek API error: ${error}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as any;
   return JSON.parse(data.choices[0].message.content);
 }
 

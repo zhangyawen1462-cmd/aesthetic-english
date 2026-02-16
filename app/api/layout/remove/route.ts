@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
     await notion.pages.update({
       page_id: pageId,
       properties: {
-        Display_Position: { select: null },  // 清空字段
-        Sort_Order: { number: null }         // 清空字段
+        Display_Position: { select: null as any },  // 清空字段
+        Sort_Order: { number: null as any }         // 清空字段
       }
     });
 

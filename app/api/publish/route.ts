@@ -197,7 +197,10 @@ export async function POST(request: Request) {
     const lessonPage = await notion.pages.create({
       parent: { database_id: DATABASES.lessons },
       properties: notionProperties
-    }) as any;
+    });
+    
+    const lessonPageId = lessonPage.id;
+    const lessonPageUrl = (lessonPage as any).url;
 
     // 5. 批量创建词汇、语法、回译数据（仅视频课程）
     const promises = [];
@@ -231,7 +234,7 @@ export async function POST(request: Request) {
                 //   rich_text: [{ text: { content: vocab.source || 'Oxford' } }]
                 // },
                 [NOTION_FIELDS.VOCABULARY.LESSON]: {
-                  relation: [{ id: lessonPage.id }]
+                  relation: [{ id: lessonPageId }]
                 }
               }
             })
@@ -257,7 +260,7 @@ export async function POST(request: Request) {
                   rich_text: [{ text: { content: g.example } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.LESSON]: {
-                  relation: [{ id: lessonPage.id }]
+                  relation: [{ id: lessonPageId }]
                 }
               }
             })
@@ -278,7 +281,7 @@ export async function POST(request: Request) {
                 rich_text: [{ text: { content: aiContent.recall.text_en } }]
               },
               [NOTION_FIELDS.RECALL.LESSON]: {
-                relation: [{ id: lessonPage.id }]
+                relation: [{ id: lessonPageId }]
               }
             }
           })
@@ -302,7 +305,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: baseMessage + aiWarning,
-      notionUrl: (lessonPage as any).url,
+      notionUrl: lessonPageUrl,
       lessonId: lessonId,
       contentType: contentType,
       publishTarget: publishTarget,
@@ -416,8 +419,8 @@ ${srtContent}
       throw new Error(`DeepSeek API 错误: ${response.status}`);
     }
 
-    const data = await response.json();
-    const content = data.choices[0].message.content;
+    const data = await response.json() as any;
+    const content = data.choices?.[0]?.message?.content || '';
 
     // 提取 JSON（处理可能的 markdown 代码块）
     const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/\{[\s\S]*\}/);

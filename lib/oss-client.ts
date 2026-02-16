@@ -74,7 +74,7 @@ export async function uploadToOSS(
     const buffer = Buffer.from(arrayBuffer);
 
     // 根据文件大小选择上传方式
-    let result;
+    let result: { url: string };
 
     if (fileSizeMB > FILE_SIZE_LIMITS.MULTIPART_THRESHOLD_MB) {
       // 大文件使用分片上传
@@ -86,16 +86,16 @@ export async function uploadToOSS(
         headers: {
           'Content-Type': file.type,
         },
-      });
+      }) as any;
     } else {
       // 小文件使用普通上传
       devLog('📄 使用普通上传');
       result = await client.put(filename, buffer, {
         timeout: 300000,
-      headers: {
-        'Content-Type': file.type,
-      },
-    });
+        headers: {
+          'Content-Type': file.type,
+        },
+      }) as any;
     }
 
     devLog('✅ OSS 上传成功:', result.url);

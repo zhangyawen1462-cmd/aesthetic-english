@@ -81,6 +81,12 @@ export async function GET() {
       coverRatioOptions = properties.Cover_Ratio.select.options.map((opt: any) => opt.name);
     }
 
+    // 检查 Content_Type 的选项
+    let contentTypeOptions: string[] = [];
+    if (properties.Content_Type?.select?.options) {
+      contentTypeOptions = properties.Content_Type.select.options.map((opt: any) => opt.name);
+    }
+
     const isValid = missingFields.length === 0 && wrongTypeFields.length === 0;
 
     return NextResponse.json({
@@ -99,6 +105,7 @@ export async function GET() {
         wrongTypeFields,
         displayPositionOptions,
         coverRatioOptions,
+        contentTypeOptions,
       },
       recommendations: isValid 
         ? ['✅ 所有字段配置正确！']
