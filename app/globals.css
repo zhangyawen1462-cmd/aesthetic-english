@@ -49,10 +49,9 @@
     color: var(--color-plum-wine);
     font-family: var(--font-sans);
 
-    /* Matte Finish: 亚光印刷感 + 轻微对比度营造哑光印刷感 */
+    /* Premium Card Finish: 细腻明信片质感 */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    filter: contrast(1.015);
 
     /* FWRD-style: Body text 轻微收紧字间距 */
     letter-spacing: -0.01em;
@@ -95,21 +94,19 @@
 }
 
 /* ============================================================
-   Noise Texture: 300g Art Paper grain
+   Premium Card Surface: 细腻明信片质感
    ============================================================ */
 
-.bg-noise {
-  pointer-events: none;
-  z-index: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 800 800' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='fineGrain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.8' numOctaves='5' seed='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23fineGrain)' opacity='0.15'/%3E%3C/svg%3E");
-  mix-blend-mode: soft-light;
-  opacity: 1;
-}
-
-.matte-surface {
-  backdrop-filter: blur(0.4px);
-  -webkit-backdrop-filter: blur(0.4px);
-  filter: contrast(1.02);
+.premium-card {
+  /* 纯净表面，无噪点 */
+  background-color: inherit;
+  
+  /* 极致平滑的渲染 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* 轻微的阴影深度（可选） */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 /* ============================================================
@@ -117,15 +114,15 @@
    ============================================================ */
 
 .glass {
-  background: rgba(242, 239, 229, 0.65);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(247, 248, 249, 0.95);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
 }
 
 .glass-dark {
-  background: rgba(45, 15, 21, 0.6);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(45, 15, 21, 0.95);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
 }
 
 /* ============================================================
@@ -138,19 +135,57 @@
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+.safe-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.safe-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
 .safe-x {
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+}
+.safe-y {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* ============================================================
    Touch Feedback (Mobile)
    ============================================================ */
 
+.touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
 @media (hover: none) {
   .touch-active:active {
     opacity: 0.7;
     transform: scale(0.98);
     transition: all 0.1s ease-out;
+  }
+}
+
+/* ============================================================
+   Responsive Typography
+   ============================================================ */
+
+@media (max-width: 640px) {
+  body {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  body {
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 1025px) {
+  body {
+    font-size: 16px;
   }
 }

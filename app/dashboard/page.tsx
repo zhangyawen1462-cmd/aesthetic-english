@@ -4,9 +4,11 @@ import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion"
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Menu, X } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
+import * as React from "react";
+import type { Lesson } from "@/data/types";
 
-/* ─── 视觉混合流数据 (3:4、1:1 和 9:16 比例) ─── */
-const VISUAL_STREAM = [
+/* ─── 视觉混合流数据 (3:4、1:1 和 9:16 比例) - 后备数据 ─── */
+const MOCK_VISUAL_STREAM = [
   /* Column 1 (Left) */
   {
     id: "cheer-01",
@@ -27,9 +29,13 @@ const VISUAL_STREAM = [
   },
   {
     id: "vertical-story-left",
-    type: "mood",
+    type: "episode",
+    category: "DAILY",
+    title: "Vertical Story",
     img: "/images/business-elite.jpg",
-    height: "aspect-[9/16]", // 竖屏 9:16
+    height: "aspect-[3/4]",
+    ep: "02",
+    href: "/course/daily/vertical-story-left",
     caption: "Vertical moment.",
   },
   {
@@ -41,28 +47,25 @@ const VISUAL_STREAM = [
   },
   /* Column 2 (Right) */
   {
-    id: "vertical-story",
-    type: "mood",
-    img: "/images/cognitive-text.jpg",
-    height: "aspect-[9/16]", // 竖屏 9:16
-    caption: "Vertical story.",
-  },
-  {
     id: "mood-2",
     type: "mood",
     img: "/images/business-elite.jpg",
-    height: "aspect-square", // 1:1
+    height: "aspect-square", // 1:1 - 右列第一个
     caption: "Words are free.",
   },
   {
-    id: "flow-01",
-    type: "episode",
-    category: "COGNITIVE",
-    title: "Flow: The Art of Deep Focus",
+    id: "vertical-story",
+    type: "mood",
     img: "/images/cognitive-text.jpg",
-    height: "aspect-[3/4]",
-    ep: "01",
-    href: "/course/cognitive/flow-01",
+    height: "aspect-[3/4]", // 改为 3:4 - 右列第二个
+    caption: "Vertical story.",
+  },
+  {
+    id: "flow-01",
+    type: "mood",
+    img: "/images/cognitive-text.jpg",
+    height: "aspect-[9/16]",
+    caption: "Flow moment.",
   },
   {
     id: "business-01",
@@ -82,6 +85,70 @@ export default function Dashboard() {
   
   // 控制手机菜单的状态
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // 从 API 获取布局配置的课程
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDashboardLayout() {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/dashboard-layout');
+        const data = await response.json();
+        if (data.success) {
+          setLessons(data.data);
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to fetch dashboard layout:', error);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchDashboardLayout();
+  }, []);
+
+  // 转换为 VISUAL_STREAM 格式（按 sortOrder 放到正确位置）
+  const VISUAL_STREAM = lessons.length > 0 
+    ? (() => {
+        // 创建一个长度为 8 的空数组
+        const stream: (VisualStreamItem | undefined)[] = new Array(8).fill(undefined);
+        
+        // 根据 sortOrder 放到对应位置
+        lessons.forEach((lesson) => {
+          const position = lesson.sortOrder || 0;
+          if (position >= 0 && position < 8) {
+            // 判断是否为纯图片卡片
+            const isImageCard = !lesson.videoUrl && !lesson.titleCn && !lesson.titleEn;
+            
+            // 获取比例
+            const getHeight = () => {
+              if (lesson.coverRatio) {
+                return lesson.coverRatio === '3/4' ? 'aspect-[3/4]' :
+                       lesson.coverRatio === '1/1' ? 'aspect-square' :
+                       'aspect-[9/16]';
+              }
+              return 'aspect-square'; // 默认
+            };
+            
+            stream[position] = {
+        id: lesson.id,
+              type: isImageCard ? "mood" : "episode",
+              category: lesson.category?.toUpperCase() || '',
+              title: lesson.titleEn || lesson.titleCn || 'Untitled',
+              img: lesson.coverImg || '/images/daily-sketch.jpg',
+              height: getHeight(),
+              ep: lesson.ep || '00',
+              href: isImageCard ? '#' : `/course/${lesson.category}/${lesson.id}`,
+            };
+          }
+        });
+        
+        return stream;
+      })()
+    : MOCK_VISUAL_STREAM;
 
   // 修复滚动穿透：当菜单打开时锁定 body 滚动
   useEffect(() => {
@@ -283,13 +350,19 @@ export default function Dashboard() {
         {/* === 右侧：瀑布流 (Right High, Left Low) === */}
         <div className="col-span-1 md:col-span-7 px-5 md:px-0 md:pr-12 mt-6 md:-mt-20 md:-ml-20">
           
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 border-2 border-[#2D0F15] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+          <>
           {/* 移动端：单列错落布局 */}
           <div className="flex flex-col gap-9 md:hidden">
-            <MoodCard item={VISUAL_STREAM[1]} index={1} />
-            <EpisodeCard item={VISUAL_STREAM[0]} index={0} />
-            <MoodCard item={VISUAL_STREAM[2]} index={2} />
-            <EpisodeCard item={VISUAL_STREAM[6]} index={6} />
-            <MoodCard item={VISUAL_STREAM[4]} index={4} />
+            {VISUAL_STREAM[1] && <MoodCard item={VISUAL_STREAM[1]} index={1} />}
+            {VISUAL_STREAM[0] && <EpisodeCard item={VISUAL_STREAM[0]} index={0} />}
+            {VISUAL_STREAM[2] && <MoodCard item={VISUAL_STREAM[2]} index={2} />}
+            {VISUAL_STREAM[6] && <EpisodeCard item={VISUAL_STREAM[6]} index={6} />}
+            {VISUAL_STREAM[4] && <MoodCard item={VISUAL_STREAM[4]} index={4} />}
           </div>
 
           {/* 网页端：双列布局 */}
@@ -297,21 +370,23 @@ export default function Dashboard() {
             
             {/* 左列 (Left Low) */}
             <div className="flex flex-col gap-9 pt-32">
-               <EpisodeCard item={VISUAL_STREAM[0]} index={0} />
-               <MoodCard item={VISUAL_STREAM[1]} index={1} />
-               <MoodCard item={VISUAL_STREAM[2]} index={2} />
-               <MoodCard item={VISUAL_STREAM[3]} index={3} />
+               {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
+               {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
+               {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
+               {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
             </div>
 
             {/* 右列 (Right High) */}
             <div className="flex flex-col gap-9 pt-4">
-               <MoodCard item={VISUAL_STREAM[5]} index={5} />
-               <MoodCard item={VISUAL_STREAM[4]} index={4} />
-               <EpisodeCard item={VISUAL_STREAM[6]} index={6} />
-               <EpisodeCard item={VISUAL_STREAM[7]} index={7} />
+               {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
+               {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
+               {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
+               {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
             </div>
 
           </div>
+          </>
+          )}
 
         </div>
       </main>
@@ -325,8 +400,32 @@ export default function Dashboard() {
   );
 }
 
+// ─── 类型定义 ───
+interface VisualStreamItem {
+  id: string;
+  type: string;
+  category?: string;
+  title?: string;
+  img: string;
+  height: string;
+  ep?: string;
+  href?: string;
+  caption?: string;
+}
+
+// ─── 辅助函数：将 Tailwind aspect 类名转换为 CSS aspect-ratio 值 ───
+function getAspectRatio(heightClass: string | undefined): number {
+  if (!heightClass) return 1;
+  if (heightClass === 'aspect-[3/4]') return 3 / 4;
+  if (heightClass === 'aspect-square') return 1;
+  if (heightClass === 'aspect-[9/16]') return 9 / 16;
+  if (heightClass === 'aspect-video') return 16 / 9;
+  if (heightClass === 'aspect-[4/3]') return 4 / 3;
+  return 1; // 默认方形
+}
+
 // ─── 子组件定义 (确保这些在 Dashboard 函数外部) ───
-function EpisodeCard({ item, index }: { item: any; index: number }) {
+function EpisodeCard({ item, index }: { item: VisualStreamItem; index: number }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 0 }}
@@ -336,8 +435,18 @@ function EpisodeCard({ item, index }: { item: any; index: number }) {
       className="group cursor-pointer w-full"
     >
       <Link href={item.href || "#"}>
-        <div className={`relative w-full ${item.height} overflow-hidden bg-[#2D0F15]/5`}>
-          <img src={item.img} alt={item.title} className="w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-[3.26] scale-[3.2]" />
+        <div 
+          className="relative w-full overflow-hidden bg-[#2D0F15]/5"
+          style={{ aspectRatio: getAspectRatio(item.height) }}
+        >
+          <img 
+            src={item.img} 
+            alt={item.title} 
+            onError={(e) => {
+              e.currentTarget.src = '/images/daily-sketch.jpg';
+            }}
+            className="w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-105" 
+          />
         </div>
         <div className="mt-5 pr-2">
           <p className="text-[9px] uppercase tracking-[0.2em] text-[#2D0F15]/40 mb-3">{item.category} — EP.{item.ep}</p>
@@ -348,7 +457,9 @@ function EpisodeCard({ item, index }: { item: any; index: number }) {
   );
 }
 
-function MoodCard({ item, index }: { item: any; index: number }) {
+function MoodCard({ item, index }: { item: VisualStreamItem; index: number }) {
+  const [aspectRatio, setAspectRatio] = React.useState<number>(1);
+  
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -357,13 +468,24 @@ function MoodCard({ item, index }: { item: any; index: number }) {
       transition={{ duration: 1, delay: index * 0.1 }}
       className="pointer-events-none select-none relative w-full"
     >
-      <div className={`relative w-full ${item.height} overflow-hidden`}>
+      <div 
+        className="relative w-full overflow-hidden bg-[#2D0F15]/5"
+        style={{ aspectRatio }}
+      >
         <motion.img
           src={item.img}
           alt="mood"
-          animate={{ scale: [3.2, 3.26, 3.2] }}
+          animate={{ scale: [1, 1.02, 1] }}
           transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-          className="w-full h-full object-cover grayscale-[20%] opacity-90 mix-blend-multiply"
+          className="w-full h-full object-contain grayscale-[20%] opacity-90"
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            const ratio = img.naturalWidth / img.naturalHeight;
+            setAspectRatio(ratio);
+          }}
+          onError={(e) => {
+            e.currentTarget.src = '/images/daily-sketch.jpg';
+          }}
         />
       </div>
     </motion.div>

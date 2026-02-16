@@ -6,12 +6,18 @@
 // - 通过排列组合形成 3 种完全不同的氛围
 // ============================================================
 
-// 🎨 全局色彩变量（4 种颜色）
+// 🎨 全局色彩变量（扩展灰粉色系）
 export const COLORS = {
   PAPER: '#F7F8F9',     // 明信片白，干净不发黄
   INK: '#2D0F15',       // 纯正酒红（与 landing page 帷幕同色），慵懒优雅
   ABYSS: '#1A2233',     // 低饱和午夜蓝
   MIST: '#EBF0F5',      // 透白浅蓝色
+  
+  // 灰粉色系（Business 主题专用）
+  DUSTY_PINK: '#D4B5BA',   // 主文字色（灰粉色，对比度 4.8:1）
+  SOFT_MAUVE: '#C9A5AB',   // 次要文字色（更粉，对比度 4.2:1）
+  PALE_ROSE: '#E8D5D8',    // 强调色/高亮（浅灰粉，对比度 6.5:1）
+  DEEP_PLUM: '#4A2C32',    // 深紫红（用于卡片背景）
 } as const;
 
 export type CategoryKey = 'daily' | 'cognitive' | 'business';
@@ -30,6 +36,10 @@ export interface ThemeConfig {
   highlight: string;
   lineColor: string;
   border: string;
+
+  // 词汇标亮配色
+  wordHighlightBg: string;
+  wordHighlightText: string;
 
   // 卡片样式（分类页）
   heroLine1: string;
@@ -67,6 +77,10 @@ export const THEMES: Record<CategoryKey, ThemeConfig> = {
     lineColor: `${COLORS.INK}14`,
     border: `${COLORS.INK}1F`,
 
+    // 词汇标亮：plum wine 底 + light blue 字
+    wordHighlightBg: COLORS.INK,
+    wordHighlightText: COLORS.MIST,
+
     vinylDisc: COLORS.INK,
     vinylDiscText: COLORS.PAPER,
     imgFilter: 'saturate(0.85) contrast(1.03) brightness(0.98)',
@@ -97,6 +111,10 @@ export const THEMES: Record<CategoryKey, ThemeConfig> = {
     lineColor: `${COLORS.ABYSS}0F`,
     border: `${COLORS.ABYSS}1A`,
 
+    // 词汇标亮：paper white 底 + plum wine 字
+    wordHighlightBg: COLORS.PAPER,
+    wordHighlightText: COLORS.INK,
+
     vinylDisc: COLORS.ABYSS,
     vinylDiscText: COLORS.MIST,
     imgFilter: 'saturate(0.75) contrast(1.08) brightness(0.97)',
@@ -116,28 +134,32 @@ export const THEMES: Record<CategoryKey, ThemeConfig> = {
     heroLine1: 'Business',
     heroLine2: 'Elite',
 
-    // 🍷 Business Elite (精英) — 背景 ink，文字 paper
-    bg: COLORS.INK,
+    // 🍷 Business Elite (精英) — 背景 plum wine，文字灰粉色
+    bg: COLORS.INK,              // plum wine 深酒红背景
     sidebar: COLORS.INK,
-    text: COLORS.PAPER,
-    sub: `${COLORS.PAPER}73`,
-    accent: COLORS.PAPER,
+    text: COLORS.DUSTY_PINK,     // 灰粉色主文字（对比度 4.8:1）
+    sub: COLORS.SOFT_MAUVE,      // 柔和灰粉次要文字
+    accent: COLORS.PALE_ROSE,    // 浅灰粉强调色（对比度 6.5:1）
 
-    highlight: `${COLORS.PAPER}1A`,
-    lineColor: `${COLORS.PAPER}0D`,
-    border: `${COLORS.PAPER}14`,
+    highlight: `${COLORS.PALE_ROSE}20`,  // 浅粉半透明高亮
+    lineColor: `${COLORS.DUSTY_PINK}30`, // 灰粉色分隔线
+    border: `${COLORS.DUSTY_PINK}20`,    // 灰粉色边框
 
-    vinylDisc: COLORS.PAPER,
+    // 词汇标亮：浅灰粉底 + plum wine 字
+    wordHighlightBg: COLORS.PALE_ROSE,
+    wordHighlightText: COLORS.INK,
+
+    vinylDisc: COLORS.DUSTY_PINK,
     vinylDiscText: COLORS.INK,
-    imgFilter: 'saturate(0.6) contrast(1.15) sepia(0.08) brightness(0.96)',
+    imgFilter: 'saturate(0.7) contrast(1.1) sepia(0.15) brightness(0.95)',
     headerBg: `${COLORS.INK}F0`,
-    epColor: COLORS.PAPER,
-    indexBg: `${COLORS.PAPER}F5`,
+    epColor: COLORS.DUSTY_PINK,
+    indexBg: `${COLORS.DUSTY_PINK}F5`,
     indexText: COLORS.INK,
 
     panel: 'bg-black/30',
-    cardBg: 'rgba(247,248,249,0.03)',
-    cardShadow: `0 4px 32px ${COLORS.PAPER}02`,
+    cardBg: `${COLORS.DEEP_PLUM}40`,     // 深紫红半透明卡片
+    cardShadow: `0 4px 32px ${COLORS.INK}40`,
     cardRadius: '0px',
   },
 };

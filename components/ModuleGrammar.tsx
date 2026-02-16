@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Bookmark, Hash, Check } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Bookmark, Check, BookmarkCheck } from "lucide-react";
+import { motion } from "framer-motion";
 import type { GrammarNote } from "@/data/types";
 import { toggleNotebook, getNotebookByLesson } from "@/lib/notebook-store";
 
@@ -12,26 +13,28 @@ interface ModuleGrammarProps {
   onSeek: (time: number) => void;
   grammarNotes: GrammarNote[];
   lessonId: string;
+  category?: string;
 }
 
-export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId }: ModuleGrammarProps) {
+export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, category }: ModuleGrammarProps) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [pressingItemId, setPressingItemId] = useState<string | null>(null);
+  const [pressProgress, setPressProgress] = useState(0);
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
 
-  // 初始化：从 localStorage 读取已收藏的语法点
   useEffect(() => {
     const items = getNotebookByLesson(lessonId);
-    const ids = new Set(
-      items.filter(i => i.type === 'grammar').map(i => i.id)
-    );
+    const ids = new Set(items.filter(i => i.type === 'grammar').map(i => i.id));
     setSavedIds(ids);
   }, [lessonId]);
 
-  const handleToggleSave = (item: GrammarNote, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleToggleSave = (item: GrammarNote) => {
     const itemId = `${lessonId}-grammar-${item.id}`;
     const isNowSaved = toggleNotebook({
       id: itemId,
       lessonId,
+      category,
       type: 'grammar',
       content: item.point,
       sub: item.ex,
@@ -41,119 +44,228 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId }:
     });
     setSavedIds(prev => {
       const next = new Set(prev);
-      if (isNowSaved) next.add(itemId);
-      else next.delete(itemId);
+      if (isNowSaved) next.add(itemId); else next.delete(itemId);
       return next;
     });
+
+    // 如果是收藏成功，显示成功动画
+    if (isNowSaved) {
+      setJustSavedId(itemId);
+      setTimeout(() => setJustSavedId(null), 2000);
+    }
+
+    // 触发震动反馈（仅移动端）
+    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+      try {
+        window.navigator.vibrate([30, 50, 30]);
+      } catch (e) {
+        console.log('Vibration not supported');
+      }
+    }
+  };
+
+  // 开始长按
+  const handlePressStart = (item: GrammarNote, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    const itemId = `${lessonId}-grammar-${item.id}`;
+    setPressingItemId(itemId);
+    setPressProgress(0);
+
+    const startTime = Date.now();
+    const duration = 2000; // 2秒
+
+    const updateProgress = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      setPressProgress(progress);
+
+      if (progress < 1) {
+        longPressTimer.current = setTimeout(updateProgress, 16) as any;
+      } else {
+        handleToggleSave(item);
+        setPressingItemId(null);
+        setPressProgress(0);
+      }
+    };
+
+    updateProgress();
+  };
+
+  // 取消长按
+  const handlePressCancel = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    setPressingItemId(null);
+    setPressProgress(0);
+  };
+
+  // 获取填充颜色（根据主题）
+  const getFillColor = () => {
+    switch (theme.id) {
+      case 'daily':
+        return '#1A2233'; // midnight blue
+      case 'cognitive':
+        return '#2D0F15'; // plum wine
+      case 'business':
+        return '#E8D5D8'; // 浅灰粉
+      default:
+        return theme.accent;
+    }
   };
 
   return (
-    <div className="flex-1 w-full h-full flex flex-col relative overflow-hidden"
-      style={{ color: theme.text }}>
+    <div className="flex-1 w-full h-full flex flex-col relative overflow-hidden" style={{ color: theme.text }}>
 
-      {/* 幽灵图层背景 - 推荐比例 3:4 竖向图（适合文字阅读） */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-[0.03] mix-blend-multiply"
-          style={{ 
-            backgroundImage: `url('/images/module-bg/grammar.jpg')`,
-            filter: 'blur(1.5px) grayscale(50%)'
-          }}
-        />
-      </div>
+      {/* 1. 背景层：点阵纸纹理 (Bullet Journal 风格) */}
+      <div className="absolute inset-0 z-0 pointer-events-none bg-[size:20px_20px]"
+        style={{
+          backgroundColor: theme.bg,
+          backgroundImage: `radial-gradient(${theme.text}20 1px, transparent 1px)`
+        }}
+      />
+      
+      {/* 顶部做旧遮罩 */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.03] mix-blend-multiply"
+        style={{ 
+          backgroundImage: `url('/images/module-bg/grammar.jpg')`,
+          filter: 'contrast(1.2)'
+        }}
+      />
 
-      {/* 局部纹理 */}
-      <svg className="absolute opacity-0 pointer-events-none">
-        <filter id="paper-roughness">
-          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch" />
-          <feColorMatrix type="saturate" values="0" />
-          <feComponentTransfer>
-            <feFuncA type="linear" slope="0.4" />
-          </feComponentTransfer>
-          <feBlend mode="multiply" in2="SourceGraphic" />
-        </filter>
-      </svg>
-
-      {/* 顶部刊头 */}
-      <div className="w-full px-8 py-6 border-b-2 sticky top-0 backdrop-blur-md z-20 flex justify-between items-end"
-        style={{ borderColor: theme.text, backgroundColor: theme.bg }}>
-        <h1 className="text-xl font-bold tracking-tight"
-          style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif' }}>
+      {/* 顶部标题 - 仅网页端显示 */}
+      <div className="hidden md:block w-full px-8 py-6 z-20 sticky top-0 backdrop-blur-sm">
+        <h1 className="font-bold" style={{ color: theme.text, fontSize: '30px', fontFamily: 'PingFang SC' }}>
           Grammar Notes
         </h1>
-        <span className="text-[10px] font-mono opacity-50">VOL. 01 / SYNTAX</span>
       </div>
 
-      <div className="flex-1 w-full max-w-3xl mx-auto overflow-y-auto px-8 pb-40 no-scrollbar pt-12">
+      {/* 笔记流内容区 */}
+      <div className="flex-1 w-full max-w-4xl mx-auto overflow-y-auto px-4 md:px-8 pb-40 no-scrollbar pt-8 md:pt-2">
 
         {grammarNotes.length === 0 && (
           <div className="flex items-center justify-center h-40 opacity-30">
-            <p className="text-[10px] uppercase tracking-widest">No grammar notes available</p>
+            <p className="text-[10px] uppercase tracking-widest" style={{ fontFamily: 'PingFang SC' }}>No Notes Recorded</p>
           </div>
         )}
 
-        <div className="flex flex-col gap-12">
-          {grammarNotes.map((item, index) => {
+        <div className="flex flex-col gap-4">
+          
+          {grammarNotes.map((item) => {
             const itemId = `${lessonId}-grammar-${item.id}`;
             const isSaved = savedIds.has(itemId);
+            const isPressing = pressingItemId === itemId;
+            const fillColor = getFillColor();
+            const isJustSaved = justSavedId === itemId;
 
             return (
-              <div key={item.id} className="group relative pl-8 cursor-pointer transition-transform duration-300 hover:translate-x-1"
-                onClick={() => onSeek(item.start)}>
+              <motion.div 
+                key={item.id} 
+                className="group relative cursor-pointer overflow-hidden rounded-lg"
+                onMouseDown={(e) => handlePressStart(item, e)}
+                onMouseUp={handlePressCancel}
+                onMouseLeave={handlePressCancel}
+                onTouchStart={(e) => handlePressStart(item, e)}
+                onTouchEnd={handlePressCancel}
+                animate={{ 
+                  scale: isPressing ? 0.98 : 1,
+                }}
+                transition={{ duration: 0.15 }}
+              >
+                {/* 墨水填充效果 */}
+                {isPressing && (
+                  <motion.div
+                    className="absolute inset-0 -z-10"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: pressProgress }}
+                    transition={{ duration: 0, ease: 'linear' }}
+                    style={{
+                      backgroundColor: fillColor,
+                      opacity: 0.3,
+                      transformOrigin: 'left',
+                    }}
+                  />
+                )}
 
-                {/* 左侧装饰线 */}
-                <div className="absolute left-0 top-0 bottom-0 w-[2px] transition-all duration-300 group-hover:w-[4px]"
-                  style={{ backgroundColor: theme.accent }} />
+                {/* 完成时的光晕效果 */}
+                {isPressing && pressProgress >= 0.99 && (
+                  <motion.div
+                    className="absolute inset-0 -z-10 pointer-events-none"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: [0, 0.6, 0] }}
+                    transition={{ duration: 0.4 }}
+                    style={{
+                      boxShadow: `inset 0 0 20px ${fillColor}80`,
+                    }}
+                  />
+                )}
 
-                {/* 索引号 */}
-                <div className="absolute -left-[3px] -top-5 text-[40px] font-black opacity-10 leading-none select-none font-sans"
-                  style={{ color: theme.text }}>
-                  {String(index + 1).padStart(2, '0')}
-                </div>
-
-                {/* 1. 标题 + 收藏按钮 */}
-                <div className="flex items-center gap-2 mb-3">
-                  <button
-                    onClick={(e) => handleToggleSave(item, e)}
-                    className={`transition-all duration-500 hover:scale-110 ${isSaved ? 'opacity-100' : 'opacity-40 hover:opacity-80'}`}
-                    style={{ color: isSaved ? theme.accent : theme.text }}
+                {/* 收藏成功提示 */}
+                {isJustSaved && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.8 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                    className="absolute top-2 right-2 flex items-center gap-1.5 px-3 py-1 rounded-full shadow-lg backdrop-blur-md z-10"
+                    style={{
+                      backgroundColor: theme.id === 'business' ? '#E8D5D8' : (theme.id === 'daily' ? '#1A2233' : theme.accent),
+                      color: theme.id === 'business' ? '#2D0F15' : '#FFFFFF',
+                    }}
                   >
-                    {isSaved ? <Check size={14} /> : <Bookmark size={14} />}
-                  </button>
-                  <h3 className="text-[17px] font-bold tracking-wide"
-                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif' }}>
-                    {item.point}
-                  </h3>
-                </div>
+                    <BookmarkCheck size={12} />
+                    <span className="text-[9px] font-bold uppercase tracking-wider" style={{ fontFamily: 'PingFang SC' }}>已收藏</span>
+                  </motion.div>
+                )}
 
-                {/* 2. 详细解释（宋体） */}
-                <p className="text-[15px] leading-relaxed text-justify mb-4 opacity-90"
-                  style={{ fontFamily: '"Songti SC", "SimSun", serif' }}>
-                  {item.desc}
-                </p>
+                {/* 笔记主体 */}
+                <div className="w-full relative z-0">
+                  
+                  {/* 标题行 */}
+                  <div className="flex justify-between items-start gap-4 mb-2">
+                    <h3 className="text-base md:text-lg font-bold leading-snug transition-colors cursor-pointer"
+                        style={{ color: theme.text, fontFamily: 'PingFang SC' }}
+                        onClick={(e) => { e.stopPropagation(); onSeek(item.start); }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = theme.accent}
+                        onMouseLeave={(e) => e.currentTarget.style.color = theme.text}>
+                      {item.point}
+                    </h3>
+                    
+                    {/* 收藏状态指示器 */}
+                    {isSaved && !isPressing && (
+                      <div className="shrink-0 p-1.5 rounded-md transition-all"
+                           style={{ 
+                             color: theme.accent,
+                             backgroundColor: `${theme.accent}10`
+                           }}>
+                        <Check size={14} />
+                      </div>
+                    )}
+                  </div>
 
-                {/* 3. 举例（Verdana + 宋体混排） */}
-                <div className="p-3 border-l-2 bg-black/5 dark:bg-white/5"
-                  style={{ borderColor: theme.accent }}>
-                  <p className="text-[13px] font-bold leading-normal"
-                    style={{ fontFamily: 'Verdana, sans-serif' }}>
-                    {item.ex.split(/([\u4e00-\u9fa5]+)/g).map((chunk, i) => {
-                      const isChinese = /[\u4e00-\u9fa5]/.test(chunk);
-                      return (
-                        <span key={i} style={{ fontFamily: isChinese ? '"Songti SC", serif' : 'Verdana, sans-serif' }}>
-                          {chunk}
-                        </span>
-                      );
-                    })}
-                  </p>
+                  {/* 解释文本 */}
+                  <div className="mb-2">
+                    <p className="text-[13px] md:text-[14px] leading-relaxed opacity-80"
+                       style={{ fontFamily: 'PingFang SC' }}>
+                      {item.desc}
+                    </p>
+                  </div>
+
+                  {/* 例句块 - 主题色背景，与文本齐平 */}
+                  <div className="relative py-2 px-3 rounded-md transition-colors duration-300"
+                       style={{ backgroundColor: `${theme.accent}08` }}>
+                    <p className="text-[13px] md:text-[14px] leading-relaxed opacity-90"
+                       style={{ fontFamily: 'PingFang SC', color: theme.accent }}>
+                      {item.ex}
+                    </p>
+                  </div>
+
                 </div>
-              </div>
+              </motion.div>
             );
           })}
 
-          <div className="flex justify-center opacity-20 py-8">
-            <Hash size={16} />
-          </div>
         </div>
       </div>
     </div>

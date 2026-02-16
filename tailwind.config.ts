@@ -5,6 +5,13 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  safelist: [
+    'aspect-[3/4]',
+    'aspect-square',
+    'aspect-[9/16]',
+    'aspect-video',
+    'aspect-[4/3]',
+  ],
   theme: {
     extend: {
       /* --- Synced with globals.css @theme --- */

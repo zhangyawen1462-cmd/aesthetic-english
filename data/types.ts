@@ -55,12 +55,14 @@ export interface SalonData {
  */
 export interface Lesson {
   id: string;                                    // 唯一标识，如 "cheer-01"
-  category: 'daily' | 'cognitive' | 'business';  // 所属板块
+  category: 'daily' | 'cognitive' | 'business' | '';  // 所属板块（图片卡片为空字符串）
   titleCn: string;                               // 中文标题
   titleEn: string;                               // 英文标题
   subtitle?: string;                             // 副标题 / 一句话简介
   ep: string;                                    // 期号，如 "01"
-  coverImg: string;                              // 封面图 URL（阿里云 OSS 或本地）
+  coverImg: string;                              // 封面图 URL（精选封面，用于 Dashboard/Daily Cinema）
+  coverImg16x9?: string;                         // 归档封面 URL（16:9，用于 Archives）
+  coverRatio?: '3/4' | '1/1' | '9/16' | '16/9' | 'square';          // 封面尺寸比例
   videoUrl: string;                              // 视频 URL（阿里云 OSS）
   date: string;                                  // 发布日期，如 "Feb 09"
 
@@ -70,6 +72,10 @@ export interface Lesson {
   grammar: GrammarNote[];         // 语法笔记（Grammar 模块）
   recall: RecallText;             // 中英回译（Recall 模块）
   salon?: SalonData;              // Salon 模块（可选）
+  
+  // ---- 布局管理 ----
+  displayPosition?: string;       // 显示位置（dashboard-featured / daily-cinema 等）
+  sortOrder?: number;             // 排序顺序（用于布局管理器）
 }
 
 // ---- 笔记类型 ----
@@ -81,6 +87,7 @@ export type NotebookItemType = 'vocabulary' | 'sentence' | 'grammar';
 export interface CollectedItem {
   id: string;                     // 唯一标识，如 "cheer-01-script-3"
   lessonId: string;               // 来源课程 ID
+  category?: string;              // 课程分类（daily/cognitive/business）
   type: NotebookItemType;
   content: string;                // 主要内容（单词 / 句子 / 语法点）
   sub?: string;                   // 音标、翻译或来源信息
@@ -88,4 +95,58 @@ export interface CollectedItem {
   timestamp?: number;             // 关联视频时间戳
   date: string;                   // 收藏日期
   tags?: string[];                // 标签（可选）
+}
+
+// ============================================================
+// AI 自动化生成相关类型
+// ============================================================
+
+/** AI 生成的词汇项 */
+export interface AIGeneratedVocab {
+  word: string;
+  phonetic: string;
+  definition: string;
+  definition_cn: string;
+  example: string;
+  order: number;
+}
+
+/** AI 生成的语法项 */
+export interface AIGeneratedGrammar {
+  point: string;
+  description: string;
+  example: string;
+  timestamp: number;
+  order: number;
+}
+
+/** AI 生成的回译项 */
+export interface AIGeneratedRecall {
+  text_cn: string;
+  text_en: string;
+}
+
+/** AI 生成的完整内容 */
+export interface AIGeneratedContent {
+  vocabulary: AIGeneratedVocab[];
+  grammar: AIGeneratedGrammar[];
+  recall: AIGeneratedRecall;
+}
+
+/** AI 生成请求 */
+export interface AIGenerateRequest {
+  srtContent: string;
+  lessonId: string;
+  options?: {
+    generateVocab?: boolean;
+    generateGrammar?: boolean;
+    generateRecall?: boolean;
+  };
+}
+
+/** AI 生成响应 */
+export interface AIGenerateResponse {
+  success: boolean;
+  data?: AIGeneratedContent;
+  error?: string;
 }

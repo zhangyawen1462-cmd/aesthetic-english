@@ -43,14 +43,58 @@ export default function LandingPage() {
       }
     };
 
+    // 移动端陀螺仪效果
+    const handleOrientation = (e: DeviceOrientationEvent) => {
+      if (e.gamma !== null && e.beta !== null && typeof window !== 'undefined') {
+        // gamma: 左右倾斜 (-90 到 90)
+        // beta: 前后倾斜 (-180 到 180)
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        
+        // 将倾斜角度映射到屏幕坐标，增加灵敏度
+        const x = centerX + (e.gamma * 8); // 左右倾斜影响 X 轴
+        const y = centerY + (e.beta * 8);   // 前后倾斜影响 Y 轴
+        
+        mouseX.set(x);
+        mouseY.set(y);
+      }
+    };
+
+    // 请求陀螺仪权限（iOS 13+ 需要）
+    const requestPermission = async () => {
+      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        try {
+          const permission = await (DeviceOrientationEvent as any).requestPermission();
+          if (permission === 'granted') {
+            window.addEventListener('deviceorientation', handleOrientation);
+          }
+        } catch (error) {
+          // 静默失败，不影响用户体验
+          if (process.env.NODE_ENV === 'development') {
+          console.log('Orientation permission denied');
+          }
+        }
+      } else {
+        // 非 iOS 设备直接监听
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    };
+
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("touchmove", handleTouchMove, { passive: true });
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    
+    // 检测是否为移动设备
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+      requestPermission();
+    }
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener('deviceorientation', handleOrientation);
     };
   }, [mouseX, mouseY]);
 
@@ -82,7 +126,7 @@ export default function LandingPage() {
            }}
       />
 
-      {/* 三层呼吸晕染系统 (保持不变) */}
+      {/* 三层呼吸晕染系统 - 加深颜色 */}
       <motion.div
         className="pointer-events-none fixed z-0 top-0 left-0"
         style={{ x: springX, y: springY }}
@@ -92,19 +136,19 @@ export default function LandingPage() {
             animate={{ scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] md:w-[800px] h-[600px] md:h-[800px] rounded-full blur-[100px] mix-blend-multiply"
-            style={{ background: "rgba(45, 15, 21, 0.04)" }} 
+            style={{ background: "rgba(45, 15, 21, 0.12)" }} 
           />
           <motion.div
             animate={{ scale: [1.1, 1, 1.1], opacity: [0.6, 0.8, 0.6] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[500px] h-[400px] md:h-[500px] rounded-full blur-[80px] mix-blend-multiply"
-            style={{ background: "rgba(45, 15, 21, 0.08)" }} 
+            style={{ background: "rgba(45, 15, 21, 0.18)" }} 
           />
           <motion.div
             animate={{ scale: [1, 1.05, 1] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] md:w-[250px] h-[200px] md:h-[250px] rounded-full blur-[50px] mix-blend-multiply"
-            style={{ background: "rgba(45, 15, 21, 0.12)" }}
+            style={{ background: "rgba(45, 15, 21, 0.25)" }}
           />
         </div>
       </motion.div>

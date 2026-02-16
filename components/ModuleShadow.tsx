@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Mic, Play, RotateCcw, Volume2, StopCircle } from "lucide-react";
 import type { TranscriptLine } from "@/data/types";
@@ -18,10 +18,41 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
   const [recordingId, setRecordingId] = useState<number | null>(null);
   const [audioUrls, setAudioUrls] = useState<{ [key: number]: string }>({});
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [showEmptyState, setShowEmptyState] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 延迟显示空状态，防止闪烁
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (transcript.length === 0) {
+      timer = setTimeout(() => setShowEmptyState(true), 200);
+    } else {
+      setShowEmptyState(false);
+    }
+    return () => clearTimeout(timer);
+  }, [transcript]);
+
+  // 获取浏览器支持的音频格式
+  const getSupportedMimeType = () => {
+    const types = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg;codecs=opus',
+      'audio/wav'
+    ];
+    
+    for (const type of types) {
+      if (MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return 'audio/webm'; // 默认回退
+  };
 
   // --- 动态配色逻辑 (基于主题 id) ---
   const getThemeStyles = () => {
@@ -32,6 +63,7 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
         cardBg: "rgba(93, 64, 55, 0.85)",
         border: "rgba(93, 64, 55, 0.2)",
         text: "#FDFBF7",
+        titleColor: "#2D0F15", // plum wine
         activeGlow: "0 0 15px rgba(93, 64, 55, 0.4)",
         recordBtnBg: "#5E3A3A",
         recordBtnText: "#FFFFFF",
@@ -43,19 +75,22 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
         cardBg: "rgba(22, 78, 99, 0.85)",
         border: "rgba(22, 78, 99, 0.2)",
         text: "#F0F9FF",
+        titleColor: "#1A2233", // midnight blue
         activeGlow: "0 0 15px rgba(22, 78, 99, 0.4)",
         recordBtnBg: "#164E63",
         recordBtnText: "#FFFFFF",
       };
     }
 
+    // Business 主题 - 使用新的灰粉色配色
     return {
-      cardBg: "rgba(255, 255, 255, 0.08)",
-      border: "rgba(255, 255, 255, 0.1)",
-      text: "#E6DCCA",
-      activeGlow: "0 0 15px rgba(255, 255, 255, 0.1)",
-      recordBtnBg: "#EAE7DC",
-      recordBtnText: "#2A1B1D",
+      cardBg: "rgba(74, 44, 50, 0.85)", // 深紫红半透明
+      border: "rgba(212, 181, 186, 0.2)", // 灰粉色边框
+      text: "#D4B5BA", // 灰粉色文字
+      titleColor: "#D4B5BA", // 灰粉色标题
+      activeGlow: "0 0 15px rgba(232, 213, 216, 0.3)", // 浅灰粉光晕
+      recordBtnBg: "#E8D5D8", // 浅灰粉按钮背景
+      recordBtnText: "#2D0F15", // plum wine 文字
     };
   };
 
@@ -74,11 +109,12 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
     </div>
   );
 
-  // --- 录音逻辑 ---
+  // --- 录音逻辑（修复移动端兼容性）---
   const startRecording = async (line: TranscriptLine) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = getSupportedMimeType();
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -87,7 +123,7 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const audioUrl = URL.createObjectURL(audioBlob);
         setAudioUrls(prev => ({ ...prev, [line.id]: audioUrl }));
       };
@@ -101,12 +137,19 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
         video.currentTime = line.start;
         video.play();
       }
-    } catch {
-      alert("Microphone access required.");
+    } catch (error) {
+      console.error('Recording error:', error);
+      alert("Microphone access required. Please enable microphone permissions in your browser settings.");
     }
   };
 
   const stopRecording = (line: TranscriptLine) => {
+    // 清除定时器
+    if (recordingTimerRef.current) {
+      clearTimeout(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
@@ -118,6 +161,20 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
       video.muted = false;
       video.currentTime = line.start;
     }
+  };
+
+  // 处理录音按钮按下（统一处理鼠标和触摸事件）
+  const handleRecordStart = (line: TranscriptLine, e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault(); // 阻止默认行为（文本选择、右键菜单等）
+    e.stopPropagation();
+    startRecording(line);
+  };
+
+  // 处理录音按钮释放（统一处理鼠标和触摸事件）
+  const handleRecordStop = (line: TranscriptLine, e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    stopRecording(line);
   };
 
   const playMyRecord = (id: number) => {
@@ -146,17 +203,18 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
 
       <audio ref={audioPlayerRef} className="hidden" />
 
-      {/* 顶部指示 - 推荐比例 16:9 横向图（录音界面） */}
-      <div className="w-full px-8 py-4 flex justify-between items-center z-20 sticky top-0 backdrop-blur-sm">
-        <span className="text-[9px] uppercase tracking-[0.3em] font-bold opacity-30">Shadowing Studio</span>
-        <span className="text-[9px] font-serif italic opacity-30">Hold to Dub</span>
+      {/* 顶部标题 - 仅网页端显示 */}
+      <div className="hidden md:block w-full px-8 py-6 z-20 sticky top-0 backdrop-blur-sm">
+        <h1 className="font-bold font-serif" style={{ color: style.titleColor, fontSize: '30px' }}>
+          Shadowing Studio
+        </h1>
       </div>
 
       {/* 列表流 */}
-      <div className="flex-1 w-full max-w-2xl mx-auto overflow-y-auto px-6 pb-40 no-scrollbar pt-2 space-y-3">
+      <div className="flex-1 w-full max-w-2xl mx-auto overflow-y-auto px-6 pb-40 no-scrollbar pt-8 md:pt-2 space-y-3">
 
-        {transcript.length === 0 && (
-          <div className="flex items-center justify-center h-40 opacity-30">
+        {transcript.length === 0 && showEmptyState && (
+          <div className="flex items-center justify-center h-40 opacity-30 animate-in fade-in duration-500">
             <p className="text-[10px] uppercase tracking-widest">No transcript available</p>
           </div>
         )}
@@ -171,29 +229,31 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
             <motion.div
               key={line.id}
               onClick={() => jumpToLine(line.start)}
-              initial={{ opacity: 0, y: 10 }}
+              initial={false}
+              layout
               animate={{
-                opacity: 1,
-                y: 0,
                 scale: isRecordingThis ? 1.02 : 1,
               }}
-              className="relative w-full flex items-center justify-between min-h-[72px] px-6 py-4 cursor-pointer group transition-all duration-300"
+              transition={{ 
+                layout: { duration: 0.2, ease: "easeInOut" },
+                scale: { duration: 0.2 }
+              }}
+              className="relative w-full flex items-center justify-between min-h-[72px] px-6 py-4 cursor-pointer group"
               style={{
                 backgroundColor: style.cardBg,
                 color: style.text,
                 borderRadius: '8px',
                 border: `1px solid ${style.border}`,
-                backdropFilter: 'blur(8px)',
+                backdropFilter: 'blur(12px)',
                 boxShadow: isRecordingThis ? style.activeGlow : "none",
-                opacity: isActive || isRecordingThis ? 1 : 0.85,
+                opacity: isActive || isRecordingThis ? 1 : 0.7,
               }}
             >
 
               {/* 左侧：序号 + 英文原文 */}
               <div className="flex-1 flex items-center gap-4 mr-4">
-                <span className="text-[10px] font-serif italic opacity-40 w-4">0{line.id}</span>
-                <p className="text-[16px] md:text-[17px] font-normal leading-snug tracking-tight"
-                  style={{ fontFamily: 'Verdana, sans-serif' }}>
+                <span className="text-[10px] font-sans opacity-40 w-4">0{line.id}</span>
+                <p className="text-[15px] md:text-[17px] font-normal leading-snug tracking-tight font-sans">
                   {line.en}
                 </p>
               </div>
@@ -208,16 +268,26 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
                 {/* 录音按钮 */}
                 {(!hasAudio || isRecordingThis) && (
                   <motion.button
-                    onMouseDown={(e) => { e.stopPropagation(); startRecording(line); }}
-                    onMouseUp={(e) => { e.stopPropagation(); stopRecording(line); }}
-                    onMouseLeave={(e) => { e.stopPropagation(); if (isRecordingThis) stopRecording(line); }}
-                    onTouchStart={(e) => { e.stopPropagation(); startRecording(line); }}
-                    onTouchEnd={(e) => { e.stopPropagation(); stopRecording(line); }}
+                    onMouseDown={(e) => handleRecordStart(line, e)}
+                    onMouseUp={(e) => handleRecordStop(line, e)}
+                    onMouseLeave={(e) => { 
+                      e.stopPropagation(); 
+                      if (isRecordingThis) stopRecording(line); 
+                    }}
+                    onTouchStart={(e) => handleRecordStart(line, e)}
+                    onTouchEnd={(e) => handleRecordStop(line, e)}
+                    onTouchCancel={(e) => {
+                      e.stopPropagation();
+                      if (isRecordingThis) stopRecording(line);
+                    }}
+                    onContextMenu={(e) => e.preventDefault()} // 禁用右键菜单
                     whileTap={{ scale: 0.9 }}
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm"
+                    className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm select-none touch-none"
                     style={{
                       backgroundColor: isRecordingThis ? style.recordBtnBg : "rgba(255,255,255,0.1)",
                       color: isRecordingThis ? style.recordBtnText : "currentColor",
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
                     }}
                   >
                     {isRecordingThis ? <StopCircle size={18} /> : <Mic size={18} />}

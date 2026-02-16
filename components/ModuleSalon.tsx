@@ -34,12 +34,12 @@ export default function ModuleSalon({ theme, data }: ModuleSalonProps) {
         </div>
 
         {/* 标题 */}
-        <h2 className="font-serif text-3xl italic mb-4" style={{ color: theme.text }}>
+        <h2 className="font-sans text-3xl mb-4" style={{ color: theme.text }}>
           The Salon
         </h2>
 
         {/* 引言 */}
-        <p className="font-serif italic text-sm opacity-40 max-w-md leading-relaxed mb-8" style={{ color: theme.text }}>
+        <p className="font-sans text-sm opacity-40 max-w-md leading-relaxed mb-8" style={{ color: theme.text }}>
           {data?.openingLine || "A space for thoughtful discussion is being prepared..."}
         </p>
 
