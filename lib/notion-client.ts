@@ -73,6 +73,12 @@ function getRelation(property: any): string[] {
 
 export async function getAllLessons(): Promise<Lesson[]> {
   try {
+    // 调试日志
+    console.log('🔍 Fetching lessons from Notion...', {
+      database_id: DATABASES.lessons,
+      hasAuth: !!process.env.NOTION_API_KEY,
+    });
+
     const response = await notion.databases.query({
       database_id: DATABASES.lessons,
       filter: {
@@ -88,6 +94,8 @@ export async function getAllLessons(): Promise<Lesson[]> {
         }
       ]
     });
+
+    console.log('✅ Notion query successful, results:', response.results.length);
 
     const lessons: Lesson[] = [];
 
@@ -127,8 +135,9 @@ export async function getAllLessons(): Promise<Lesson[]> {
 
     return lessons;
   } catch (error) {
-    console.error('Error fetching lessons from Notion:', error);
-    return [];
+    console.error('❌ Error fetching lessons from Notion:', error);
+    // 抛出错误而不是返回空数组，让上层能看到真正的错误
+    throw error;
   }
 }
 
@@ -339,6 +348,11 @@ export async function getLatestLessons(category: string, count: number = 5): Pro
 
 export async function getDashboardLayout(): Promise<Lesson[]> {
   try {
+    console.log('🔍 Fetching dashboard layout...', {
+      database_id: DATABASES.lessons,
+      filter: 'Status=Published AND Display_Position=dashboard-featured',
+    });
+
     const response = await notion.databases.query({
       database_id: DATABASES.lessons,
       filter: {
@@ -364,6 +378,8 @@ export async function getDashboardLayout(): Promise<Lesson[]> {
         }
       ]
     });
+
+    console.log('✅ Dashboard query successful, results:', response.results.length);
 
     const lessons: Lesson[] = [];
 
@@ -402,8 +418,8 @@ export async function getDashboardLayout(): Promise<Lesson[]> {
 
     return lessons;
   } catch (error) {
-    console.error('Error fetching dashboard layout from Notion:', error);
-    return [];
+    console.error('❌ Error fetching dashboard layout from Notion:', error);
+    throw error;
   }
 }
 

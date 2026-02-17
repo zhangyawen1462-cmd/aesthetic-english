@@ -427,10 +427,12 @@ export default function CoursePage() {
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onError={(e) => {
-              console.error('❌ Video load error:', {
-                src: lesson.videoUrl,
-                error: e,
-              });
+              if (process.env.NODE_ENV === 'development') {
+                console.error('❌ Video load error:', {
+                  src: lesson.videoUrl,
+                  error: e,
+                });
+              }
             }}
             playsInline
             aria-label={`${lesson.titleEn} 视频播放器`}
