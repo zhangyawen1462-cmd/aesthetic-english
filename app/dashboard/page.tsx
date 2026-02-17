@@ -300,16 +300,21 @@ export default function Dashboard() {
             </div>
           ) : (
           <>
-          {/* 移动端：单列错落布局 */}
+          {/* 移动端：单列布局 - 先左列后右列 */}
           <div className="flex flex-col gap-9 md:hidden">
-            {VISUAL_STREAM[1] && <MoodCard item={VISUAL_STREAM[1]} index={1} />}
-            {VISUAL_STREAM[0] && <EpisodeCard item={VISUAL_STREAM[0]} index={0} />}
-            {VISUAL_STREAM[2] && <MoodCard item={VISUAL_STREAM[2]} index={2} />}
-            {VISUAL_STREAM[6] && <EpisodeCard item={VISUAL_STREAM[6]} index={6} />}
-            {VISUAL_STREAM[4] && <MoodCard item={VISUAL_STREAM[4]} index={4} />}
+            {/* 左列：0, 1, 2, 3 */}
+            {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
+            {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
+            {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
+            {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
+            {/* 右列：4, 5, 6, 7 */}
+            {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
+            {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
+            {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
+            {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
           </div>
 
-          {/* 网页端：双列布局 */}
+          {/* 网页端：双列布局 - 保持不变 */}
           <div className="hidden md:grid md:grid-cols-[1.4fr_1.6fr] gap-9">
             
             {/* 左列 (Left Low) */}
