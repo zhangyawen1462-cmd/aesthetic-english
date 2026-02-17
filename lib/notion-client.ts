@@ -24,12 +24,24 @@ devLog('Notion Client initialized:', {
   hasQuery: typeof notion.databases?.query,
 });
 
-// Notion 数据库 ID（从环境变量读取）
+// 辅助函数：格式化数据库 ID（自动添加连字符）
+function formatDatabaseId(id: string): string {
+  if (!id) return '';
+  // 如果已经有连字符，直接返回
+  if (id.includes('-')) return id;
+  // 如果是32位无连字符格式，转换为 8-4-4-4-12 格式
+  if (id.length === 32) {
+    return id.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
+  }
+  return id;
+}
+
+// Notion 数据库 ID（从环境变量读取并格式化）
 const DATABASES = {
-  lessons: process.env.NOTION_DB_LESSONS || '',
-  vocabulary: process.env.NOTION_DB_VOCABULARY || '',
-  grammar: process.env.NOTION_DB_GRAMMAR || '',
-  recall: process.env.NOTION_DB_RECALL || '',
+  lessons: formatDatabaseId(process.env.NOTION_DB_LESSONS || ''),
+  vocabulary: formatDatabaseId(process.env.NOTION_DB_VOCABULARY || ''),
+  grammar: formatDatabaseId(process.env.NOTION_DB_GRAMMAR || ''),
+  recall: formatDatabaseId(process.env.NOTION_DB_RECALL || ''),
 };
 
 // ============================================================
