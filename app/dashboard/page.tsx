@@ -421,11 +421,9 @@ function MoodCard({ item, index }: { item: VisualStreamItem; index: number }) {
         className="relative w-full overflow-hidden bg-[#2D0F15]/5"
         style={{ aspectRatio }}
       >
-        <motion.img
+        <img
           src={item.img}
           alt="mood"
-          animate={{ scale: [1, 1.02, 1] }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
           className="w-full h-full object-contain grayscale-[20%] opacity-90"
           onLoad={(e) => {
             const img = e.currentTarget;

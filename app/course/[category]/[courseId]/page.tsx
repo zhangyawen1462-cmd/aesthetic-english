@@ -458,8 +458,19 @@ export default function CoursePage() {
             <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg active:scale-95 transition-transform">
               <Play size={isMobile ? 28 : 32} className="text-white ml-0.5" fill="currentColor" />
             </div>
-            <p className="mt-4 text-white/70 text-xs sm:text-sm font-sans max-w-[85%] text-center px-4">{lesson.titleEn}</p>
-            {lesson.ep != null && <p className="mt-1 text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">EP.{lesson.ep}</p>}
+            {/* 中文标题 */}
+            {lesson.titleCn && (
+              <p className="mt-4 text-white/90 text-sm sm:text-base font-sans max-w-[85%] text-center px-4 font-medium">
+                {lesson.titleCn}
+              </p>
+            )}
+            {/* 英文标题 */}
+            {lesson.titleEn && (
+              <p className="mt-2 text-white/70 text-xs sm:text-sm font-sans max-w-[85%] text-center px-4">
+                {lesson.titleEn}
+              </p>
+            )}
+            {lesson.ep != null && <p className="mt-2 text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">EP.{lesson.ep}</p>}
           </div>
         )}
 
