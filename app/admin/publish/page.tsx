@@ -19,6 +19,7 @@ interface PublishFormData {
   coverArchiveFile: File | null;   // 归档封面（16:9）
   videoFile: File | null;
   srtFile: File | null;
+  audioFile: File | null; // 🆕 音频文件（M4A，用于永久会员下载）
 }
 
 type PublishStep = 'idle' | 'uploading' | 'generating' | 'creating' | 'success' | 'error';
@@ -36,6 +37,7 @@ export default function PublishPage() {
     coverArchiveFile: null,
     videoFile: null,
     srtFile: null,
+    audioFile: null, // 🆕 音频文件
   });
 
   const [currentStep, setCurrentStep] = useState<PublishStep>('idle');
@@ -45,7 +47,7 @@ export default function PublishPage() {
   const [notionUrl, setNotionUrl] = useState('');
 
   // 文件选择处理
-  const handleFileChange = (field: 'coverFeaturedFile' | 'coverArchiveFile' | 'videoFile' | 'srtFile', file: File | null) => {
+  const handleFileChange = (field: 'coverFeaturedFile' | 'coverArchiveFile' | 'videoFile' | 'srtFile' | 'audioFile', file: File | null) => {
     setFormData(prev => ({ ...prev, [field]: file }));
     setError('');
   };
@@ -119,6 +121,7 @@ export default function PublishPage() {
       if (formData.coverArchiveFile) uploadData.append('coverArchive', formData.coverArchiveFile);
       if (formData.videoFile) uploadData.append('video', formData.videoFile);
       if (formData.srtFile) uploadData.append('srt', formData.srtFile);
+      if (formData.audioFile) uploadData.append('audio', formData.audioFile); // 🆕 音频文件
 
       // 调用统一发布 API
       console.log('📤 开始发布，调用 /api/publish...');
@@ -189,6 +192,7 @@ export default function PublishPage() {
       coverArchiveFile: null,
       videoFile: null,
       srtFile: null,
+      audioFile: null, // 🆕 音频文件
     });
     setCurrentStep('idle');
     setProgress('');
@@ -467,6 +471,19 @@ export default function PublishPage() {
                 onChange={(file) => handleFileChange('srtFile', file)}
                 disabled={isProcessing}
                 required
+              />
+            )}
+
+            {/* 🆕 音频文件 - 仅视频模式显示 */}
+            {formData.contentType === 'video' && (
+              <FileUploadBox
+                label="音频文件（M4A）"
+                accept="audio/mp4,audio/m4a,.m4a"
+                file={formData.audioFile}
+                onChange={(file) => handleFileChange('audioFile', file)}
+                disabled={isProcessing}
+                optional
+                hint="可选：预处理的 M4A 音频文件，用于永久会员秒速下载。如不上传，用户点击下载时会实时提取（较慢）。"
               />
             )}
           </div>

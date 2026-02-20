@@ -1,59 +1,786 @@
 "use client";
 
-import React from "react";
-import { motion } from "framer-motion";
-import { MessageSquare } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Send, Sparkles, Lock, ChevronDown, Wand2, RefreshCw } from "lucide-react";
 import type { SalonData } from "@/data/types";
-
 import type { ThemeConfig } from "@/lib/theme-config";
+import { PERMISSIONS, type MembershipTier, getUpgradeMessage } from "@/lib/permissions";
+import WineCurtain from "@/components/WineCurtain";
+import { useMembership } from "@/context/MembershipContext";
 
+// --- 类型定义 ---
 interface ModuleSalonProps {
   theme: ThemeConfig;
   data?: SalonData;
+  videoContext: {
+    titleCn: string;
+    titleEn: string;
+    transcript: string;
+    vocab: Array<{ word: string; def: string }>;
+  };
+  videoMood?: string;
+  lessonId: string; // 🆕 用于追踪每期视频的对话次数
 }
 
-export default function ModuleSalon({ theme, data }: ModuleSalonProps) {
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  contentCn?: string; // 🆕 中文翻译
+  timestamp: Date;
+  correction?: string; 
+  isBlurred?: boolean;
+  isHidden?: boolean; // 🆕 隐藏消息（不在界面显示）
+}
+
+// --- AI 模式配置 ---
+type AIMode = 'professional' | 'arrogant' | 'romantic';
+
+const AI_MODES = {
+  professional: {
+    name: 'The Partner',
+    icon: '💼',
+    description: '合伙人 - 专业、策略、结果导向',
+    openingHook: (title: string) => `Train's delayed. Should we grab lunch or wait here?`,
+    openingHookCn: (title: string) => `火车晚点了。我们要去吃午饭还是在这等？`
+  },
+  arrogant: {
+    name: 'The Critic',
+    icon: '👑',
+    description: '审视者 - 傲慢、质疑、高标准',
+    openingHook: (title: string) => `This place? Overrated. I know a better spot. Coming?`,
+    openingHookCn: (title: string) => `这地方？被高估了。我知道更好的地方。来吗？`
+  },
+  romantic: {
+    name: 'The Flâneur',
+    icon: '🌹',
+    description: '漫游者 - 感性、诗意、氛围感',
+    openingHook: (title: string) => `Wow, this sunset is unreal. Let's grab a drink. What do you want?`,
+    openingHookCn: (title: string) => `哇，这日落绝了。我们去喝一杯吧。你想喝什么？`
+  }
+};
+
+// --- 根据 videoMood 映射到 AI 模式 ---
+const getModeFromVideoMood = (mood?: string): AIMode => {
+  if (mood === '专业、严谨') return 'professional';
+  if (mood === '启发、思辨') return 'romantic';
+  return 'professional';
+};
+
+export default function ModuleSalon({ theme, data, videoContext, videoMood, lessonId }: ModuleSalonProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [expandedCorrectionId, setExpandedCorrectionId] = useState<string | null>(null);
+  
+  // 🆕 AI 模式切换
+  const [currentMode, setCurrentMode] = useState<AIMode>(() => getModeFromVideoMood(videoMood));
+  const [showModeSelector, setShowModeSelector] = useState(false);
+  
+  // 🆕 长按显示中文翻译
+  const [showTranslation, setShowTranslation] = useState<string | null>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  
+  // 🆕 付费墙状态
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [paywallMessage, setPaywallMessage] = useState('');
+  const [paywallRequiredTier, setPaywallRequiredTier] = useState<'yearly' | 'lifetime'>('lifetime');
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 🆕 从 Context 获取会员状态
+  const { tier: membershipType } = useMembership();
+
+  // 🆕 使用"宪法"判断权限（单一数据源）
+  const gabbyConfig = PERMISSIONS.gabby.getConfig(membershipType);
+  const hasAccess = gabbyConfig.canChat;
+  const canSwitchMode = PERMISSIONS.gabby.canSwitchPersona(membershipType);
+  
+  // 🆕 对话次数追踪（从后端获取）
+  const [chatCount, setChatCount] = useState<number>(0);
+  const [dailyLimit, setDailyLimit] = useState<number | typeof Infinity>(gabbyConfig.dailyLimit);
+
+  // 从后端获取对话次数
+  useEffect(() => {
+    async function fetchChatUsage() {
+      if (!hasAccess) return;
+      
+      try {
+        // 🔧 开发环境：传递模拟的会员等级
+        const headers: Record<string, string> = {};
+        if (process.env.NODE_ENV === 'development' && membershipType) {
+          headers['x-dev-tier'] = membershipType;
+        }
+        
+        const response = await fetch(`/api/chat-usage/${lessonId}`, { headers });
+        const data = await response.json();
+        
+        if (data.success) {
+          setChatCount(data.data.chatCount);
+          setDailyLimit(data.data.limit);
+        }
+      } catch (error) {
+        console.error('Failed to fetch chat usage:', error);
+      }
+    }
+    
+    fetchChatUsage();
+  }, [lessonId, hasAccess, membershipType]);
+
+  // 计算剩余次数
+  const remainingChats = dailyLimit === Infinity ? Infinity : Math.max(0, dailyLimit - chatCount);
+  const hasReachedLimit = remainingChats === 0;
+  
+  // 当前模式配置
+  const modeConfig = AI_MODES[currentMode];
+
+  // --- 1. 静默开场白：AI 根据视频内容主动打招呼 ---
+  useEffect(() => {
+    // 只在初次挂载且聊天记录为空时执行
+    if (messages.length > 0) return;
+    
+    const initChat = async () => {
+      // 1. 发送隐藏的 [SCENE_START] 消息
+      const hiddenMessage: Message = {
+        id: "scene-start",
+        role: "user",
+        content: "[SCENE_START]",
+        timestamp: new Date(),
+        isHidden: true // 标记为隐藏，不在界面显示
+      };
+      
+      setMessages([hiddenMessage]);
+      setIsLoading(true);
+      
+      try {
+        // 2. 调用 AI 生成情景化开场白
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (process.env.NODE_ENV === 'development' && membershipType) {
+          headers['x-dev-tier'] = membershipType;
+        }
+        
+        const response = await fetch("/api/ai-chat-secure", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            message: "[SCENE_START]", // 特殊标记，让后端知道这是开场白请求
+            mode: currentMode,
+            lessonId: lessonId,
+            videoContext: {
+              title: videoContext.titleEn,
+              titleCn: videoContext.titleCn,
+              transcript: videoContext.transcript,
+              vocabulary: videoContext.vocab,
+            },
+            conversationHistory: [], // 空历史，表示这是第一条消息
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // 3. 显示 AI 的开场白
+          const openingMessage: Message = {
+            id: "opening",
+            role: "assistant",
+            content: data.reply,
+            contentCn: data.replyCn,
+            timestamp: new Date(),
+          };
+          setMessages([hiddenMessage, openingMessage]);
+        } else {
+          // 失败时使用默认开场白
+          console.error('Failed to generate opening:', data.error);
+          const fallbackMessage: Message = {
+            id: "opening",
+            role: "assistant",
+            content: modeConfig.openingHook(videoContext.titleEn),
+            contentCn: modeConfig.openingHookCn(videoContext.titleCn),
+            timestamp: new Date()
+          };
+          setMessages([hiddenMessage, fallbackMessage]);
+        }
+      } catch (error) {
+        console.error('Opening generation error:', error);
+        // 失败时使用默认开场白
+        const fallbackMessage: Message = {
+          id: "opening",
+          role: "assistant",
+          content: modeConfig.openingHook(videoContext.titleEn),
+          contentCn: modeConfig.openingHookCn(videoContext.titleCn),
+          timestamp: new Date()
+        };
+        setMessages([hiddenMessage, fallbackMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    // 延迟 800ms 后执行，营造自然感
+    const timer = setTimeout(initChat, 800);
+    return () => clearTimeout(timer);
+  }, [videoContext, currentMode, modeConfig, lessonId, membershipType, messages.length]);
+
+  // 自动滚动
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  // 自动调整输入框高度
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [input]);
+
+  // 切换模式
+  const handleModeSwitch = (newMode: AIMode) => {
+    if (!canSwitchMode) {
+      alert(getUpgradeMessage(membershipType, 'AI 模式切换'));
+      return;
+    }
+    setCurrentMode(newMode);
+    setShowModeSelector(false);
+    // 清空对话，重新开始
+    setMessages([]);
+  };
+
+  // 🆕 长按显示翻译
+  const handleTouchStart = (messageId: string) => {
+    console.log('Touch start:', messageId);
+    longPressTimer.current = setTimeout(() => {
+      console.log('Long press triggered:', messageId);
+      setShowTranslation(messageId);
+    }, 500); // 长按 500ms 触发
+  };
+
+  const handleTouchEnd = () => {
+    console.log('Touch end');
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleMouseDown = (messageId: string) => {
+    console.log('Mouse down:', messageId);
+    longPressTimer.current = setTimeout(() => {
+      console.log('Long press triggered (mouse):', messageId);
+      setShowTranslation(messageId);
+    }, 500);
+  };
+
+  const handleMouseUp = () => {
+    console.log('Mouse up');
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    console.log('Mouse leave');
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  // --- 发送逻辑 ---
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input.trim(),
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+
+    // --- 季度会员的"幽灵输入"逻辑 ---
+    if (!hasAccess) {
+      setTimeout(() => {
+        setIsLoading(false);
+        const blurredMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "That is an interesting perspective. However, in a professional context, we usually prefer to say it differently to emphasize the...",
+          timestamp: new Date(),
+          isBlurred: true,
+        };
+        setMessages((prev) => [...prev, blurredMessage]);
+      }, 1500);
+      return;
+    }
+
+    // --- 🆕 后端验证逻辑 ---
+    try {
+      // 🔧 开发环境：传递模拟的会员等级
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (process.env.NODE_ENV === 'development' && membershipType) {
+        headers['x-dev-tier'] = membershipType;
+      }
+      
+      const response = await fetch("/api/ai-chat-secure", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message: input.trim(),
+          mode: currentMode,
+          lessonId: lessonId, // 🆕 传递 lessonId
+          videoContext: {
+            title: videoContext.titleEn,
+            titleCn: videoContext.titleCn,
+            transcript: videoContext.transcript,
+            vocabulary: videoContext.vocab,
+          },
+          conversationHistory: messages
+            .filter(m => !m.isBlurred)
+            .map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // ✅ 成功：更新对话次数
+        if (data.remainingChats !== undefined && data.remainingChats !== Infinity) {
+          setChatCount(dailyLimit - data.remainingChats);
+        }
+
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: data.reply,
+          contentCn: data.replyCn,
+          timestamp: new Date(),
+          correction: data.correction || undefined,
+        };
+        setMessages((prev) => [...prev, aiMessage]);
+      } else {
+        // ❌ 失败：处理付费墙
+        if (data.error === 'paywall_limit_reached') {
+          // 🎭 触发深酒红帷幕
+          setShowPaywall(true);
+          setPaywallMessage(data.message);
+          setPaywallRequiredTier('lifetime');
+        } else if (data.error === 'paywall_preview') {
+          setShowPaywall(true);
+          setPaywallMessage(data.message);
+          setPaywallRequiredTier('yearly');
+        } else if (data.error === 'unauthorized') {
+          // 未登录/未激活会员
+          alert('请先激活会员');
+          window.location.href = '/redeem';
+        } else {
+          throw new Error(data.message);
+        }
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      setMessages((prev) => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: "I seem to be having trouble connecting. Please try again.",
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // 根据 mood 选择背景
+  const getBackgroundStyle = () => {
+    return { backgroundColor: theme.background };
+  };
+
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden">
-
-      {/* 纹理背景 */}
-      <div className="absolute inset-0 opacity-[0.05] pointer-events-none bg-noise mix-blend-multiply" />
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8 }}
-        className="flex flex-col items-center text-center px-6"
+    <div 
+      className="w-full h-full flex flex-col relative overflow-hidden font-sans"
+      style={getBackgroundStyle()}
+    >
+      {/* --- Header: Gabby 的名片 --- */}
+      <div
+        className="flex items-center justify-between px-5 py-3 border-b backdrop-blur-md sticky top-0 z-20"
+        style={{ 
+          borderColor: `${theme.lineColor}20`,
+          backgroundColor: `${theme.background}cc`
+        }}
       >
-        {/* 图标 */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 relative shadow-sm">
+             <img 
+               src="/gabby.png" 
+               alt="Gabby" 
+               className="w-full h-full object-cover"
+             />
+             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold tracking-wide" style={{ color: theme.text }}>
+              Gabby
+            </h3>
+            <div className="flex items-center gap-1.5 opacity-60">
+               <span className="text-xs">{modeConfig.icon}</span>
+               <p className="text-[10px] uppercase tracking-wider">{modeConfig.name} Mode</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* 🆕 模式切换按钮 */}
+        <div className="relative">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowModeSelector(!showModeSelector)}
+            className="p-2 rounded-full hover:bg-white/5 transition-colors"
+            style={{ color: theme.text, opacity: canSwitchMode ? 1 : 0.3 }}
+            disabled={!canSwitchMode}
+          >
+            <RefreshCw size={16} />
+          </motion.button>
+
+          {/* 模式选择器 */}
+          <AnimatePresence>
+            {showModeSelector && canSwitchMode && (
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                className="absolute right-0 top-full mt-2 w-64 rounded-xl border shadow-xl overflow-hidden z-30"
+                style={{ 
+                  backgroundColor: theme.background,
+                  borderColor: theme.lineColor
+                }}
+              >
+                {(Object.keys(AI_MODES) as AIMode[]).map((mode) => {
+                  const config = AI_MODES[mode];
+                  const isActive = mode === currentMode;
+                  
+                  return (
+                    <button
+                      key={mode}
+                      onClick={() => handleModeSwitch(mode)}
+                      className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b last:border-b-0"
+                      style={{ 
+                        borderColor: theme.lineColor,
+                        backgroundColor: isActive ? `${theme.accent}10` : 'transparent'
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{config.icon}</span>
+                        <div className="flex-1">
+                          <div className="text-sm font-medium" style={{ color: theme.text }}>
+                            {config.name}
+                          </div>
+                          <div className="text-xs opacity-60" style={{ color: theme.text }}>
+                            {config.description}
+                          </div>
+                        </div>
+                        {isActive && (
+                          <Sparkles size={14} style={{ color: theme.accent }} />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* --- Chat Area --- */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+        <AnimatePresence mode="popLayout">
+          {messages
+            .filter(m => !m.isHidden && m.content !== '[SCENE_START]') // 🆕 过滤隐藏消息
+            .map((message) => {
+            const isUser = message.role === "user";
+            
+            return (
+              <motion.div
+                key={message.id}
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
+              >
+                <div className={`max-w-[85%] relative ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+                  
+                  {/* 消息气泡 */}
+                  <div
+                    className={`px-5 py-3 shadow-sm relative overflow-hidden cursor-pointer select-none
+                      ${isUser 
+                        ? "rounded-2xl rounded-br-none" 
+                        : "rounded-2xl rounded-bl-none"
+                      }
+                    `}
+                    style={{
+                      backgroundColor: isUser 
+                        ? theme.accent 
+                        : `${theme.lineColor}15`,
+                      color: isUser ? "#ffffff" : theme.text,
+                      ...(message.isBlurred ? { minHeight: '80px', minWidth: '200px' } : {})
+                    }}
+                    // 🆕 长按事件
+                    onTouchStart={() => !isUser && handleTouchStart(message.id)}
+                    onTouchEnd={handleTouchEnd}
+                    onMouseDown={() => !isUser && handleMouseDown(message.id)}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseLeave}
+                    onClick={() => setShowTranslation(null)} // 点击关闭翻译
+                  >
+                    {message.isBlurred ? (
+                      <>
+                        <p className="text-sm leading-relaxed blur-sm opacity-50 select-none">
+                          {message.content}
+                        </p>
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/10 backdrop-blur-[2px]">
+                           <div className="p-2 rounded-full bg-black/5 mb-1">
+                             <Lock size={14} style={{ color: theme.text }} />
+                           </div>
+                           <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.text }}>
+                             Upgrade to View
+                           </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {/* 英文内容 */}
+                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap relative z-10">
+                          {message.content}
+                        </p>
+                        
+                        {/* 🆕 中文翻译遮罩层（长按显示） */}
+                        <AnimatePresence>
+                          {!isUser && showTranslation === message.id && message.contentCn && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className="absolute inset-0 z-20 flex items-center justify-center p-4 rounded-2xl backdrop-blur-sm"
+                              style={{ 
+                                backgroundColor: `${theme.accent}e6`, // 主题色 + 90% 透明度
+                              }}
+                            >
+                              <div className="text-center">
+                                <p className="text-[15px] leading-relaxed text-white font-medium">
+                                  {message.contentCn}
+                                </p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Better Way 胶囊 */}
+                  {!isUser && !message.isBlurred && message.correction && (
+                    <div className="mt-2 ml-1">
+                      <motion.button
+                        onClick={() => setExpandedCorrectionId(
+                          expandedCorrectionId === message.id ? null : message.id
+                        )}
+                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity"
+                        style={{ color: theme.accent }}
+                      >
+                        <Sparkles size={10} />
+                        Better Way
+                        <motion.div
+                          animate={{ rotate: expandedCorrectionId === message.id ? 180 : 0 }}
+                        >
+                           <ChevronDown size={10} />
+                        </motion.div>
+                      </motion.button>
+
+                      <AnimatePresence>
+                        {expandedCorrectionId === message.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div 
+                              className="mt-2 p-3 rounded-lg text-sm border-l-2"
+                              style={{ 
+                                backgroundColor: `${theme.lineColor}10`,
+                                borderColor: theme.accent,
+                                color: theme.text
+                              }}
+                            >
+                              <p className="opacity-90 leading-snug">{message.correction}</p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+
+                  {/* 时间戳 + 长按提示 */}
+                  <div className={`flex items-center gap-2 mt-1.5 ${isUser ? "justify-end mr-1" : "justify-start ml-1"}`}>
+                    <span 
+                      className="text-[9px] opacity-30 tracking-wide"
+                      style={{ color: theme.text }}
+                    >
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
+                    </span>
+                    
+                    {/* 🆕 长按提示（所有 AI 消息都显示） */}
+                    {!isUser && !message.isBlurred && message.contentCn && showTranslation !== message.id && (
+                      <span 
+                        className="text-[8px] opacity-20 tracking-wider"
+                        style={{ color: theme.text }}
+                      >
+                        • 长按看中文
+                      </span>
+                    )}
+                  </div>
+
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {/* Loading Indicator - 优雅的三点动画 */}
+        {isLoading && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            className="flex justify-start"
+          >
+             <div 
+               className="px-5 py-3 rounded-2xl rounded-bl-none" 
+               style={{ backgroundColor: `${theme.lineColor}15` }}
+             >
+                <div className="flex gap-1.5">
+                  {[0, 1, 2].map(i => (
+                    <motion.div
+                      key={i}
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: theme.text }}
+                      animate={{ 
+                        opacity: [0.3, 0.8, 0.3],
+                        scale: [1, 1.2, 1]
+                      }}
+                      transition={{ 
+                        duration: 1.2, 
+                        repeat: Infinity, 
+                        delay: i * 0.2,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  ))}
+                </div>
+             </div>
+          </motion.div>
+        )}
+        
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* --- Input Area --- */}
+      <div
+        className="px-4 py-4 border-t backdrop-blur-xl"
+        style={{ 
+          borderColor: `${theme.lineColor}20`,
+          backgroundColor: `${theme.background}e6`
+        }}
+      >
         <div
-          className="w-20 h-20 rounded-full flex items-center justify-center mb-8 border"
-          style={{ borderColor: theme.lineColor, color: theme.text }}
+          className="flex items-end gap-2 rounded-2xl px-4 py-2 border transition-all duration-300 focus-within:ring-1 focus-within:ring-offset-0"
+          style={{ 
+            borderColor: input.trim() ? theme.accent : `${theme.lineColor}40`,
+            backgroundColor: `${theme.background}`,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+          }}
         >
-          <MessageSquare size={28} strokeWidth={1} style={{ opacity: 0.4 }} />
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              hasAccess 
+                ? (hasReachedLimit ? "已达到本期对话次数上限..." : "Reply to Gabby...") 
+                : "Reply to unlock..."
+            } 
+            className="flex-1 bg-transparent outline-none resize-none text-[15px] max-h-24 placeholder-opacity-30 py-2"
+            style={{ color: theme.text }}
+            rows={1}
+            disabled={isLoading || hasReachedLimit}
+          />
+          
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={handleSend}
+            disabled={!input.trim() || isLoading || hasReachedLimit}
+            className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all mb-1"
+            style={{
+              backgroundColor: (input.trim() && !hasReachedLimit) ? theme.accent : `${theme.lineColor}20`,
+              opacity: (input.trim() && !hasReachedLimit) ? 1 : 0.5,
+              cursor: (input.trim() && !hasReachedLimit) ? 'pointer' : 'default'
+            }}
+          >
+            <Send size={14} style={{ color: "#ffffff" }} />
+          </motion.button>
         </div>
 
-        {/* 标题 */}
-        <h2 className="font-sans text-3xl mb-4" style={{ color: theme.text }}>
-          The Salon
-        </h2>
-
-        {/* 引言 */}
-        <p className="font-sans text-sm opacity-40 max-w-md leading-relaxed mb-8" style={{ color: theme.text }}>
-          {data?.openingLine || "A space for thoughtful discussion is being prepared..."}
-        </p>
-
-        {/* 分隔线 */}
-        <div className="h-[1px] w-16 mb-6" style={{ backgroundColor: theme.accent, opacity: 0.3 }} />
-
-        {/* 状态 */}
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: theme.accent }} />
-          <span className="text-[10px] uppercase tracking-[0.3em] opacity-40" style={{ color: theme.text }}>
-            Coming Soon
-          </span>
+        {/* 底部提示 */}
+        <div className="mt-2 text-center">
+            {!hasAccess && (
+               <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
+                 Preview Mode • Upgrade to {membershipType === 'quarterly' ? 'Yearly' : 'Lifetime'} for full access
+               </p>
+            )}
+            {hasAccess && dailyLimit !== Infinity && (
+               <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
+                 {hasReachedLimit 
+                   ? `已用完本期 ${dailyLimit} 次对话 • 升级到永久会员可无限对话` 
+                   : `剩余 ${remainingChats}/${dailyLimit} 次对话`
+                 }
+               </p>
+            )}
+            {hasAccess && dailyLimit === Infinity && (
+               <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
+                 ∞ 无限对话
+               </p>
+            )}
+            {!canSwitchMode && hasAccess && !hasReachedLimit && (
+               <p className="text-[9px] uppercase tracking-widest opacity-40 mt-1" style={{ color: theme.text }}>
+                 Mode switching available for Lifetime members
+               </p>
+            )}
         </div>
-      </motion.div>
+      </div>
+
+      {/* 🎭 深酒红帷幕 */}
+      <WineCurtain
+        isVisible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        message={paywallMessage}
+        requiredTier={paywallRequiredTier}
+        currentTier={membershipType}
+      />
     </div>
   );
 }

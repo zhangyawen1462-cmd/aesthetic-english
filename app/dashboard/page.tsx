@@ -2,10 +2,13 @@
 
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Menu, X, Play } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Menu, X, Play, Crown } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import * as React from "react";
 import type { Lesson } from "@/data/types";
+import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
+import SubscriptionModal from "@/components/SubscriptionModal";
+import { useMembership } from "@/context/MembershipContext";
 
 
 
@@ -19,6 +22,15 @@ export default function Dashboard() {
   // 从 API 获取布局配置的课程
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // 游客拦截系统
+  const { isGuest, shouldShowSubscription, handleCourseClick, closeSubscriptionModal } = useSubscriptionGuard();
+  
+  // 会员状态
+  const { tier } = useMembership();
+  
+  // 订阅弹窗状态
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   useEffect(() => {
     async function fetchDashboardLayout() {
@@ -207,7 +219,7 @@ export default function Dashboard() {
                  ))}
               </nav>
 
-              {/* 底部：Notes 和 Subscribe - 固定在底部 */}
+              {/* 底部：Notes 和 Subscribe/Upgrade - 固定在底部 */}
               <div className="absolute bottom-8 left-0 right-0 z-10 flex flex-col items-center gap-4">
                  <Link 
                    href="/dashboard/notebook" 
@@ -216,13 +228,26 @@ export default function Dashboard() {
                  >
                    Notes
                  </Link>
-                 <Link 
-                   href="/subscribe" 
-                   onClick={() => setIsMobileMenuOpen(false)}
-                   className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
-                 >
-                   Subscribe
-                 </Link>
+                 {tier === 'lifetime' ? (
+                   // 永久会员：显示皇冠标记
+                   <div className="flex items-center gap-2 opacity-60">
+                     <Crown size={14} className="text-[#F7F8F9]" strokeWidth={1.5} />
+                     <span className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9]">
+                       Patron
+                     </span>
+                   </div>
+                 ) : (
+                   // 游客/季度/年度会员：显示订阅/升级按钮
+                   <button 
+                     onClick={() => {
+                       setIsMobileMenuOpen(false);
+                       setShowSubscriptionModal(true);
+                     }}
+                     className="text-[12px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
+                   >
+                     {tier === null ? 'Subscribe' : 'Upgrade'}
+                   </button>
+                 )}
               </div>
             </motion.aside>
           </>
@@ -271,9 +296,22 @@ export default function Dashboard() {
             </li>
           </ul>
           <div className="w-full flex justify-end pr-18">
-            <span className="font-sans text-[9px] uppercase tracking-[0.25em] opacity-40 text-[#2D0F15]">
-              Subscribe
-            </span>
+            {tier === 'lifetime' ? (
+              // 永久会员：显示皇冠标记
+              <div className="flex items-center gap-2 opacity-60">
+                <Crown size={14} className="text-[#2D0F15]" strokeWidth={1.5} />
+                <span className="font-sans text-[9px] uppercase tracking-[0.25em] text-[#2D0F15]">
+                  Patron
+                </span>
+              </div>
+            ) : (
+              // 游客/季度/年度会员：显示订阅/升级按钮
+              <button onClick={() => setShowSubscriptionModal(true)}>
+                <span className="font-sans text-[11px] uppercase tracking-[0.25em] opacity-40 text-[#2D0F15] hover:opacity-70 transition-opacity cursor-pointer">
+                  {tier === null ? 'Subscribe' : 'Upgrade'}
+                </span>
+              </button>
+            )}
           </div>
         </aside>
 
@@ -303,15 +341,15 @@ export default function Dashboard() {
           {/* 移动端：单列布局 - 先左列后右列 */}
           <div className="flex flex-col gap-9 md:hidden">
             {/* 左列：0, 1, 2, 3 */}
-            {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
-            {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
-            {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
-            {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
+            {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
+            {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
+            {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
+            {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
             {/* 右列：4, 5, 6, 7 */}
-            {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
-            {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
-            {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
-            {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
+            {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
+            {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
+            {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
+            {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
           </div>
 
           {/* 网页端：双列布局 - 保持不变 */}
@@ -319,18 +357,18 @@ export default function Dashboard() {
             
             {/* 左列 (Left Low) */}
             <div className="flex flex-col gap-9 pt-32">
-               {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
-               {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
-               {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
-               {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
+               {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
+               {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
+               {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
+               {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
             </div>
 
             {/* 右列 (Right High) */}
             <div className="flex flex-col gap-9 pt-4">
-               {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
-               {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
-               {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
-               {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
+               {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
+               {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
+               {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
+               {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
             </div>
 
           </div>
@@ -345,6 +383,15 @@ export default function Dashboard() {
           Created by Scarlett Zhang
         </p>
       </footer>
+
+      {/* 订阅弹窗（两种触发方式）*/}
+      <SubscriptionModal 
+        isOpen={shouldShowSubscription || showSubscriptionModal} 
+        onClose={() => {
+          closeSubscriptionModal();
+          setShowSubscriptionModal(false);
+        }} 
+      />
     </div>
   );
 }
@@ -374,7 +421,7 @@ function getAspectRatio(heightClass: string | undefined): number {
 }
 
 // ─── 子组件定义 (确保这些在 Dashboard 函数外部) ───
-function EpisodeCard({ item, index }: { item: VisualStreamItem; index: number }) {
+function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; index: number; onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 0 }}
@@ -383,7 +430,7 @@ function EpisodeCard({ item, index }: { item: VisualStreamItem; index: number })
       transition={{ duration: 0.6, delay: 0, ease: [0.22, 1, 0.36, 1] }}
       className="group cursor-pointer w-full"
     >
-      <Link href={item.href || "#"}>
+      <Link href={item.href || "#"} onClick={onGuestClick}>
         <div 
           className="relative w-full overflow-hidden bg-[#2D0F15]/5"
           style={{ aspectRatio: getAspectRatio(item.height) }}

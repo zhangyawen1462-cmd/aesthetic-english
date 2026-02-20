@@ -107,7 +107,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     }
   }, [useVirtualScroll]);
 
-  // 自动滚动到当前活跃行
+  // 自动滚动到当前活跃行（优化：减少不必要的滚动）
+  const lastScrolledIndex = useRef<number>(-1);
+  
   useEffect(() => {
     if (!isPlaying || !scrollContainerRef.current) return;
 
@@ -116,9 +118,18 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     );
     if (activeIndex < 0) return;
 
+    // 只在切换到新行时才滚动，避免同一行内频繁触发
+    if (activeIndex === lastScrolledIndex.current) return;
+    lastScrolledIndex.current = activeIndex;
+
     if (useVirtualScroll) {
       const targetScrollTop = activeIndex * ITEM_HEIGHT - containerHeight / 2 + ITEM_HEIGHT / 2;
-      scrollContainerRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      const currentScrollTop = scrollContainerRef.current.scrollTop;
+      
+      // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
+      if (Math.abs(targetScrollTop - currentScrollTop) > ITEM_HEIGHT / 2) {
+        scrollContainerRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      }
     } else {
       // 非虚拟滚动时，使用 DOM 查询
       const el = scrollContainerRef.current.querySelector(`[data-line-id="${activeIndex}"]`);

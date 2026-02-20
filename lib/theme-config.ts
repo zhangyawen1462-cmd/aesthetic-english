@@ -27,6 +27,7 @@ export interface ThemeConfig {
   id: CategoryKey;
   label: string;
   bg: string;
+  background: string;
   sidebar: string;
   text: string;
   sub: string;
@@ -68,6 +69,7 @@ export const THEMES: Record<CategoryKey, ThemeConfig> = {
 
     // 🎨 Daily Aesthetic (日常) — 背景 paper，文字 ink
     bg: COLORS.PAPER,
+    background: COLORS.PAPER,
     sidebar: COLORS.PAPER,
     text: COLORS.INK,
     sub: `${COLORS.INK}73`,
@@ -102,6 +104,7 @@ export const THEMES: Record<CategoryKey, ThemeConfig> = {
 
     // 🌙 Cognitive Growth (认知) — 背景 mist (浅蓝打底)，文字 abyss (午夜蓝)
     bg: COLORS.MIST,
+    background: COLORS.MIST,
     sidebar: COLORS.MIST,
     text: COLORS.ABYSS,
     sub: `${COLORS.ABYSS}7A`,
@@ -136,6 +139,7 @@ export const THEMES: Record<CategoryKey, ThemeConfig> = {
 
     // 🍷 Business Elite (精英) — 背景 plum wine，文字灰粉色
     bg: COLORS.INK,              // plum wine 深酒红背景
+    background: COLORS.INK,
     sidebar: COLORS.INK,
     text: COLORS.DUSTY_PINK,     // 灰粉色主文字（对比度 4.8:1）
     sub: COLORS.SOFT_MAUVE,      // 柔和灰粉次要文字

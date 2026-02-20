@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import DevPanel from "@/components/DevPanel";
+import MigrationScript from "@/components/MigrationScript";
+import { MembershipProvider } from "@/context/MembershipContext";
 
 export const metadata: Metadata = {
   title: "Aesthetic English — Beauty and Brains",
@@ -23,7 +26,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="safe-top">
-        {children}
+        <MembershipProvider>
+          <MigrationScript />
+          {children}
+          <DevPanel />
+        </MembershipProvider>
       </body>
     </html>
   );

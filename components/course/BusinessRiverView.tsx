@@ -3,20 +3,49 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Play, Info } from "lucide-react";
+import { ArrowLeft, Play, Info, Lock } from "lucide-react";
 import type { Lesson } from "@/data/types";
+import { useMembership } from "@/context/MembershipContext";
+import { checkVideoAccess } from "@/lib/permissions";
+import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
+import SubscriptionModal from "@/components/SubscriptionModal";
 
 interface BusinessRiverViewProps {
   category: string;
 }
 
 export default function BusinessRiverView({ category }: BusinessRiverViewProps) {
-  // 曼哈顿夜景背景
-  const MANHATTAN_BG = "/images/manhattan-night.jpg"; 
+  // 背景图：横屏和竖屏
+  const MANHATTAN_BG_LANDSCAPE = "/images/businessbg_横屏.avif"; // 横屏背景
+  const MANHATTAN_BG_PORTRAIT = "/images/businessbg_竖屏.avif"; // 竖屏背景
   
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLandscape, setIsLandscape] = useState(true);
+
+  // 🔐 获取会员状态
+  const { tier } = useMembership();
+  const hasAccess = checkVideoAccess(tier, 'business', false);
+
+  // 游客拦截系统
+  const { shouldShowSubscription, handleCourseClick, closeSubscriptionModal } = useSubscriptionGuard();
+
+  // 监听屏幕方向变化
+  useEffect(() => {
+    const handleOrientationChange = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+
+    handleOrientationChange(); // 初始化
+    window.addEventListener('resize', handleOrientationChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      window.removeEventListener('resize', handleOrientationChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, []);
 
   // 从 API 获取课程数据
   useEffect(() => {
@@ -45,12 +74,12 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
       
       {/* ─── 层级 1: 曼哈顿夜景背景 (The Atmosphere) ─── */}
       <div className="absolute inset-0 z-0">
-        {/* 图片层 */}
+        {/* 图片层 - 根据屏幕方向切换背景 */}
         <div className="w-full h-full">
           <img 
-            src={MANHATTAN_BG} 
+            src={isLandscape ? MANHATTAN_BG_LANDSCAPE : MANHATTAN_BG_PORTRAIT} 
             alt="Manhattan Skyline" 
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover transition-opacity duration-500"
           />
           {/* 深色遮罩层 */}
           <div className="absolute inset-0 bg-[#2D0F15]/40" />
@@ -118,7 +147,7 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
                 onMouseLeave={() => setActiveIndex(null)}
                 className={`relative group cursor-pointer transition-all duration-700 w-full md:w-auto ${isActive ? 'md:flex-[1.5] opacity-100' : 'md:flex-1 md:opacity-20 md:hover:opacity-40 opacity-100'}`}
               >
-                <Link href={`/course/${category}/${course.id}`} className="block w-full">
+                <Link href={`/course/${category}/${course.id}`} onClick={handleCourseClick} className="block w-full">
                   
                   {/* 卡片容器：16:9 比例 */}
                   <div className={`relative w-full aspect-video overflow-hidden shadow-2xl transition-all duration-700 ${isActive ? 'md:scale-105 shadow-[#F7F8F9]/10' : 'scale-100'}`}>
@@ -131,6 +160,19 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
                     
                     {/* 激活时的光泽层 */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-[#2D0F15]/80 via-transparent to-transparent opacity-60" />
+
+                    {/* 🔒 锁图标 - 季度会员显示 */}
+                    {!hasAccess && (
+                      <div className="absolute top-3 right-3 z-20 group/lock">
+                        <div className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
+                          <Lock size={18} className="text-white" />
+                        </div>
+                        {/* Tooltip */}
+                        <div className="absolute top-12 right-0 opacity-0 group-hover/lock:opacity-100 transition-opacity bg-black/90 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap pointer-events-none">
+                          需要年度会员
+                        </div>
+                      </div>
+                    )}
 
                     {/* 播放按钮 - 移动端始终显示，桌面端仅激活时显示 */}
                     <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-300 ${isActive || isMobileActive ? 'opacity-100 md:opacity-100' : 'md:opacity-0'}`}>
@@ -166,6 +208,12 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
         </div>
 
       </div>
+
+      {/* 游客拦截弹窗 */}
+      <SubscriptionModal 
+        isOpen={shouldShowSubscription} 
+        onClose={closeSubscriptionModal} 
+      />
     </div>
   );
 }

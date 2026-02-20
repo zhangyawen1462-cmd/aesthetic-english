@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Search, Bookmark, PlayCircle, Trash2 } from "lucide-react";
 import type { CollectedItem } from "@/data/types";
 import { getNotebook, removeFromNotebook } from "@/lib/notebook-store";
+import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
+import SubscriptionModal from "@/components/SubscriptionModal";
 
 // 主题配置 - 与 archives 页面保持一致
 const THEMES = {
@@ -49,10 +51,18 @@ export default function MyNotebook() {
 
   const theme = THEMES[currentTheme];
 
-  // 从 localStorage 读取真实收藏数据
+  // 🔐 游客拦截系统
+  const { isGuest, shouldShowSubscription, closeSubscriptionModal } = useSubscriptionGuard();
+
+  // 🔐 游客拦截：如果是游客，直接显示拦截弹窗
   useEffect(() => {
+    if (isGuest) {
+      // 不加载任何数据，直接显示订阅弹窗
+      return;
+    }
+    // 只有会员才能读取笔记数据
     setItems(getNotebook());
-  }, []);
+  }, [isGuest]);
 
   // 过滤逻辑
   const filteredItems = items.filter(item => {
@@ -74,6 +84,18 @@ export default function MyNotebook() {
     { id: 'sentence', label: 'SENTENCES' },
     { id: 'grammar', label: 'GRAMMAR' },
   ];
+
+  // 🔐 如果是游客，显示拦截界面
+  if (isGuest) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: theme.bg }}>
+        <SubscriptionModal 
+          isOpen={true} 
+          onClose={() => window.location.href = '/dashboard'} 
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full font-sans transition-colors duration-500" style={{ backgroundColor: theme.bg, color: theme.text }}>
@@ -301,6 +323,14 @@ export default function MyNotebook() {
           )}
         </AnimatePresence>
           </div>
+
+      {/* 游客拦截弹窗（仅在非游客模式下显示，用于其他交互） */}
+      {!isGuest && (
+        <SubscriptionModal 
+          isOpen={shouldShowSubscription} 
+          onClose={closeSubscriptionModal} 
+        />
+      )}
         </div>
   );
 }

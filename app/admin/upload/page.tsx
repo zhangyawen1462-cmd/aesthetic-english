@@ -34,42 +34,38 @@ export default function AdminUploadPage() {
     setUploading(true);
 
     try {
-      // 模拟上传（实际使用时需要配置 OSS SDK）
-      // const OSS = require('ali-oss');
-      // const client = new OSS({
-      //   region: process.env.NEXT_PUBLIC_OSS_REGION,
-      //   accessKeyId: process.env.NEXT_PUBLIC_OSS_KEY_ID,
-      //   accessKeySecret: process.env.NEXT_PUBLIC_OSS_KEY_SECRET,
-      //   bucket: process.env.NEXT_PUBLIC_OSS_BUCKET,
-      // });
+      // 🆕 使用真实的 OSS 上传 API
+      const formData = new FormData();
+      formData.append('file', file);
       
-      // const filename = `${Date.now()}-${file.name}`;
-      // const folder = file.type.startsWith('video/') ? 'videos' : 'images';
-      // const result = await client.put(`${folder}/${filename}`, file);
+      const response = await fetch('/api/upload-oss', {
+        method: 'POST',
+        body: formData,
+      });
       
-      // 模拟延迟
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const data = await response.json();
       
-      // 模拟生成的 URL
-      const mockUrl = `https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com/${file.type.startsWith('video/') ? 'videos' : 'images'}/${Date.now()}-${file.name}`;
-      
-      setUploadedUrl(mockUrl);
-      
-      // 添加到历史记录
-      setUploadHistory(prev => [{
-        name: file.name,
-        url: mockUrl,
-        type: file.type,
-        time: new Date().toLocaleString('zh-CN'),
-      }, ...prev]);
-      
-      // 自动复制到剪贴板
-      navigator.clipboard.writeText(mockUrl);
-      setCopied(true);
+      if (data.success) {
+        setUploadedUrl(data.url);
+        
+        // 添加到历史记录
+        setUploadHistory(prev => [{
+          name: file.name,
+          url: data.url,
+          type: file.type,
+          time: new Date().toLocaleString('zh-CN'),
+        }, ...prev]);
+        
+        // 自动复制到剪贴板
+        navigator.clipboard.writeText(data.url);
+        setCopied(true);
+      } else {
+        throw new Error(data.error || '上传失败');
+      }
       
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('上传失败，请检查 OSS 配置');
+      alert('上传失败：' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setUploading(false);
     }
@@ -84,6 +80,7 @@ export default function AdminUploadPage() {
   const getFileIcon = (type: string) => {
     if (type.startsWith('video/')) return <Video size={20} />;
     if (type.startsWith('image/')) return <Image size={20} />;
+    if (type.startsWith('audio/')) return <FileText size={20} />;
     return <FileText size={20} />;
   };
 
@@ -108,7 +105,7 @@ export default function AdminUploadPage() {
             <div className="relative">
               <input
                 type="file"
-                accept="video/*,image/*"
+                accept="video/*,image/*,audio/*"
                 onChange={handleFileSelect}
                 className="block w-full text-sm text-slate-500
                   file:mr-4 file:py-3 file:px-6

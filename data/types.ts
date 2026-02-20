@@ -16,7 +16,7 @@ export interface VocabCard {
   id: number;
   word: string;
   phonetic: string;
-  def: string;       // 英文释义
+  def?: string;       // 英文释义（可选）
   defCn?: string;    // 中文释义（可选）
   ex: string;        // 例句
 }
@@ -64,6 +64,7 @@ export interface Lesson {
   coverImg16x9?: string;                         // 归档封面 URL（16:9，用于 Archives）
   coverRatio?: '3/4' | '1/1' | '9/16' | '16/9' | 'square';          // 封面尺寸比例
   videoUrl: string;                              // 视频 URL（阿里云 OSS）
+  audioUrl?: string;                             // 音频 URL（可选）
   date: string;                                  // 发布日期，如 "Feb 09"
 
   // ---- 模块数据 ----
@@ -76,6 +77,7 @@ export interface Lesson {
   // ---- 布局管理 ----
   displayPosition?: string;       // 显示位置（dashboard-featured / daily-cinema 等）
   sortOrder?: number;             // 排序顺序（用于布局管理器）
+  isSample?: boolean;             // 是否为 Sample（精选页的钩子视频，游客可看）
 }
 
 // ---- 笔记类型 ----

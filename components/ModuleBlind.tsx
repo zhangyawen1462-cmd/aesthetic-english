@@ -11,10 +11,29 @@ interface ModuleBlindProps {
   playbackRate: number;
   theme: ThemeConfig;
   setPlaybackRate: (rate: number) => void;
+  videoUrl?: string;
+  lessonId?: string;
+  lessonTitle?: string;
 }
 
-export default function ModuleBlind({ isPlaying, playbackRate, theme, setPlaybackRate }: ModuleBlindProps) {
+export default function ModuleBlind({ 
+  isPlaying, 
+  playbackRate, 
+  theme, 
+  setPlaybackRate,
+  videoUrl = '',
+  lessonId = '',
+  lessonTitle = 'audio'
+}: ModuleBlindProps) {
   const rotationDuration = 15 / playbackRate;
+
+  // 🔍 调试日志
+  console.log('🎵 ModuleBlind Props:', {
+    videoUrl,
+    lessonId,
+    lessonTitle,
+    hasVideoUrl: !!videoUrl && videoUrl.trim() !== ''
+  });
 
   // 获取光晕颜色（主题3使用更深的粉色）
   const getGlowColor = () => {
@@ -237,44 +256,47 @@ export default function ModuleBlind({ isPlaying, playbackRate, theme, setPlaybac
         </motion.div>
       </div>
 
-      {/* 5. 底部调速盘 - 保持精致 */}
-      <div 
-        className="flex items-center gap-2 sm:gap-4 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full z-20 transition-all duration-500 shadow-2xl touch-manipulation"
-        style={{ 
-          color: theme.text,
-          background: `linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)`,
-          border: '1px solid rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
-        }}
-      >
-        <div className="pl-1 sm:pl-2 opacity-40">
-          <Music size={13} className="sm:w-[15px] sm:h-[15px]" />
+      {/* 5. 底部调速盘 */}
+      <div className="flex flex-col items-center gap-3 z-20">
+        {/* 调速盘 */}
+        <div 
+          className="flex items-center gap-2 sm:gap-4 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full transition-all duration-500 shadow-2xl touch-manipulation"
+          style={{ 
+            color: theme.text,
+            background: `linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)`,
+            border: '1px solid rgba(255,255,255,0.08)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+          }}
+        >
+          <div className="pl-1 sm:pl-2 opacity-40">
+            <Music size={13} className="sm:w-[15px] sm:h-[15px]" />
+          </div>
+          {[0.5, 0.75, 1].map((rate) => (
+            <button 
+              key={rate} 
+              onClick={() => setPlaybackRate(rate)} 
+              className={`relative h-8 sm:h-9 px-4 sm:px-5 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-sans transition-all duration-300 touch-manipulation ${
+                playbackRate === rate 
+                  ? 'opacity-100 font-bold scale-105' 
+                  : 'opacity-50 hover:opacity-80 active:opacity-80 hover:scale-105'
+              }`}
+              style={{
+                background: playbackRate === rate 
+                  ? `linear-gradient(135deg, ${theme.accent}40 0%, ${theme.accent}20 100%)`
+                  : 'transparent',
+                border: playbackRate === rate 
+                  ? `1px solid ${theme.accent}30`
+                  : '1px solid transparent',
+                boxShadow: playbackRate === rate 
+                  ? `0 2px 8px ${theme.accent}20, inset 0 1px 0 ${theme.accent}10`
+                  : 'none',
+              }}
+            >
+              <span className="relative z-10">{rate}x</span>
+            </button>
+          ))}
         </div>
-        {[0.5, 0.75, 1].map((rate) => (
-          <button 
-            key={rate} 
-            onClick={() => setPlaybackRate(rate)} 
-            className={`relative h-8 sm:h-9 px-4 sm:px-5 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-sans transition-all duration-300 touch-manipulation ${
-              playbackRate === rate 
-                ? 'opacity-100 font-bold scale-105' 
-                : 'opacity-50 hover:opacity-80 active:opacity-80 hover:scale-105'
-            }`}
-            style={{
-              background: playbackRate === rate 
-                ? `linear-gradient(135deg, ${theme.accent}40 0%, ${theme.accent}20 100%)`
-                : 'transparent',
-              border: playbackRate === rate 
-                ? `1px solid ${theme.accent}30`
-                : '1px solid transparent',
-              boxShadow: playbackRate === rate 
-                ? `0 2px 8px ${theme.accent}20, inset 0 1px 0 ${theme.accent}10`
-                : 'none',
-            }}
-          >
-            <span className="relative z-10">{rate}x</span>
-          </button>
-        ))}
       </div>
     </div>
   );

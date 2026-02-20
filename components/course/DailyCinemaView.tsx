@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, Play, ArrowUpRight, ArrowRight } from "lucide-react";
 import type { Lesson } from "@/data/types";
+import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
+import SubscriptionModal from "@/components/SubscriptionModal";
 
 // --- 1. 数据接口：增加 ratio 字段 ---
 interface DailyCourse {
@@ -61,6 +63,9 @@ function lessonToDailyCourse(lesson: Lesson, index: number): DailyCourse {
 export default function DailyCinemaView() {
   const [slots, setSlots] = useState<(DailyCourse | null)[]>(new Array(6).fill(null));
   const [isLoading, setIsLoading] = useState(true);
+
+  // 游客拦截系统
+  const { shouldShowSubscription, handleCourseClick, closeSubscriptionModal } = useSubscriptionGuard();
 
   // 从 API 获取数据
   useEffect(() => {
@@ -175,14 +180,14 @@ export default function DailyCinemaView() {
           {/* 左列 */}
                     <div className="w-1/2 flex flex-col gap-2 md:gap-4">
             {leftCol.map((item, index) => (
-              item && <DailyCard key={item.id} item={item} index={index * 2} />
+              item && <DailyCard key={item.id} item={item} index={index * 2} onGuestClick={handleCourseClick} />
             ))}
           </div>
 
           {/* 右列 */}
                     <div className="w-1/2 flex flex-col gap-2 md:gap-4">
             {rightCol.map((item, index) => (
-              item && <DailyCard key={item.id} item={item} index={index * 2 + 1} />
+              item && <DailyCard key={item.id} item={item} index={index * 2 + 1} onGuestClick={handleCourseClick} />
             ))}
           </div>
 
@@ -203,21 +208,23 @@ export default function DailyCinemaView() {
         </div>
 
       </main>
+
+      {/* 游客拦截弹窗 */}
+      <SubscriptionModal 
+        isOpen={shouldShowSubscription} 
+        onClose={closeSubscriptionModal} 
+      />
     </div>
   );
 }
 
 // ─── 卡片组件 ───
-function DailyCard({ item, index }: { item: DailyCourse; index: number }) {
-    // 判断是否显示标题：3:4 的视频 或 右列第一个 1:1 的视频（index=1）或 16:9 的视频
-    const isVideoWithTitle = item.type === "video" && (
-        item.ratio === "aspect-[3/4]" || 
-        item.ratio === "aspect-video" || 
-        (item.ratio === "aspect-square" && index === 1)
-    );
+function DailyCard({ item, index, onGuestClick }: { item: DailyCourse; index: number; onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) {
+    // 所有卡片都显示标题
+    const isVideoWithTitle = true;
     
     // 判断是否为卡片（无标题且不可点击）
-    const isCard = !isVideoWithTitle;
+    const isCard = false;
 
   return (
     <motion.div
@@ -239,26 +246,28 @@ function DailyCard({ item, index }: { item: DailyCourse; index: number }) {
                 </div>
             ) : (
                 // 视频：可点击
-                <Link href={`/course/daily/${item.id}`} className={`block relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm`}>
+                <Link href={`/course/daily/${item.id}`} onClick={onGuestClick} className={`block relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm`}>
         <img
           src={item.image}
           alt={item.titleEN}
                         className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-105"
         />
 
-                    {/* 视频播放按钮 */}
+                    {/* 视频播放按钮 - 只在视频类型显示 */}
+                    {item.type === 'video' && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-40 group-hover:opacity-100 transition-opacity duration-300">
                         <div className="w-8 h-8 rounded-full bg-[#F7F8F9]/30 backdrop-blur-md flex items-center justify-center border border-white/20">
                             <Play size={10} fill="white" className="text-white ml-0.5" />
             </div>
           </div>
+                    )}
       </Link>
             )}
 
             {/* 2. 文字区 - 只有视频显示标题 */}
             {isVideoWithTitle && (
                 <div className="flex flex-col px-0.5 mt-2 md:mt-3">
-        <Link href={`/course/daily/${item.id}`}>
+        <Link href={`/course/daily/${item.id}`} onClick={onGuestClick}>
                         {/* 中文大标题 */}
                         <h3 className="font-serif text-[16px] md:text-[22px] leading-[1.2] text-[#2D0F15] mb-1 group-hover:opacity-70 transition-opacity" style={{ fontFamily: 'PingFang SC, -apple-system, sans-serif' }}>
                             {item.titleCN}

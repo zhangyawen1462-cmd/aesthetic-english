@@ -15,6 +15,7 @@ const devLog = (...args: any[]) => {
 // 初始化 Notion 客户端
 const notion = new Client({
   auth: process.env.NOTION_API_KEY,
+  timeoutMs: 30000, // 设置 30 秒超时
 });
 
 // 调试信息（仅开发环境）
@@ -42,6 +43,7 @@ const DATABASES = {
   vocabulary: formatDatabaseId(process.env.NOTION_DB_VOCABULARY || ''),
   grammar: formatDatabaseId(process.env.NOTION_DB_GRAMMAR || ''),
   recall: formatDatabaseId(process.env.NOTION_DB_RECALL || ''),
+  redemption: formatDatabaseId(process.env.NOTION_DB_REDEMPTION || ''),
 };
 
 // ============================================================
@@ -77,6 +79,10 @@ function getDate(property: any): string {
 
 function getRelation(property: any): string[] {
   return property?.relation?.map((r: any) => r.id) || [];
+}
+
+function getCheckbox(property: any): boolean {
+  return property?.checkbox || false;
 }
 
 // ============================================================
@@ -139,6 +145,7 @@ export async function getAllLessons(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
+        isSample: getCheckbox(props.Is_Sample),
         vocab,
         grammar,
         recall,
@@ -208,6 +215,7 @@ export async function getLessonById(id: string): Promise<Lesson | null> {
       srtRaw: getPlainText(props.SRT_Raw),
       displayPosition: getSelect(props.Display_Position),
       sortOrder: getNumber(props.Sort_Order),
+      isSample: getCheckbox(props.Is_Sample),
       vocab,
       grammar,
       recall,
@@ -422,6 +430,7 @@ export async function getDashboardLayout(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
+        isSample: getCheckbox(props.Is_Sample),
         vocab,
         grammar,
         recall,
@@ -654,6 +663,108 @@ export async function getBusinessFeaturedLayout(): Promise<Lesson[]> {
   } catch (error) {
     console.error('Error fetching business featured layout from Notion:', error);
     return [];
+  }
+}
+
+// ============================================================
+// 兑换码相关函数
+// ============================================================
+
+export interface RedemptionCode {
+  code: string;
+  type: string;
+  status: string;
+  created: string;
+  activated?: string;
+  userEmail?: string;
+  notes?: string;
+}
+
+// 验证兑换码
+export async function verifyRedemptionCode(code: string): Promise<{
+  valid: boolean;
+  type?: string;
+  message: string;
+  pageId?: string;
+}> {
+  try {
+    const response = await notion.databases.query({
+      database_id: DATABASES.redemption,
+      filter: {
+        property: 'Code',
+        title: {
+          equals: code
+        }
+      }
+    });
+
+    if (response.results.length === 0) {
+      return { valid: false, message: '兑换码不存在' };
+    }
+
+    const page = response.results[0];
+    if (!('properties' in page)) {
+      return { valid: false, message: '数据格式错误' };
+    }
+
+    const props = page.properties;
+    const status = getSelect(props.Status);
+    const type = getSelect(props.Type);
+
+    // 检查状态
+    if (status === '✅ 已激活') {
+      return { valid: false, message: '该兑换码已被使用' };
+    }
+
+    if (status === '❌ 已失效') {
+      return { valid: false, message: '该兑换码已失效' };
+    }
+
+    if (status !== '🆕 待售' && status !== '📤 已发货') {
+      return { valid: false, message: '兑换码状态异常' };
+    }
+
+    return {
+      valid: true,
+      type,
+      message: '兑换码有效',
+      pageId: page.id
+    };
+  } catch (error) {
+    console.error('Error verifying redemption code:', error);
+    return { valid: false, message: '验证失败，请稍后重试' };
+  }
+}
+
+// 激活兑换码
+export async function activateRedemptionCode(
+  pageId: string,
+  userEmail: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    await notion.pages.update({
+      page_id: pageId,
+      properties: {
+        Status: {
+          select: {
+            name: '✅ 已激活'
+          }
+        },
+        Activated: {
+          date: {
+            start: new Date().toISOString().split('T')[0]
+          }
+        },
+        'User Email': {
+          email: userEmail
+        }
+      }
+    });
+
+    return { success: true, message: '激活成功' };
+  } catch (error) {
+    console.error('Error activating redemption code:', error);
+    return { success: false, message: '激活失败，请稍后重试' };
   }
 }
 
