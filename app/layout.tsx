@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import DevPanel from "@/components/DevPanel";
 import MigrationScript from "@/components/MigrationScript";
-import PerformanceMonitor from "@/components/PerformanceMonitor";
 import { MembershipProvider } from "@/context/MembershipContext";
 
 export const metadata: Metadata = {
@@ -32,7 +31,6 @@ export default function RootLayout({
           <MigrationScript />
           {children}
           <DevPanel />
-          <PerformanceMonitor />
         </MembershipProvider>
       </body>
     </html>

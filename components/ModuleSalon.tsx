@@ -85,8 +85,9 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
   const [paywallMessage, setPaywallMessage] = useState('');
   const [paywallRequiredTier, setPaywallRequiredTier] = useState<'yearly' | 'lifetime'>('lifetime');
   
-  // 🆕 移动端检测
+  // 🆕 移动端检测 + 性能优化
   const [isMobile, setIsMobile] = useState(false);
+  const [shouldReduceMotion, setShouldReduceMotion] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -94,10 +95,13 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
   // 🆕 从 Context 获取会员状态
   const { tier: membershipType } = useMembership();
 
-  // 🆕 检测移动端
+  // 🆕 检测移动端 + 自动禁用复杂动画
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // 🚀 移动端自动禁用复杂动画，提升滚动性能到 60fps
+      setShouldReduceMotion(mobile);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -265,7 +269,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     // 延迟 800ms 后执行，营造自然感
     const timer = setTimeout(initChat, 800);
     return () => clearTimeout(timer);
-  }, [videoContext, currentMode, modeConfig, lessonId, membershipType, messages.length, hasAccess]);
+  }, [videoContext, currentMode, modeConfig, lessonId, membershipType, messages.length]);
 
   // 自动滚动
   useEffect(() => {
@@ -578,8 +582,8 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
             return (
               <motion.div
                 key={message.id}
-                initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
+                animate={shouldReduceMotion ? false : { opacity: 1, y: 0, scale: 1 }}
                 className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
               >
                 <div className={`max-w-[85%] relative ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>

@@ -41,8 +41,11 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const [wordPressProgress, setWordPressProgress] = useState(0);
   const [justSavedId, setJustSavedId] = useState<number | null>(null); // 刚收藏成功的句子ID
 
-  // 是否使用虚拟滚动（仅当行数 > 50 时启用）
-  const useVirtualScroll = transcript.length > 50;
+  // 🚀 优化：移动端降低虚拟滚动阈值，提升流畅度
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const useVirtualScroll = isMobile 
+    ? transcript.length > 20  // 移动端：20 行启用虚拟滚动
+    : transcript.length > 50; // 桌面端：50 行启用
 
   // 初始化：从 localStorage 读取已收藏的句子和标亮的词汇
   useEffect(() => {
@@ -122,35 +125,19 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     if (activeIndex === lastScrolledIndex.current) return;
     lastScrolledIndex.current = activeIndex;
 
-    const container = scrollContainerRef.current;
-
     if (useVirtualScroll) {
       const targetScrollTop = activeIndex * ITEM_HEIGHT - containerHeight / 2 + ITEM_HEIGHT / 2;
-      const currentScrollTop = container.scrollTop;
+      const currentScrollTop = scrollContainerRef.current.scrollTop;
       
       // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
       if (Math.abs(targetScrollTop - currentScrollTop) > ITEM_HEIGHT / 2) {
-        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        scrollContainerRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
       }
     } else {
-      // 非虚拟滚动时，手动计算滚动位置（避免 scrollIntoView 引起页面级滚动）
-      const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
-      if (activeElement) {
-        const elementTop = activeElement.offsetTop;
-        const elementHeight = activeElement.offsetHeight;
-        const containerScrollTop = container.scrollTop;
-        const containerHeight = container.clientHeight;
-        
-        // 计算目标滚动位置：让元素居中显示
-        const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
-        
-        // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
-        if (Math.abs(targetScrollTop - containerScrollTop) > elementHeight / 2) {
-          container.scrollTo({
-            top: targetScrollTop,
-            behavior: 'smooth'
-          });
-        }
+      // 非虚拟滚动时，使用 DOM 查询
+      const el = scrollContainerRef.current.querySelector(`[data-line-id="${activeIndex}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   }, [currentTime, isPlaying, transcript, useVirtualScroll, containerHeight]);

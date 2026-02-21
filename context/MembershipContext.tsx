@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import type { MembershipTier } from '@/lib/permissions';
 import { convertTierToEnglish } from '@/lib/permissions';
 
@@ -26,24 +26,52 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   const [devTier, setDevTierState] = useState<MembershipTier>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 🚀 优化 2：缓存时间戳，防止频繁查询（移动端延长缓存）
+  const lastFetchTime = useRef<number>(0);
+  const CACHE_DURATION = typeof window !== 'undefined' && window.innerWidth < 768 
+    ? 300000  // 移动端：5 分钟缓存
+    : 60000;  // 桌面端：60 秒缓存
+
   // 3. 从后端获取会员状态的函数（可复用）
-  const fetchMembership = async () => {
+  const fetchMembership = async (forceRefresh = false) => {
+    // 🚀 防抖逻辑：如果距离上次查询不到 60 秒，跳过
+    const now = Date.now();
+    if (!forceRefresh && now - lastFetchTime.current < CACHE_DURATION) {
+      console.log('⚡ [MembershipContext] 使用缓存，跳过查询');
+      return;
+    }
+
     try {
       setIsLoading(true);
       console.log('🔍 [MembershipContext] 开始获取会员状态...');
       
       // 🆕 从后端 API 获取会员状态
-      const response = await fetch('/api/membership');
+      const response = await fetch('/api/membership', {
+        // 禁用浏览器缓存，确保获取最新数据
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
       const data = await response.json();
       
       console.log('📦 [MembershipContext] 后端返回数据:', data);
       
+      // 更新缓存时间戳
+      lastFetchTime.current = now;
+      
       if (data.success && data.data.isAuthenticated) {
         console.log('✅ [MembershipContext] 用户已认证，等级:', data.data.tier);
+        
+        // 如果是降级模式，显示警告
+        if (data.data.fallback) {
+          console.warn('⚠️ [MembershipContext] 降级模式：Notion API 暂时不可用');
+        }
+        
         setRealTier(data.data.tier as MembershipTier);
         setEmail(data.data.email);
       } else {
-        console.log('❌ [MembershipContext] 用户未认证');
+        console.log('❌ [MembershipContext] 用户未认证', data.data.reason ? `原因: ${data.data.reason}` : '');
         // 未登录或未激活，保持 null
         setRealTier(null);
         setEmail(undefined);
@@ -91,7 +119,7 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
       realTier, 
       devTier, 
       setDevTier,
-      refreshMembership: fetchMembership, // 🆕 暴露刷新函数
+      refreshMembership: () => fetchMembership(true), // 🆕 强制刷新（跳过缓存）
       isLoading,
       email
     }}>
