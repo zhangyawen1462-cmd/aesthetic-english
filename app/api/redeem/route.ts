@@ -288,22 +288,17 @@ export async function POST(req: NextRequest) {
           name: type
         }
       },
+      'Redemption Code': {
+        rich_text: [{
+          text: { content: code.trim().toUpperCase() }
+        }]
+      },
       'Activated At': {
         date: {
           start: new Date().toISOString().split('T')[0]
         }
       }
     };
-
-    // 只有当 Redemption Code 字段存在时才添加（避免 500 错误）
-    // 如果你在 Notion 中添加了 Redemption Code 字段，可以取消注释下面的代码
-    /*
-    createProperties['Redemption Code'] = {
-      rich_text: [{
-        text: { content: code.trim().toUpperCase() }
-      }]
-    };
-    */
 
     if (email || storedEmail) {
       createProperties['Email'] = {
