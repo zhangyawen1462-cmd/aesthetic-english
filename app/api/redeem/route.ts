@@ -70,48 +70,54 @@ async function logRedemptionAttempt(params: {
 
     const logId = `LOG_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
+    const properties: any = {
+      'Log ID': {
+        title: [{
+          text: { content: logId }
+        }]
+      },
+      'Attempted Code': {
+        rich_text: [{
+          text: { content: params.code }
+        }]
+      },
+      'Status': {
+        select: {
+          name: params.status
+        }
+      },
+      'Reason': {
+        rich_text: [{
+          text: { content: params.reason || '-' }
+        }]
+      },
+      'Device ID': {
+        rich_text: [{
+          text: { content: params.deviceId }
+        }]
+      },
+      'Time': {
+        date: {
+          start: new Date().toISOString()
+        }
+      },
+      'IP Address': {
+        rich_text: [{
+          text: { content: params.ipAddress }
+        }]
+      }
+    };
+
+    // 只有当邮箱存在时才添加 Email 字段
+    if (params.email) {
+      properties['Email'] = {
+        email: params.email
+      };
+    }
+    
     await notion.pages.create({
       parent: { database_id: REDEMPTION_LOGS_DB },
-      properties: {
-        'Log ID': {
-          title: [{
-            text: { content: logId }
-          }]
-        },
-        'Attempted Code': {
-          rich_text: [{
-            text: { content: params.code }
-          }]
-        },
-        'Status': {
-          select: {
-            name: params.status
-          }
-        },
-        'Reason': {
-          rich_text: [{
-            text: { content: params.reason || '-' }
-          }]
-        },
-        'Device ID': {
-          rich_text: [{
-            text: { content: params.deviceId }
-          }]
-        },
-        'Email': {
-          email: params.email || undefined
-        },
-        'Time': {
-          date: {
-            start: new Date().toISOString()
-          }
-        },
-        'IP Address': {
-          rich_text: [{
-            text: { content: params.ipAddress }
-          }]
-        }
-      }
+      properties
     });
     
     console.log('✅ 兑换日志已记录:', logId);
