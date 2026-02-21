@@ -236,8 +236,9 @@ export async function POST(req: NextRequest) {
 
     // ✅ 其他所有情况（待售、已发货、已激活）都允许登录
     const tier = convertTierToEnglish(type);
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    // 3. 如果是首次激活（待售/已发货），更新 Notion 状态
+    // 3. 如果是首次激活（待售/已发货），更新 Redemption Codes 状态
     if (status === '🆕 待售' || status === '📤 已发货') {
       const updateProperties: any = {
         Status: {
@@ -267,58 +268,58 @@ export async function POST(req: NextRequest) {
         page_id: page.id,
         properties: updateProperties
       });
-
-      // 创建用户通行证记录
-      const expiresAt = tier === 'lifetime' 
-        ? null 
-        : tier === 'yearly'
-          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-          : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-
-      const createProperties: any = {
-        'User ID': {
-          title: [{
-            text: { content: `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` }
-          }]
-        },
-        'Tier': {
-          select: {
-            name: type
-          }
-        },
-        'Redemption Code': {
-          rich_text: [{
-            text: { content: code.trim().toUpperCase() }
-          }]
-        },
-        'Activated At': {
-          date: {
-            start: new Date().toISOString().split('T')[0]
-          }
-        }
-      };
-
-      if (email) {
-        createProperties['Email'] = {
-          email: email
-        };
-      }
-
-      if (expiresAt) {
-        createProperties['Expires At'] = {
-          date: {
-            start: expiresAt.toISOString().split('T')[0]
-          }
-        };
-      }
-
-      await notion.pages.create({
-        parent: { database_id: MEMBERSHIP_DB },
-        properties: createProperties
-      });
     }
 
-    // 🆕 记录成功日志
+    // 4. 每次登录都创建 Memberships 记录（支持多设备）
+    const expiresAt = tier === 'lifetime' 
+      ? null 
+      : tier === 'yearly'
+        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+    const createProperties: any = {
+      'User ID': {
+        title: [{
+          text: { content: userId }
+        }]
+      },
+      'Tier': {
+        select: {
+          name: type
+        }
+      },
+      'Redemption Code': {
+        rich_text: [{
+          text: { content: code.trim().toUpperCase() }
+        }]
+      },
+      'Activated At': {
+        date: {
+          start: new Date().toISOString().split('T')[0]
+        }
+      }
+    };
+
+    if (email || storedEmail) {
+      createProperties['Email'] = {
+        email: email || storedEmail
+      };
+    }
+
+    if (expiresAt) {
+      createProperties['Expires At'] = {
+        date: {
+          start: expiresAt.toISOString().split('T')[0]
+        }
+      };
+    }
+
+    await notion.pages.create({
+      parent: { database_id: MEMBERSHIP_DB },
+      properties: createProperties
+    });
+
+    // 5. 记录成功日志
     const isRelogin = status === '✅ 已激活';
     await logRedemptionAttempt({
       code: code.trim().toUpperCase(),
@@ -329,8 +330,7 @@ export async function POST(req: NextRequest) {
       ipAddress
     });
 
-    // 4. 生成 JWT Token（无论是首次激活还是重复登录）
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    // 6. 生成 JWT Token（无论是首次激活还是重复登录）
     const token = await new SignJWT({
       userId,
       tier,
@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
       .setExpirationTime(tier === 'lifetime' ? '10y' : tier === 'yearly' ? '1y' : '90d')
       .sign(JWT_SECRET);
 
-    // 5. 设置 HttpOnly Cookie
+    // 7. 设置 HttpOnly Cookie
     const cookieStore = await cookies();
     cookieStore.set('ae_membership', token, {
       httpOnly: true,
@@ -358,7 +358,7 @@ export async function POST(req: NextRequest) {
       path: '/'
     });
 
-    // 6. 返回成功响应
+    // 8. 返回成功响应
     return NextResponse.json({
       success: true,
       message: isRelogin ? '欢迎回来！已为当前设备恢复访问权限' : '兑换成功！',
