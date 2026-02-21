@@ -9,6 +9,7 @@ interface MembershipContextType {
   realTier: MembershipTier;      // 数据库里的真实等级（未来从后端获取）
   devTier: MembershipTier;       // 开发者强制覆盖的等级
   setDevTier: (tier: MembershipTier) => void;
+  refreshMembership: () => Promise<void>; // 🆕 刷新会员状态
   isLoading: boolean;
   email?: string;                // 用户邮箱（可选）
 }
@@ -25,31 +26,33 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   const [devTier, setDevTierState] = useState<MembershipTier>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 3. 初始化：从后端获取真实会员状态
-  useEffect(() => {
-    async function fetchMembership() {
-      try {
-        // 🆕 从后端 API 获取会员状态
-        const response = await fetch('/api/membership');
-        const data = await response.json();
-        
-        if (data.success && data.data.isAuthenticated) {
-          setRealTier(data.data.tier as MembershipTier);
-          setEmail(data.data.email);
-        } else {
-          // 未登录或未激活，保持 null
-          setRealTier(null);
-          setEmail(undefined);
-        }
-      } catch (error) {
-        console.error('Failed to fetch membership:', error);
-        // 出错时保持 null
+  // 3. 从后端获取会员状态的函数（可复用）
+  const fetchMembership = async () => {
+    try {
+      setIsLoading(true);
+      // 🆕 从后端 API 获取会员状态
+      const response = await fetch('/api/membership');
+      const data = await response.json();
+      
+      if (data.success && data.data.isAuthenticated) {
+        setRealTier(data.data.tier as MembershipTier);
+        setEmail(data.data.email);
+      } else {
+        // 未登录或未激活，保持 null
         setRealTier(null);
-      } finally {
-        setIsLoading(false);
+        setEmail(undefined);
       }
+    } catch (error) {
+      console.error('Failed to fetch membership:', error);
+      // 出错时保持 null
+      setRealTier(null);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  // 4. 初始化：从后端获取真实会员状态
+  useEffect(() => {
     fetchMembership();
 
     // 开发环境：读取 dev_tier_override
@@ -61,7 +64,7 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 4. 更新 DevTier 的函数
+  // 5. 更新 DevTier 的函数
   const setDevTier = (tier: MembershipTier) => {
     setDevTierState(tier);
     if (tier) {
@@ -71,7 +74,7 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 5. 核心逻辑：开发环境下，devTier 优先；否则使用 realTier
+  // 6. 核心逻辑：开发环境下，devTier 优先；否则使用 realTier
   const effectiveTier = (process.env.NODE_ENV === 'development' && devTier) 
     ? devTier 
     : realTier;
@@ -82,6 +85,7 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
       realTier, 
       devTier, 
       setDevTier,
+      refreshMembership: fetchMembership, // 🆕 暴露刷新函数
       isLoading,
       email
     }}>

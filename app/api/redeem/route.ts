@@ -103,70 +103,10 @@ export async function POST(req: NextRequest) {
     const type = getSelect(props.Type);
     const storedEmail = getEmail(props['User Email']);
 
-    // 2. 验证兑换码状态
-    if (status === '✅ 已激活') {
-      // 🆕 核心逻辑：支持多设备登录
-      if (!email || !email.trim()) {
-        return NextResponse.json(
-          { success: false, error: 'email_required', message: '该兑换码已激活，请输入当时使用的邮箱以恢复访问' },
-          { status: 400 }
-        );
-      }
-
-      // 比对邮箱（忽略大小写）
-      if (storedEmail.toLowerCase() === email.trim().toLowerCase()) {
-        // ✅ 邮箱匹配，视为老用户换设备，重新颁发 JWT
-        const deviceId = generateDeviceId(req);
-        const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-        const tier = convertTierToEnglish(type);
-        
-        // 生成新的 JWT Token
-        const token = await new SignJWT({
-          userId,
-          tier,
-          email: email.trim(),
-          deviceId,
-          activatedAt: Date.now(),
-          isRelogin: true // 标记为重新登录
-        })
-          .setProtectedHeader({ alg: 'HS256' })
-          .setIssuedAt()
-          .setExpirationTime(tier === 'lifetime' ? '10y' : tier === 'yearly' ? '1y' : '90d')
-          .sign(JWT_SECRET);
-
-        // 设置 HttpOnly Cookie
-        const cookieStore = await cookies();
-        cookieStore.set('ae_membership', token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict',
-          maxAge: tier === 'lifetime' 
-            ? 10 * 365 * 24 * 60 * 60 
-            : tier === 'yearly'
-              ? 365 * 24 * 60 * 60
-              : 90 * 24 * 60 * 60,
-          path: '/'
-        });
-
-        // 返回成功响应
-        return NextResponse.json({
-          success: true,
-          message: '欢迎回来！已为当前设备恢复访问权限',
-          data: {
-            tier,
-            tierLabel: type,
-            isRelogin: true
-          }
-        });
-      } else {
-        // ❌ 邮箱不匹配
-        return NextResponse.json(
-          { success: false, error: 'code_used', message: 'This key has already been claimed.' },
-          { status: 400 }
-        );
-      }
-    }
-
+    // 2. 🔥 新逻辑：兑换码变成"永久通行证"
+    // 只要兑换码存在且未失效，就允许登录
+    
+    // ❌ 唯一拒绝的情况：兑换码已失效
     if (status === '❌ 已失效') {
       return NextResponse.json(
         { success: false, error: 'code_expired', message: '该兑换码已失效' },
@@ -174,107 +114,103 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (status !== '🆕 待售' && status !== '📤 已发货') {
-      return NextResponse.json(
-        { success: false, error: 'invalid_status', message: '兑换码状态异常' },
-        { status: 400 }
-      );
-    }
-
-    // 3. 生成用户 ID（设备指纹）
+    // ✅ 其他所有情况（待售、已发货、已激活）都允许登录
     const deviceId = generateDeviceId(req);
     const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-    // 4. 更新 Notion 兑换码状态
-    const updateProperties: any = {
-      Status: {
-        select: {
-          name: '✅ 已激活'
-        }
-      },
-      Activated: {
-        date: {
-          start: new Date().toISOString().split('T')[0]
-        }
-      },
-      'Device ID': {
-        rich_text: [{
-          text: { content: deviceId }
-        }]
-      }
-    };
-
-    if (email) {
-      updateProperties['User Email'] = {
-        email: email
-      };
-    }
-
-    await notion.pages.update({
-      page_id: page.id,
-      properties: updateProperties
-    });
-
-    // 5. 创建用户通行证记录
     const tier = convertTierToEnglish(type);
-    const expiresAt = tier === 'lifetime' 
-      ? null 
-      : tier === 'yearly'
-        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-        : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    const createProperties: any = {
-      'User ID': {
-        title: [{
-          text: { content: userId }
-        }]
-      },
-      Tier: {
-        select: {
-          name: type
+    // 3. 如果是首次激活（待售/已发货），更新 Notion 状态
+    if (status === '🆕 待售' || status === '📤 已发货') {
+      const updateProperties: any = {
+        Status: {
+          select: {
+            name: '✅ 已激活'
+          }
+        },
+        Activated: {
+          date: {
+            start: new Date().toISOString().split('T')[0]
+          }
+        },
+        'Device ID': {
+          rich_text: [{
+            text: { content: deviceId }
+          }]
         }
-      },
-      'Activated At': {
-        date: {
-          start: new Date().toISOString().split('T')[0]
-        }
+      };
+
+      if (email) {
+        updateProperties['User Email'] = {
+          email: email
+        };
       }
-    };
 
-    if (email) {
-      createProperties['Email'] = {
-        email: email
-      };
-    }
+      await notion.pages.update({
+        page_id: page.id,
+        properties: updateProperties
+      });
 
-    if (expiresAt) {
-      createProperties['Expires At'] = {
-        date: {
-          start: expiresAt.toISOString().split('T')[0]
+      // 创建用户通行证记录
+      const expiresAt = tier === 'lifetime' 
+        ? null 
+        : tier === 'yearly'
+          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+          : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+      const createProperties: any = {
+        'User ID': {
+          title: [{
+            text: { content: userId }
+          }]
+        },
+        Tier: {
+          select: {
+            name: type
+          }
+        },
+        'Activated At': {
+          date: {
+            start: new Date().toISOString().split('T')[0]
+          }
         }
       };
+
+      if (email) {
+        createProperties['Email'] = {
+          email: email
+        };
+      }
+
+      if (expiresAt) {
+        createProperties['Expires At'] = {
+          date: {
+            start: expiresAt.toISOString().split('T')[0]
+          }
+        };
+      }
+
+      await notion.pages.create({
+        parent: { database_id: MEMBERSHIP_DB },
+        properties: createProperties
+      });
     }
 
-    await notion.pages.create({
-      parent: { database_id: MEMBERSHIP_DB },
-      properties: createProperties
-    });
-
-    // 6. 生成 JWT Token
+    // 4. 生成 JWT Token（无论是首次激活还是重复登录）
     const token = await new SignJWT({
       userId,
       tier,
-      email: email?.trim() || '',
+      email: email?.trim() || storedEmail || '',
       deviceId,
-      activatedAt: Date.now()
+      activatedAt: Date.now(),
+      isRelogin: status === '✅ 已激活' // 标记是否为重复登录
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(tier === 'lifetime' ? '10y' : tier === 'yearly' ? '1y' : '90d')
       .sign(JWT_SECRET);
 
-    // 7. 设置 HttpOnly Cookie
-    const cookieStore = await cookies(); // 🆕 Next.js 15+ 需要 await
+    // 5. 设置 HttpOnly Cookie
+    const cookieStore = await cookies();
     cookieStore.set('ae_membership', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -287,14 +223,15 @@ export async function POST(req: NextRequest) {
       path: '/'
     });
 
-    // 8. 返回成功响应
+    // 6. 返回成功响应
+    const isRelogin = status === '✅ 已激活';
     return NextResponse.json({
       success: true,
-      message: '兑换成功！',
+      message: isRelogin ? '欢迎回来！已为当前设备恢复访问权限' : '兑换成功！',
       data: {
         tier,
         tierLabel: type,
-        expiresAt: expiresAt?.toISOString()
+        isRelogin
       }
     });
 

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, KeyRound, Sparkles, Search, RotateCcw, ChevronDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useMembership } from '@/context/MembershipContext';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface SubscriptionModalProps {
 // 兑换码输入组件
 // ==========================================
 const RedeemInput = ({ onClose }: { onClose: () => void }) => {
+  const { refreshMembership } = useMembership(); // 🆕 获取刷新函数
   const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,8 +46,11 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
 
       if (data.success) {
         setSuccess(true);
+        // 🆕 刷新会员状态
+        await refreshMembership();
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          onClose(); // 关闭弹窗
+          window.location.href = '/dashboard'; // 刷新页面
         }, 1500);
       } else {
         setError(data.message || '兑换失败，请检查兑换码');
