@@ -79,28 +79,45 @@ export async function GET(req: NextRequest) {
 
     // 如果找不到用户记录，清除 Cookie
     if (response.results.length === 0) {
-      cookieStore.delete('ae_membership');
-      return NextResponse.json({
+      // 强制删除 Cookie（设置过期时间为过去）
+      const response = NextResponse.json({
         success: true,
         data: {
           isAuthenticated: false,
           tier: null,
-          tierLabel: '访客'
+          tierLabel: '访客',
+          reason: 'user_not_found'
         }
       });
+      response.cookies.set('ae_membership', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 0, // 立即过期
+        path: '/',
+      });
+      return response;
     }
 
     const page = response.results[0];
     if (!('properties' in page)) {
-      cookieStore.delete('ae_membership');
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         data: {
           isAuthenticated: false,
           tier: null,
-          tierLabel: '访客'
+          tierLabel: '访客',
+          reason: 'invalid_page_data'
         }
       });
+      response.cookies.set('ae_membership', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 0,
+        path: '/',
+      });
+      return response;
     }
 
     const props = page.properties;
@@ -109,8 +126,7 @@ export async function GET(req: NextRequest) {
 
     // 🔐 检查状态：如果是"已失效"，清除 Cookie 并拒绝访问
     if (status === '❌ 已失效') {
-      cookieStore.delete('ae_membership');
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         data: {
           isAuthenticated: false,
@@ -119,6 +135,14 @@ export async function GET(req: NextRequest) {
           reason: 'membership_revoked'
         }
       });
+      response.cookies.set('ae_membership', '', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 0,
+        path: '/',
+      });
+      return response;
     }
 
     // ✅ 状态正常，返回会员信息
@@ -140,17 +164,23 @@ export async function GET(req: NextRequest) {
     console.error('Get membership error:', error);
     
     // Token 无效，清除 Cookie
-    const cookieStore = await cookies();
-    cookieStore.delete('ae_membership');
-    
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         isAuthenticated: false,
         tier: null,
-        tierLabel: '访客'
+        tierLabel: '访客',
+        reason: 'token_invalid'
       }
     });
+    response.cookies.set('ae_membership', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 0,
+      path: '/',
+    });
+    return response;
   }
 }
 

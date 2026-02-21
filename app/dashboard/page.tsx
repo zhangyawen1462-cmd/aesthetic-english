@@ -3,12 +3,15 @@
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Menu, X, Play, Crown } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, lazy, Suspense } from "react";
 import * as React from "react";
 import type { Lesson } from "@/data/types";
 import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
-import SubscriptionModal from "@/components/SubscriptionModal";
 import { useMembership } from "@/context/MembershipContext";
+import ImageOptimized from "@/components/ImageOptimized";
+
+// 懒加载订阅弹窗（只在需要时加载）
+const SubscriptionModal = lazy(() => import("@/components/SubscriptionModal"));
 
 
 
@@ -39,7 +42,10 @@ export default function Dashboard() {
     async function fetchDashboardLayout() {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/dashboard-layout');
+        const response = await fetch('/api/dashboard-layout', {
+          // 🚀 添加缓存策略
+          next: { revalidate: 60 } // 60秒缓存
+        });
         const data = await response.json();
         if (data.success) {
           setLessons(data.data);
@@ -387,14 +393,18 @@ export default function Dashboard() {
         </p>
       </footer>
 
-      {/* 订阅弹窗（两种触发方式）*/}
-      <SubscriptionModal 
-        isOpen={shouldShowSubscription || showSubscriptionModal} 
-        onClose={() => {
-          closeSubscriptionModal();
-          setShowSubscriptionModal(false);
-        }} 
-      />
+      {/* 订阅弹窗（两种触发方式）- 懒加载 */}
+      {(shouldShowSubscription || showSubscriptionModal) && (
+        <Suspense fallback={null}>
+          <SubscriptionModal 
+            isOpen={shouldShowSubscription || showSubscriptionModal} 
+            onClose={() => {
+              closeSubscriptionModal();
+              setShowSubscriptionModal(false);
+            }} 
+          />
+        </Suspense>
+      )}
 
       {/* 图片查看器 */}
       <AnimatePresence>
@@ -455,6 +465,8 @@ function getAspectRatio(heightClass: string | undefined): number {
 
 // ─── 子组件定义 (确保这些在 Dashboard 函数外部) ───
 function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; index: number; onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) {
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 0 }}
@@ -468,14 +480,23 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
           className="relative w-full overflow-hidden bg-[#2D0F15]/5"
           style={{ aspectRatio: getAspectRatio(item.height) }}
         >
+          {/* 加载占位符 */}
+          {!isLoaded && (
+            <div className="absolute inset-0 bg-gradient-to-br from-[#2D0F15]/5 to-[#2D0F15]/10 animate-pulse" />
+          )}
+          
           <img 
             src={item.img} 
-            alt={item.title} 
+            alt={item.title}
+            loading="lazy"
+            decoding="async"
+            onLoad={() => setIsLoaded(true)}
             onError={(e) => {
-              // 图片加载失败时，不做任何处理，让背景色显示
               e.currentTarget.style.opacity = '0';
             }}
-            className="w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-105" 
+            className={`w-full h-full object-cover transition-all duration-[1.2s] group-hover:scale-105 ${
+              isLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
           />
         </div>
         <div className="mt-5 pr-2">
@@ -489,6 +510,7 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
 
 function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index: number; onImageClick?: (img: string) => void }) {
   const [aspectRatio, setAspectRatio] = React.useState<number>(1);
+  const [isLoaded, setIsLoaded] = React.useState(false);
   
   return (
     <motion.div
@@ -503,17 +525,26 @@ function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index
         className="relative w-full overflow-hidden bg-[#2D0F15]/5"
         style={{ aspectRatio }}
       >
+        {/* 加载占位符 */}
+        {!isLoaded && (
+          <div className="absolute inset-0 bg-gradient-to-br from-[#2D0F15]/5 to-[#2D0F15]/10 animate-pulse" />
+        )}
+        
         <img
           src={item.img}
           alt="mood"
-          className="w-full h-full object-contain grayscale-[20%] opacity-90 transition-transform duration-700 group-hover:scale-105"
+          loading="lazy"
+          decoding="async"
+          className={`w-full h-full object-contain grayscale-[20%] opacity-90 transition-all duration-700 group-hover:scale-105 ${
+            isLoaded ? 'opacity-90' : 'opacity-0'
+          }`}
           onLoad={(e) => {
             const img = e.currentTarget;
             const ratio = img.naturalWidth / img.naturalHeight;
             setAspectRatio(ratio);
+            setIsLoaded(true);
           }}
           onError={(e) => {
-            // 图片加载失败时，不做任何处理
             e.currentTarget.style.opacity = '0';
           }}
         />
