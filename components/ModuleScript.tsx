@@ -122,19 +122,35 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     if (activeIndex === lastScrolledIndex.current) return;
     lastScrolledIndex.current = activeIndex;
 
+    const container = scrollContainerRef.current;
+
     if (useVirtualScroll) {
       const targetScrollTop = activeIndex * ITEM_HEIGHT - containerHeight / 2 + ITEM_HEIGHT / 2;
-      const currentScrollTop = scrollContainerRef.current.scrollTop;
+      const currentScrollTop = container.scrollTop;
       
       // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
       if (Math.abs(targetScrollTop - currentScrollTop) > ITEM_HEIGHT / 2) {
-        scrollContainerRef.current.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
       }
     } else {
-      // 非虚拟滚动时，使用 DOM 查询
-      const el = scrollContainerRef.current.querySelector(`[data-line-id="${activeIndex}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 非虚拟滚动时，手动计算滚动位置（避免 scrollIntoView 引起页面级滚动）
+      const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
+      if (activeElement) {
+        const elementTop = activeElement.offsetTop;
+        const elementHeight = activeElement.offsetHeight;
+        const containerScrollTop = container.scrollTop;
+        const containerHeight = container.clientHeight;
+        
+        // 计算目标滚动位置：让元素居中显示
+        const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+        
+        // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
+        if (Math.abs(targetScrollTop - containerScrollTop) > elementHeight / 2) {
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: 'smooth'
+          });
+        }
       }
     }
   }, [currentTime, isPlaying, transcript, useVirtualScroll, containerHeight]);
