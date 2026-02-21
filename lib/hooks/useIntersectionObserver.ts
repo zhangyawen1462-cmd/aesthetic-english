@@ -15,7 +15,7 @@ interface UseIntersectionObserverOptions {
  * const isVisible = useIntersectionObserver(ref, { threshold: 0.1 });
  */
 export function useIntersectionObserver(
-  elementRef: RefObject<Element>,
+  elementRef: RefObject<Element | null>,
   {
     threshold = 0,
     root = null,
