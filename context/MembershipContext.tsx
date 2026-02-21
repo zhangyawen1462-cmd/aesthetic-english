@@ -30,20 +30,26 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   const fetchMembership = async () => {
     try {
       setIsLoading(true);
+      console.log('🔍 [MembershipContext] 开始获取会员状态...');
+      
       // 🆕 从后端 API 获取会员状态
       const response = await fetch('/api/membership');
       const data = await response.json();
       
+      console.log('📦 [MembershipContext] 后端返回数据:', data);
+      
       if (data.success && data.data.isAuthenticated) {
+        console.log('✅ [MembershipContext] 用户已认证，等级:', data.data.tier);
         setRealTier(data.data.tier as MembershipTier);
         setEmail(data.data.email);
       } else {
+        console.log('❌ [MembershipContext] 用户未认证');
         // 未登录或未激活，保持 null
         setRealTier(null);
         setEmail(undefined);
       }
     } catch (error) {
-      console.error('Failed to fetch membership:', error);
+      console.error('❌ [MembershipContext] 获取会员状态失败:', error);
       // 出错时保持 null
       setRealTier(null);
     } finally {

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Upload, Sparkles, Layout, FileText, Scissors, Image, Link as LinkIcon } from 'lucide-react';
+import { Upload, Sparkles, Layout, FileText, Scissors, Image, Link as LinkIcon, Shield } from 'lucide-react';
 
 export default function AdminPage() {
   const tools = [
@@ -11,6 +11,13 @@ export default function AdminPage() {
       href: '/admin/publish',
       icon: Sparkles,
       color: 'from-purple-500 to-pink-500',
+    },
+    {
+      title: '📡 主理人雷达',
+      description: '实时监控所有兑换活动，追踪成功/失败记录',
+      href: '/admin/radar',
+      icon: Shield,
+      color: 'from-indigo-500 to-blue-600',
     },
     {
       title: '🎨 可视化布局管理器',

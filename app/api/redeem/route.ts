@@ -10,6 +10,7 @@ const notion = new Client({
 
 const REDEMPTION_DB = process.env.NOTION_DB_REDEMPTION || '';
 const MEMBERSHIP_DB = process.env.NOTION_DB_MEMBERSHIPS || '';
+const REDEMPTION_LOGS_DB = process.env.NOTION_DB_REDEMPTION_LOGS || ''; // 🆕 兑换日志数据库
 
 // JWT 密钥
 const JWT_SECRET = new TextEncoder().encode(
@@ -51,6 +52,75 @@ function generateDeviceId(req: NextRequest): string {
   return `device_${hash}`;
 }
 
+// 🆕 记录兑换日志到 Notion
+async function logRedemptionAttempt(params: {
+  code: string;
+  email: string;
+  status: '🟢 成功' | '🔴 失败';
+  reason?: string;
+  deviceId: string;
+  ipAddress: string;
+}) {
+  try {
+    // 如果没有配置日志数据库，跳过
+    if (!REDEMPTION_LOGS_DB) {
+      console.warn('⚠️ NOTION_DB_REDEMPTION_LOGS 未配置，跳过日志记录');
+      return;
+    }
+
+    const logId = `LOG_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    
+    await notion.pages.create({
+      parent: { database_id: REDEMPTION_LOGS_DB },
+      properties: {
+        'Log ID': {
+          title: [{
+            text: { content: logId }
+          }]
+        },
+        'Attempted Code': {
+          rich_text: [{
+            text: { content: params.code }
+          }]
+        },
+        'Status': {
+          select: {
+            name: params.status
+          }
+        },
+        'Reason': {
+          rich_text: [{
+            text: { content: params.reason || '-' }
+          }]
+        },
+        'Device ID': {
+          rich_text: [{
+            text: { content: params.deviceId }
+          }]
+        },
+        'Email': {
+          email: params.email || undefined
+        },
+        'Time': {
+          date: {
+            start: new Date().toISOString()
+          }
+        },
+        'IP Address': {
+          rich_text: [{
+            text: { content: params.ipAddress }
+          }]
+        }
+      }
+    });
+    
+    console.log('✅ 兑换日志已记录:', logId);
+  } catch (error) {
+    console.error('❌ 记录兑换日志失败:', error);
+    // 不影响主流程，继续执行
+  }
+}
+
 // 转换会员类型（中文 → 英文）
 function convertTierToEnglish(chineseTier: string): string {
   const mapping: Record<string, string> = {
@@ -64,8 +134,22 @@ function convertTierToEnglish(chineseTier: string): string {
 export async function POST(req: NextRequest) {
   try {
     const { code, email } = await req.json();
+    
+    // 获取设备信息
+    const deviceId = generateDeviceId(req);
+    const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
 
     if (!code || !code.trim()) {
+      // 🆕 记录失败日志
+      await logRedemptionAttempt({
+        code: code || '',
+        email: email || '',
+        status: '🔴 失败',
+        reason: '未输入兑换码',
+        deviceId,
+        ipAddress
+      });
+      
       return NextResponse.json(
         { success: false, error: 'invalid_code', message: '请输入兑换码' },
         { status: 400 }
@@ -84,6 +168,16 @@ export async function POST(req: NextRequest) {
     });
 
     if (response.results.length === 0) {
+      // 🆕 记录失败日志
+      await logRedemptionAttempt({
+        code: code.trim().toUpperCase(),
+        email: email || '',
+        status: '🔴 失败',
+        reason: '兑换码不存在',
+        deviceId,
+        ipAddress
+      });
+      
       return NextResponse.json(
         { success: false, error: 'code_not_found', message: '兑换码不存在' },
         { status: 404 }
@@ -92,6 +186,16 @@ export async function POST(req: NextRequest) {
 
     const page = response.results[0];
     if (!('properties' in page)) {
+      // 🆕 记录失败日志
+      await logRedemptionAttempt({
+        code: code.trim().toUpperCase(),
+        email: email || '',
+        status: '🔴 失败',
+        reason: '数据格式错误',
+        deviceId,
+        ipAddress
+      });
+      
       return NextResponse.json(
         { success: false, error: 'invalid_data', message: '数据格式错误' },
         { status: 500 }
@@ -108,6 +212,16 @@ export async function POST(req: NextRequest) {
     
     // ❌ 唯一拒绝的情况：兑换码已失效
     if (status === '❌ 已失效') {
+      // 🆕 记录失败日志
+      await logRedemptionAttempt({
+        code: code.trim().toUpperCase(),
+        email: email || '',
+        status: '🔴 失败',
+        reason: '该兑换码已失效',
+        deviceId,
+        ipAddress
+      });
+      
       return NextResponse.json(
         { success: false, error: 'code_expired', message: '该兑换码已失效' },
         { status: 400 }
@@ -115,8 +229,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ 其他所有情况（待售、已发货、已激活）都允许登录
-    const deviceId = generateDeviceId(req);
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const tier = convertTierToEnglish(type);
 
     // 3. 如果是首次激活（待售/已发货），更新 Notion 状态
@@ -160,7 +272,7 @@ export async function POST(req: NextRequest) {
       const createProperties: any = {
         'User ID': {
           title: [{
-            text: { content: userId }
+            text: { content: `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` }
           }]
         },
         Tier: {
@@ -195,7 +307,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 🆕 记录成功日志
+    const isRelogin = status === '✅ 已激活';
+    await logRedemptionAttempt({
+      code: code.trim().toUpperCase(),
+      email: email || storedEmail || '',
+      status: '🟢 成功',
+      reason: isRelogin ? '重复登录（已激活）' : '首次激活',
+      deviceId,
+      ipAddress
+    });
+
     // 4. 生成 JWT Token（无论是首次激活还是重复登录）
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const token = await new SignJWT({
       userId,
       tier,
@@ -214,7 +338,7 @@ export async function POST(req: NextRequest) {
     cookieStore.set('ae_membership', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax', // 🔧 改为 lax，提高兼容性
       maxAge: tier === 'lifetime' 
         ? 10 * 365 * 24 * 60 * 60 
         : tier === 'yearly'
@@ -224,7 +348,6 @@ export async function POST(req: NextRequest) {
     });
 
     // 6. 返回成功响应
-    const isRelogin = status === '✅ 已激活';
     return NextResponse.json({
       success: true,
       message: isRelogin ? '欢迎回来！已为当前设备恢复访问权限' : '兑换成功！',
@@ -237,6 +360,24 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('Redemption error:', error);
+    
+    // 🆕 记录异常日志
+    try {
+      const deviceId = generateDeviceId(req);
+      const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+      
+      await logRedemptionAttempt({
+        code: 'UNKNOWN',
+        email: '',
+        status: '🔴 失败',
+        reason: `服务器错误: ${error instanceof Error ? error.message : String(error)}`,
+        deviceId,
+        ipAddress
+      });
+    } catch (logError) {
+      console.error('记录异常日志失败:', logError);
+    }
+    
     return NextResponse.json(
       { success: false, error: 'server_error', message: '服务器错误，请稍后重试' },
       { status: 500 }

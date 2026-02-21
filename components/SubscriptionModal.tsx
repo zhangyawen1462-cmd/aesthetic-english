@@ -36,6 +36,8 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
     setError('');
 
     try {
+      console.log('🔑 [Redeem] 开始兑换，兑换码:', code.trim());
+      
       const response = await fetch('/api/redeem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -43,19 +45,26 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
       });
 
       const data = await response.json();
+      console.log('📦 [Redeem] 后端返回:', data);
 
       if (data.success) {
+        console.log('✅ [Redeem] 兑换成功！开始刷新会员状态...');
         setSuccess(true);
+        
         // 🆕 刷新会员状态
         await refreshMembership();
+        console.log('✅ [Redeem] 会员状态已刷新，准备跳转...');
+        
         setTimeout(() => {
           onClose(); // 关闭弹窗
           window.location.href = '/dashboard'; // 刷新页面
         }, 1500);
       } else {
+        console.log('❌ [Redeem] 兑换失败:', data.message);
         setError(data.message || '兑换失败，请检查兑换码');
       }
     } catch (err) {
+      console.error('❌ [Redeem] 网络错误:', err);
       setError('网络错误，请稍后重试');
     } finally {
       setIsLoading(false);
@@ -100,6 +109,7 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
       {error && (
         <p className="text-xs text-red-400">{error}</p>
       )}
+      
       <button
         onClick={handleRedeem}
         disabled={isLoading}
