@@ -281,10 +281,15 @@ export async function POST(req: NextRequest) {
             text: { content: `user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` }
           }]
         },
-        Tier: {
+        'Tier': {
           select: {
             name: type
           }
+        },
+        'Redemption Code': {
+          rich_text: [{
+            text: { content: code.trim().toUpperCase() }
+          }]
         },
         'Activated At': {
           date: {
