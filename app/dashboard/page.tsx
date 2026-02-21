@@ -469,8 +469,8 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
   
   return (
     <motion.div
-      initial={isMobile ? false : { opacity: 0, y: 0 }}
-      whileInView={isMobile ? false : { opacity: 1, y: 0 }}
+      initial={isMobile ? undefined : { opacity: 0, y: 0 }}
+      whileInView={isMobile ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-10%" }}
       transition={{ duration: 0.6, delay: 0, ease: [0.22, 1, 0.36, 1] }}
       className="group cursor-pointer w-full"
@@ -511,8 +511,8 @@ function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index
   
   return (
     <motion.div
-      initial={isMobile ? false : { opacity: 0 }}
-      whileInView={isMobile ? false : { opacity: 1 }}
+      initial={isMobile ? undefined : { opacity: 0 }}
+      whileInView={isMobile ? undefined : { opacity: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 1, delay: index * 0.1 }}
       className="group cursor-zoom-in relative w-full"
