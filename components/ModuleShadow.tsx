@@ -238,7 +238,7 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
                 layout: { duration: 0.2, ease: "easeInOut" },
                 scale: { duration: 0.2 }
               }}
-              className="relative w-full flex items-center justify-between min-h-[72px] px-6 py-4 cursor-pointer group"
+              className="relative w-full flex items-start justify-between min-h-[72px] px-6 py-4 cursor-pointer group"
               style={{
                 backgroundColor: style.cardBg,
                 color: style.text,
@@ -251,15 +251,15 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
             >
 
               {/* 左侧：序号 + 英文原文 */}
-              <div className="flex-1 flex items-center gap-4 mr-4">
-                <span className="text-[10px] font-sans opacity-40 w-4">0{line.id}</span>
-                <p className="text-[15px] md:text-[17px] font-normal leading-snug tracking-tight font-sans">
+              <div className="flex-1 flex items-start gap-4 mr-4">
+                <span className="text-[10px] font-sans opacity-40 w-4 flex-shrink-0 pt-1">0{line.id}</span>
+                <p className="text-[15px] md:text-[17px] font-normal leading-snug tracking-tight font-sans break-words">
                   {line.en}
                 </p>
               </div>
 
               {/* 右侧：控制区 */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3 flex-shrink-0 pt-1">
 
                 <div className="text-[9px] uppercase tracking-wider font-bold opacity-0 group-hover:opacity-60 transition-opacity whitespace-nowrap hidden md:block">
                   {isRecordingThis ? "Recording..." : (isActive ? "Listening" : "")}

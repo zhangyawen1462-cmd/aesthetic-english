@@ -381,11 +381,15 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         onMouseLeave={handlePressCancel}
         onTouchStart={(e) => handlePressStart(line, e)}
         onTouchEnd={handlePressCancel}
+        initial={false}
         animate={{ 
-          opacity: isActive ? 1 : (isSaved ? 1 : 0.25), // 收藏后不透明
+          opacity: isActive ? 1 : (isSaved ? 1 : 0.25),
           scale: isPressing ? 0.98 : 1,
         }}
-        transition={{ duration: 0.15 }}
+        transition={{ 
+          opacity: { duration: 0.15, ease: "easeOut" },
+          scale: { duration: 0.15, ease: "easeOut" }
+        }}
         className={`relative py-2 pl-6 pr-4 transition-all duration-500 cursor-pointer group border-l-[3px] overflow-hidden
           ${isActive ? "border-current" : "border-transparent hover:border-black/5"}
         `}
@@ -461,7 +465,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           </motion.div>
         )}
 
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           {/* 英文 */}
           {(langMode === 'en' || langMode === 'bi') && (
             <p 

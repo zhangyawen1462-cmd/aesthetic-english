@@ -19,7 +19,7 @@ interface PublishFormData {
   coverArchiveFile: File | null;   // 归档封面（16:9）
   videoFile: File | null;
   srtFile: File | null;
-  audioFile: File | null; // 🆕 音频文件（M4A，用于永久会员下载）
+  audioFile: File | null; // 🆕 音频文件（MP3，用于永久会员下载）
 }
 
 type PublishStep = 'idle' | 'uploading' | 'generating' | 'creating' | 'success' | 'error';
@@ -477,13 +477,13 @@ export default function PublishPage() {
             {/* 🆕 音频文件 - 仅视频模式显示 */}
             {formData.contentType === 'video' && (
               <FileUploadBox
-                label="音频文件（M4A）"
-                accept="audio/mp4,audio/m4a,.m4a"
+                label="音频文件（MP3）"
+                accept="audio/mpeg,audio/mp3,.mp3"
                 file={formData.audioFile}
                 onChange={(file) => handleFileChange('audioFile', file)}
                 disabled={isProcessing}
                 optional
-                hint="可选：预处理的 M4A 音频文件，用于永久会员秒速下载。如不上传，用户点击下载时会实时提取（较慢）。"
+                hint="可选：预处理的 MP3 音频文件，用于永久会员秒速下载。如不上传，用户点击下载时会实时提取（较慢）。"
               />
             )}
           </div>

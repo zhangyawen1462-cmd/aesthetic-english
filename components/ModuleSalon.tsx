@@ -32,6 +32,7 @@ interface Message {
   correction?: string; 
   isBlurred?: boolean;
   isHidden?: boolean; // 🆕 隐藏消息（不在界面显示）
+  usedVocab?: string[]; // 🆕 本条消息复用的词汇
 }
 
 // --- AI 模式配置 ---
@@ -39,23 +40,20 @@ type AIMode = 'professional' | 'arrogant' | 'romantic';
 
 const AI_MODES = {
   professional: {
-    name: 'The Partner',
-    icon: '💼',
-    description: '合伙人 - 专业、策略、结果导向',
+    name: '靠谱搭档',
+    icon: '☕️',
     openingHook: (title: string) => `Train's delayed. Should we grab lunch or wait here?`,
     openingHookCn: (title: string) => `火车晚点了。我们要去吃午饭还是在这等？`
   },
   arrogant: {
-    name: 'The Critic',
-    icon: '👑',
-    description: '审视者 - 傲慢、质疑、高标准',
+    name: '毒舌老友',
+    icon: '🥐',
     openingHook: (title: string) => `This place? Overrated. I know a better spot. Coming?`,
     openingHookCn: (title: string) => `这地方？被高估了。我知道更好的地方。来吗？`
   },
   romantic: {
-    name: 'The Flâneur',
-    icon: '🌹',
-    description: '漫游者 - 感性、诗意、氛围感',
+    name: '浪漫旅伴',
+    icon: '🥂',
     openingHook: (title: string) => `Wow, this sunset is unreal. Let's grab a drink. What do you want?`,
     openingHookCn: (title: string) => `哇，这日落绝了。我们去喝一杯吧。你想喝什么？`
   }
@@ -104,22 +102,39 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
   // 从后端获取对话次数
   useEffect(() => {
+    let isMounted = true; // 防御 React 严格模式下的两次挂载
+    
     async function fetchChatUsage() {
       if (!hasAccess) return;
       
       try {
         // 🔧 开发环境：传递模拟的会员等级
         const headers: Record<string, string> = {};
-        if (process.env.NODE_ENV === 'development' && membershipType) {
+        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isDev && membershipType) {
           headers['x-dev-tier'] = membershipType;
+          headers['x-dev-secret'] = 'dev-only-secret-12345';
+          console.log('🔧 Fetching chat usage with dev tier:', membershipType);
         }
         
         const response = await fetch(`/api/chat-usage/${lessonId}`, { headers });
         const data = await response.json();
         
-        if (data.success) {
+        console.log('🎯 Backend returned count:', data.data?.chatCount);
+        console.log('📊 Full API response:', data);
+        console.log('📊 Backend limit type:', typeof data.data?.limit, data.data?.limit);
+        
+        if (data.success && isMounted) {
           setChatCount(data.data.chatCount);
-          setDailyLimit(data.data.limit);
+          // 🔥 关键修复：确保 Infinity 被正确处理
+          const backendLimit = data.data.limit;
+          if (backendLimit === Infinity || backendLimit === 'Infinity' || backendLimit === null) {
+            setDailyLimit(Infinity);
+            console.log('✅ Set dailyLimit to Infinity');
+          } else {
+            setDailyLimit(Number(backendLimit));
+            console.log('✅ Set dailyLimit to:', Number(backendLimit));
+          }
         }
       } catch (error) {
         console.error('Failed to fetch chat usage:', error);
@@ -127,6 +142,10 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     }
     
     fetchChatUsage();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [lessonId, hasAccess, membershipType]);
 
   // 计算剩余次数
@@ -154,11 +173,14 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       setMessages([hiddenMessage]);
       setIsLoading(true);
       
+      // 🆕 所有会员（包括季度）都调用 AI 生成个性化开场白
       try {
         // 2. 调用 AI 生成情景化开场白
         const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (process.env.NODE_ENV === 'development' && membershipType) {
+        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isDev && membershipType) {
           headers['x-dev-tier'] = membershipType;
+          headers['x-dev-secret'] = 'dev-only-secret-12345';
         }
         
         const response = await fetch("/api/ai-chat-secure", {
@@ -181,12 +203,19 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
         const data = await response.json();
 
         if (data.success) {
+          // 🔥 验证 AI 回复不为空
+          if (!data.reply || !data.reply.trim()) {
+            console.error('Opening reply is empty, using fallback');
+            throw new Error('Empty opening reply');
+          }
+          
           // 3. 显示 AI 的开场白
           const openingMessage: Message = {
             id: "opening",
             role: "assistant",
             content: data.reply,
             contentCn: data.replyCn,
+            usedVocab: data.used_vocab || [],
             timestamp: new Date(),
           };
           setMessages([hiddenMessage, openingMessage]);
@@ -221,7 +250,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     // 延迟 800ms 后执行，营造自然感
     const timer = setTimeout(initChat, 800);
     return () => clearTimeout(timer);
-  }, [videoContext, currentMode, modeConfig, lessonId, membershipType, messages.length]);
+  }, [videoContext, currentMode, modeConfig, lessonId, membershipType, messages.length, hasAccess]);
 
   // 自动滚动
   useEffect(() => {
@@ -304,16 +333,17 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     setInput("");
     setIsLoading(true);
 
-    // --- 季度会员的"幽灵输入"逻辑 ---
+    // --- 季度会员的"模糊回复"逻辑：显示模糊的 AI 气泡 ---
     if (!hasAccess) {
       setTimeout(() => {
         setIsLoading(false);
+        // 显示一个模糊的 AI 回复，引导升级
         const blurredMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: "assistant",
-          content: "That is an interesting perspective. However, in a professional context, we usually prefer to say it differently to emphasize the...",
+          content: "That's an interesting perspective. However, in a professional context, we usually prefer to say it differently to emphasize the nuance and maintain clarity...",
           timestamp: new Date(),
-          isBlurred: true,
+          isBlurred: true, // 标记为模糊，显示锁和"升级查看"
         };
         setMessages((prev) => [...prev, blurredMessage]);
       }, 1500);
@@ -324,8 +354,11 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     try {
       // 🔧 开发环境：传递模拟的会员等级
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (process.env.NODE_ENV === 'development' && membershipType) {
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isDev && membershipType) {
         headers['x-dev-tier'] = membershipType;
+        headers['x-dev-secret'] = 'dev-only-secret-12345';
+        console.log('🔧 Dev mode: Sending x-dev-tier header:', membershipType);
       }
       
       const response = await fetch("/api/ai-chat-secure", {
@@ -353,9 +386,22 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       const data = await response.json();
 
       if (data.success) {
+        // 🔥 验证 AI 回复不为空
+        if (!data.reply || !data.reply.trim()) {
+          console.error('AI returned empty reply:', data);
+          throw new Error('AI 返回了空白回复');
+        }
+        
         // ✅ 成功：更新对话次数
-        if (data.remainingChats !== undefined && data.remainingChats !== Infinity) {
-          setChatCount(dailyLimit - data.remainingChats);
+        if (data.remainingChats !== undefined) {
+          if (data.remainingChats === null) {
+            // 永久会员：无限对话
+            setDailyLimit(Infinity);
+            setChatCount(0);
+          } else {
+            // 年度会员：更新计数
+            setChatCount(dailyLimit - data.remainingChats);
+          }
         }
 
         const aiMessage: Message = {
@@ -363,6 +409,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
           role: "assistant",
           content: data.reply,
           contentCn: data.replyCn,
+          usedVocab: data.used_vocab || [],
           timestamp: new Date(),
           correction: data.correction || undefined,
         };
@@ -425,13 +472,13 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 relative shadow-sm">
+          <div className="w-10 h-10 rounded-full border border-white/10 relative shadow-sm">
              <img 
                src="/gabby.png" 
                alt="Gabby" 
-               className="w-full h-full object-cover"
+               className="w-full h-full object-cover rounded-full"
              />
-             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full z-10"></span>
           </div>
           <div>
             <h3 className="text-sm font-semibold tracking-wide" style={{ color: theme.text }}>
@@ -463,8 +510,9 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className="absolute right-0 top-full mt-2 w-64 rounded-xl border shadow-xl overflow-hidden z-30"
+                className="absolute right-0 top-full mt-2 rounded-xl border shadow-xl overflow-hidden z-30"
                 style={{ 
+                  width: '150px',
                   backgroundColor: theme.background,
                   borderColor: theme.lineColor
                 }}
@@ -489,13 +537,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                           <div className="text-sm font-medium" style={{ color: theme.text }}>
                             {config.name}
                           </div>
-                          <div className="text-xs opacity-60" style={{ color: theme.text }}>
-                            {config.description}
-                          </div>
                         </div>
-                        {isActive && (
-                          <Sparkles size={14} style={{ color: theme.accent }} />
-                        )}
                       </div>
                     </button>
                   );
@@ -556,7 +598,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                              <Lock size={14} style={{ color: theme.text }} />
                            </div>
                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.text }}>
-                             Upgrade to View
+                             升级查看
                            </span>
                         </div>
                       </>
@@ -566,6 +608,24 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                         <p className="text-[15px] leading-relaxed whitespace-pre-wrap relative z-10">
                           {message.content}
                         </p>
+                        
+                        {/* 🆕 词汇标签（仅 AI 消息显示） */}
+                        {!isUser && message.usedVocab && message.usedVocab.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t" style={{ borderColor: `${theme.lineColor}20` }}>
+                            {message.usedVocab.map((word, idx) => (
+                              <span
+                                key={idx}
+                                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide"
+                                style={{
+                                  backgroundColor: `${theme.accent}15`,
+                                  color: theme.accent
+                                }}
+                              >
+                                {word}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         
                         {/* 🆕 中文翻译遮罩层（长按显示） */}
                         <AnimatePresence>
@@ -721,24 +781,24 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
             onKeyDown={handleKeyDown}
             placeholder={
               hasAccess 
-                ? (hasReachedLimit ? "已达到本期对话次数上限..." : "Reply to Gabby...") 
-                : "Reply to unlock..."
+                ? (hasReachedLimit ? "已达到本期对话次数上限..." : "回复 Gabby...") 
+                : "回复 Gabby..."
             } 
             className="flex-1 bg-transparent outline-none resize-none text-[15px] max-h-24 placeholder-opacity-30 py-2"
             style={{ color: theme.text }}
             rows={1}
-            disabled={isLoading || hasReachedLimit}
+            disabled={isLoading || (hasAccess && hasReachedLimit)}
           />
           
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={handleSend}
-            disabled={!input.trim() || isLoading || hasReachedLimit}
+            disabled={!input.trim() || isLoading || (hasAccess && hasReachedLimit)}
             className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all mb-1"
             style={{
-              backgroundColor: (input.trim() && !hasReachedLimit) ? theme.accent : `${theme.lineColor}20`,
-              opacity: (input.trim() && !hasReachedLimit) ? 1 : 0.5,
-              cursor: (input.trim() && !hasReachedLimit) ? 'pointer' : 'default'
+              backgroundColor: (input.trim() && !(hasAccess && hasReachedLimit)) ? theme.accent : `${theme.lineColor}20`,
+              opacity: (input.trim() && !(hasAccess && hasReachedLimit)) ? 1 : 0.5,
+              cursor: (input.trim() && !(hasAccess && hasReachedLimit)) ? 'pointer' : 'default'
             }}
           >
             <Send size={14} style={{ color: "#ffffff" }} />
@@ -749,25 +809,20 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
         <div className="mt-2 text-center">
             {!hasAccess && (
                <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
-                 Preview Mode • Upgrade to {membershipType === 'quarterly' ? 'Yearly' : 'Lifetime'} for full access
+                 预览模式 升级到{membershipType === 'quarterly' ? '年度' : '永久'}会员解锁完整功能
                </p>
             )}
             {hasAccess && dailyLimit !== Infinity && (
                <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
                  {hasReachedLimit 
-                   ? `已用完本期 ${dailyLimit} 次对话 • 升级到永久会员可无限对话` 
-                   : `剩余 ${remainingChats}/${dailyLimit} 次对话`
+                   ? `已用完本期 ${dailyLimit} 次对话 升级到永久会员可无限对话` 
+                   : `剩余 ${remainingChats}/${dailyLimit} 次对话 永久会员可切换模式`
                  }
                </p>
             )}
             {hasAccess && dailyLimit === Infinity && (
                <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
                  ∞ 无限对话
-               </p>
-            )}
-            {!canSwitchMode && hasAccess && !hasReachedLimit && (
-               <p className="text-[9px] uppercase tracking-widest opacity-40 mt-1" style={{ color: theme.text }}>
-                 Mode switching available for Lifetime members
                </p>
             )}
         </div>

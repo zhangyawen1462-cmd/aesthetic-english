@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, Suspense, useRef } from "react";
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, Lock, ChevronDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Lesson } from "@/data/types";
+import { useMembership } from "@/context/MembershipContext";
+import { checkVideoAccess } from "@/lib/permissions";
 
 // 主题配置
 const THEMES = {
@@ -49,6 +51,30 @@ function ArchiveContent() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(9); // 默认网页端
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
+  
+  // 🔐 获取会员状态
+  const { tier } = useMembership();
+  
+  // 🌊 物理拉拽状态
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const touchStartY = useRef(0);
+  const scrollTopAtStart = useRef(0);
+  const mainRef = useRef<HTMLDivElement>(null);
+  
+  // 响应式设置每页显示数量
+  useEffect(() => {
+    const updateItemsPerPage = () => {
+      setItemsPerPage(window.innerWidth < 768 ? 6 : 9);
+    };
+    
+    updateItemsPerPage();
+    window.addEventListener('resize', updateItemsPerPage);
+    return () => window.removeEventListener('resize', updateItemsPerPage);
+  }, []);
   
   const theme = THEMES[currentTheme];
 
@@ -57,10 +83,14 @@ function ArchiveContent() {
     async function fetchLessons() {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/lessons');
+        const response = await fetch('/api/lessons', {
+          cache: 'no-store', // 🔥 强制不使用缓存
+        });
         const result = await response.json();
         
         if (result.success) {
+          console.log('📚 Fetched lessons:', result.data.length);
+          console.log('🔍 Sample lessons:', result.data.filter((l: Lesson) => l.isSample).map((l: Lesson) => ({ id: l.id, isSample: l.isSample })));
           setLessons(result.data);
         }
       } catch (error) {
@@ -73,20 +103,99 @@ function ArchiveContent() {
     fetchLessons();
   }, []);
 
-  // 过滤逻辑
+  // 过滤逻辑（不做权限过滤，显示所有课程）
   const filteredItems = lessons.filter(item => {
     const matchesFilter = activeFilter === "all" || item.category === activeFilter;
     const matchesSearch = 
       item.titleEn.toLowerCase().includes(searchQuery.toLowerCase()) || 
       item.titleCn.includes(searchQuery) ||
       item.id.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // 🔓 Archives 显示所有课程，权限检查在课程详情页进行
     return matchesFilter && matchesSearch;
   });
 
+  // 分页逻辑
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredItems.slice(startIndex, endIndex);
+  
+  // 当过滤条件或搜索改变时，重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, searchQuery]);
+  
+  // 🌊 下拉换页物理引擎
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    
+    const handleTouchStart = (e: TouchEvent) => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      touchStartY.current = e.touches[0].clientY;
+      scrollTopAtStart.current = scrollTop;
+    };
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const touchY = e.touches[0].clientY;
+      const deltaY = touchY - touchStartY.current;
+      
+      // 只在页面底部且向上滑动时触发
+      const isAtBottom = (window.innerHeight + scrollTop) >= (document.documentElement.scrollHeight - 100);
+      
+      if (isAtBottom && deltaY < 0 && currentPage < totalPages) {
+        setIsPulling(true);
+        // 粘滞系数：用户滑动10px，实际只拉动1.5px
+        const resistance = 0.15;
+        const distance = Math.abs(deltaY) * resistance;
+        setPullDistance(Math.min(distance, 80)); // 最大拉动80px
+        e.preventDefault();
+      }
+    };
+    
+    const handleTouchEnd = () => {
+      if (isPulling && pullDistance > 50 && currentPage < totalPages) {
+        // 突破临界点，触发换页
+        setIsPageTransitioning(true);
+        setTimeout(() => {
+          setCurrentPage(prev => prev + 1);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          setIsPageTransitioning(false);
+        }, 300);
+      }
+      setIsPulling(false);
+      setPullDistance(0);
+    };
+    
+    main.addEventListener('touchstart', handleTouchStart, { passive: true });
+    main.addEventListener('touchmove', handleTouchMove, { passive: false });
+    main.addEventListener('touchend', handleTouchEnd);
+    
+    return () => {
+      main.removeEventListener('touchstart', handleTouchStart);
+      main.removeEventListener('touchmove', handleTouchMove);
+      main.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isPulling, pullDistance, currentPage, totalPages]);
+
   const CATEGORIES = [
-    { id: 'daily', label: 'DAILY AESTHETIC', shortLabel: 'DAILY' },
-    { id: 'cognitive', label: 'COGNITIVE GROWTH', shortLabel: 'COGNITIVE' },
-    { id: 'business', label: 'BUSINESS FEMALE', shortLabel: 'BUSINESS' },
+    { id: 'daily', label: 'DAILY AESTHETIC', shortLabel: 'DAILY', locked: false },
+    { 
+      id: 'cognitive', 
+      label: 'COGNITIVE GROWTH', 
+      shortLabel: 'COGNITIVE', 
+      locked: tier === 'quarterly' || tier === null,
+      hasUnlockedContent: lessons.some(l => l.category === 'cognitive' && l.isSample)
+    },
+    { 
+      id: 'business', 
+      label: 'BUSINESS FEMALE', 
+      shortLabel: 'BUSINESS', 
+      locked: tier === 'quarterly' || tier === null,
+      hasUnlockedContent: lessons.some(l => l.category === 'business' && l.isSample)
+    },
   ];
 
   return (
@@ -202,7 +311,7 @@ function ArchiveContent() {
       </header>
 
       {/* ─── Main Content Grid ─── */}
-      <main className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 md:py-20 min-h-screen">
+      <main ref={mainRef} className="max-w-[1400px] mx-auto px-4 md:px-6 py-8 md:py-20 min-h-screen relative">
 
         {/* 加载状态 */}
         {isLoading && (
@@ -211,25 +320,122 @@ function ArchiveContent() {
           </div>
         )}
 
-        {/* 列表内容 */}
-        {!isLoading && viewMode === 'grid' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 md:gap-x-8 gap-y-8 md:gap-y-12">
-            <AnimatePresence mode="popLayout">
-              {filteredItems.map((item, index) => (
-                <ArchiveCard key={item.id} item={item} index={index} theme={theme} currentTheme={currentTheme} />
-              ))}
-            </AnimatePresence>
-        </div>
+        {/* 列表内容 - 带水滴坠落动画 */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentPage}
+            initial={{ opacity: 0, y: -50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            transition={{
+              type: "spring",
+              mass: 1.2,        // 质量：稍重，带有势能
+              stiffness: 80,    // 刚度：控制坠落速度
+              damping: 15,      // 阻尼：低阻尼产生微弹跳
+              duration: 0.6
+            }}
+          >
+            {!isLoading && viewMode === 'grid' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 md:gap-x-8 gap-y-8 md:gap-y-12">
+                {currentItems.map((item, index) => (
+                  <ArchiveCard key={item.id} item={item} index={index} theme={theme} currentTheme={currentTheme} />
+                ))}
+              </div>
+            )}
+
+            {!isLoading && viewMode === 'list' && (
+              <div className="flex flex-col gap-6">
+                {currentItems.map((item, index) => (
+                  <ArchiveListItem key={item.id} item={item} index={index} theme={theme} currentTheme={currentTheme} />
+                ))}
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {/* 🌊 下拉换页指示器 - 水滴张力效果 */}
+        {isPulling && currentPage < totalPages && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed bottom-20 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none z-50"
+          >
+            <motion.div
+              animate={{
+                scaleY: 1 + pullDistance / 100,
+                opacity: pullDistance / 80
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+              <ChevronDown 
+                size={32} 
+                strokeWidth={1.5}
+                style={{ 
+                  color: theme.accent,
+                  filter: `drop-shadow(0 2px 8px ${theme.accent}40)`
+                }}
+              />
+            </motion.div>
+            <motion.p
+              animate={{ opacity: pullDistance > 50 ? 1 : 0.4 }}
+              className="text-xs uppercase tracking-widest"
+              style={{ color: theme.accent }}
+            >
+              {pullDistance > 50 ? '松开加载下一页' : '继续上拉'}
+            </motion.p>
+          </motion.div>
         )}
 
-        {!isLoading && viewMode === 'list' && (
-          <div className="flex flex-col gap-6">
-          <AnimatePresence mode="popLayout">
-            {filteredItems.map((item, index) => (
-                <ArchiveListItem key={item.id} item={item} index={index} theme={theme} currentTheme={currentTheme} />
-            ))}
-          </AnimatePresence>
-        </div>
+        {/* 分页控制 */}
+        {!isLoading && filteredItems.length > 0 && totalPages > 1 && (
+          <div className="mt-16 md:mt-20 flex justify-center">
+            {/* 分页按钮 - 极简设计 */}
+            <div className="flex items-center gap-12">
+              <motion.button
+                onClick={() => {
+                  setIsPageTransitioning(true);
+                  setTimeout(() => {
+                    setCurrentPage(prev => Math.max(1, prev - 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setIsPageTransitioning(false);
+                  }, 300);
+                }}
+                disabled={currentPage === 1}
+                whileHover={{ x: -4 }}
+                whileTap={{ scale: 0.95 }}
+                className="group relative overflow-hidden disabled:opacity-20 disabled:cursor-not-allowed transition-opacity"
+              >
+                <div className="flex items-center gap-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ color: theme.text }}>
+                    <path d="M15 18l-6-6 6-6" />
+                  </svg>
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-light" style={{ color: theme.text }}>Prev</span>
+                </div>
+              </motion.button>
+              
+              <motion.button
+                onClick={() => {
+                  setIsPageTransitioning(true);
+                  setTimeout(() => {
+                    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setIsPageTransitioning(false);
+                  }, 300);
+                }}
+                disabled={currentPage === totalPages}
+                whileHover={{ x: 4 }}
+                whileTap={{ scale: 0.95 }}
+                className="group relative overflow-hidden disabled:opacity-20 disabled:cursor-not-allowed transition-opacity"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] uppercase tracking-[0.25em] font-light" style={{ color: theme.text }}>Next</span>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ color: theme.text }}>
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </div>
+              </motion.button>
+            </div>
+          </div>
         )}
 
         {!isLoading && filteredItems.length === 0 && (
@@ -341,6 +547,14 @@ function ArchiveCard({ item, index, theme, currentTheme }: { item: Lesson, index
   // 使用 16:9 封面，如果没有则使用 3:4 封面
   const coverImage = item.coverImg16x9 || item.coverImg;
   
+  // 🔐 获取会员状态
+  const { tier } = useMembership();
+  
+  // 判断是否需要显示锁图标
+  const needsLock = (item.category === 'cognitive' || item.category === 'business') && 
+                    !item.isSample && 
+                    (tier === 'quarterly' || tier === null);
+  
   return (
     <motion.div 
       layout
@@ -365,7 +579,16 @@ function ArchiveCard({ item, index, theme, currentTheme }: { item: Lesson, index
               <span className="text-sm">No Image</span>
             </div>
           )}
-          </div>
+          
+          {/* 🔒 锁图标覆盖层 - 仅当需要时显示 */}
+          {needsLock && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Lock size={20} className="text-white" />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 文字区域 */}
         <div className="flex flex-col items-center text-center px-4">
@@ -379,7 +602,7 @@ function ArchiveCard({ item, index, theme, currentTheme }: { item: Lesson, index
             <p className="font-serif text-sm md:text-base uppercase tracking-wider opacity-60 transition-colors duration-500" style={{ color: theme.text }}>
                 {item.titleEn}
             </p>
-                </div>
+        </div>
       </Link>
     </motion.div>
   );
@@ -388,6 +611,14 @@ function ArchiveCard({ item, index, theme, currentTheme }: { item: Lesson, index
 // 列表条目组件 (列表视图)
 function ArchiveListItem({ item, index, theme, currentTheme }: { item: Lesson, index: number, theme: typeof THEMES.white, currentTheme: keyof typeof THEMES }) {
   const coverImage = item.coverImg16x9 || item.coverImg;
+  
+  // 🔐 获取会员状态
+  const { tier } = useMembership();
+  
+  // 判断是否需要显示锁图标
+  const needsLock = (item.category === 'cognitive' || item.category === 'business') && 
+                    !item.isSample && 
+                    (tier === 'quarterly' || tier === null);
   
   return (
     <motion.div
@@ -413,7 +644,16 @@ function ArchiveListItem({ item, index, theme, currentTheme }: { item: Lesson, i
               <span className="text-sm">No Image</span>
             </div>
           )}
-             </div>
+          
+          {/* 🔒 锁图标覆盖层 - 仅当需要时显示 */}
+          {needsLock && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Lock size={20} className="text-white" />
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* 右侧：文字内容 */}
         <div className="flex-1 py-2">

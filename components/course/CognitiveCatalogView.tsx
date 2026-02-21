@@ -69,10 +69,10 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
   const featuredData = lessons.slice(0, 2);
 
   return (
-    <div className="min-h-screen w-full bg-[#0A1628] text-[#E8F4F8] overflow-hidden relative font-sans selection:bg-[#E8F4F8] selection:text-[#0A1628]">
+    <div className="min-h-screen w-full bg-[#0A1628] text-[#E8F4F8] relative font-sans selection:bg-[#E8F4F8] selection:text-[#0A1628]">
       
       {/* ─── 层级 1: 星空背景 (The Atmosphere) ─── */}
-      <div className="absolute inset-0 z-0">
+      <div className="fixed inset-0 z-0">
         {/* 图片层 - 根据屏幕方向切换背景 */}
         <div className="w-full h-full">
           <img 
@@ -87,7 +87,7 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
 
 
       {/* ─── 层级 2: UI 内容 ─── */}
-      <div className="relative z-10 w-full h-screen flex flex-col">
+      <div className="relative z-10 w-full min-h-screen flex flex-col">
         
         {/* Header */}
         <header className="px-4 md:px-8 py-6 md:py-8 flex justify-between items-start">
@@ -175,15 +175,6 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
                         {/* Tooltip */}
                         <div className="absolute top-12 right-0 opacity-0 group-hover/lock:opacity-100 transition-opacity bg-black/90 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap pointer-events-none">
                           需要年度会员
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 📌 Sample 标签 - Sample 课程显示 */}
-                    {isSample && (
-                      <div className="absolute top-3 left-3 z-20">
-                        <div className="px-3 py-1.5 rounded-full bg-[#A8C5DD]/20 backdrop-blur-sm border border-[#A8C5DD]/40">
-                          <span className="text-xs font-medium text-[#E8F4F8]">SAMPLE</span>
                         </div>
                       </div>
                     )}

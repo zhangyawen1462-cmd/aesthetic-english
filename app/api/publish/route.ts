@@ -186,11 +186,15 @@ export async function POST(request: Request) {
       };
     }
 
-    // 添加 SRT 原始内容（用于 Script 模块）
+    // 添加 SRT 原始内容（用于 Script 模块）- 分块存储以突破 2000 字符限制
     if (contentType === 'video' && srtFile) {
       const srtContent = await srtFile.text();
+      const chunks = [];
+      for (let i = 0; i < srtContent.length; i += 2000) {
+        chunks.push({ text: { content: srtContent.substring(i, i + 2000) } });
+      }
       notionProperties[NOTION_FIELDS.LESSON.SRT_RAW] = {
-        rich_text: [{ text: { content: srtContent.substring(0, 2000) } }]  // Notion 限制 2000 字符
+        rich_text: chunks
       };
     }
 
@@ -206,28 +210,35 @@ export async function POST(request: Request) {
     const promises = [];
 
     if (contentType === 'video') {
-      // 创建词汇
+      // 创建词汇（验证数据完整性）
       if (DATABASES.vocabulary && aiContent.vocabulary.length > 0) {
         for (const vocab of aiContent.vocabulary) {
           const v = vocab as any;
+          
+          // 验证必填字段，跳过不完整的数据
+          if (!v.word || !v.phonetic || !v.definition || !v.definition_cn || !v.example) {
+            console.warn('跳过不完整的词汇数据:', v);
+            continue;
+          }
+          
           promises.push(
             notion.pages.create({
               parent: { database_id: DATABASES.vocabulary },
               properties: {
                 [NOTION_FIELDS.VOCABULARY.WORD]: {
-                  title: [{ text: { content: v.word } }]
+                  title: [{ text: { content: v.word || '' } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.PHONETIC]: {
-                  rich_text: [{ text: { content: v.phonetic } }]
+                  rich_text: [{ text: { content: v.phonetic || '' } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.DEFINITION]: {
-                  rich_text: [{ text: { content: v.definition } }]
+                  rich_text: [{ text: { content: v.definition || '' } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.DEFINITION_CN]: {
-                  rich_text: [{ text: { content: v.definition_cn } }]
+                  rich_text: [{ text: { content: v.definition_cn || '' } }]
                 },
                 [NOTION_FIELDS.VOCABULARY.EXAMPLE]: {
-                  rich_text: [{ text: { content: v.example } }]
+                  rich_text: [{ text: { content: v.example || '' } }]
                 },
                 // Source 字段暂时注释掉，等 Notion 添加后再启用
                 // [NOTION_FIELDS.VOCABULARY.SOURCE]: {
@@ -242,22 +253,29 @@ export async function POST(request: Request) {
         }
       }
 
-      // 创建语法
+      // 创建语法（验证数据完整性）
       if (DATABASES.grammar && aiContent.grammar.length > 0) {
         for (const grammar of aiContent.grammar) {
           const g = grammar as any;
+          
+          // 验证必填字段，跳过不完整的数据
+          if (!g.point || !g.description || !g.example) {
+            console.warn('跳过不完整的语法数据:', g);
+            continue;
+          }
+          
           promises.push(
             notion.pages.create({
               parent: { database_id: DATABASES.grammar },
               properties: {
                 [NOTION_FIELDS.GRAMMAR.POINT]: {
-                  title: [{ text: { content: g.point } }]
+                  title: [{ text: { content: g.point || '' } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.DESCRIPTION]: {
-                  rich_text: [{ text: { content: g.description } }]
+                  rich_text: [{ text: { content: g.description || '' } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.EXAMPLE]: {
-                  rich_text: [{ text: { content: g.example } }]
+                  rich_text: [{ text: { content: g.example || '' } }]
                 },
                 [NOTION_FIELDS.GRAMMAR.LESSON]: {
                   relation: [{ id: lessonPageId }]
@@ -268,17 +286,31 @@ export async function POST(request: Request) {
         }
       }
 
-      // 创建回译
-      if (DATABASES.recall && aiContent.recall.text_en) {
+      // 创建回译（验证数据完整性）- 分块存储以突破 2000 字符限制
+      if (DATABASES.recall && aiContent.recall.text_en && aiContent.recall.text_cn) {
+        // 中文标题分块（title 字段限制 2000 字符）
+        const textCnChunks = [];
+        const textCn = aiContent.recall.text_cn;
+        for (let i = 0; i < textCn.length; i += 2000) {
+          textCnChunks.push({ text: { content: textCn.substring(i, i + 2000) } });
+        }
+        
+        // 英文内容分块（rich_text 字段限制 2000 字符）
+        const textEnChunks = [];
+        const textEn = aiContent.recall.text_en;
+        for (let i = 0; i < textEn.length; i += 2000) {
+          textEnChunks.push({ text: { content: textEn.substring(i, i + 2000) } });
+        }
+        
         promises.push(
           notion.pages.create({
             parent: { database_id: DATABASES.recall },
             properties: {
               [NOTION_FIELDS.RECALL.TEXT_CN]: {
-                title: [{ text: { content: aiContent.recall.text_cn } }]
+                title: textCnChunks
               },
               [NOTION_FIELDS.RECALL.TEXT_EN]: {
-                rich_text: [{ text: { content: aiContent.recall.text_en } }]
+                rich_text: textEnChunks
               },
               [NOTION_FIELDS.RECALL.LESSON]: {
                 relation: [{ id: lessonPageId }]
@@ -337,6 +369,67 @@ export async function POST(request: Request) {
 // OSS 上传功能已移至 lib/oss-client.ts
 
 // ============================================================
+// 辅助函数：智能截取 SRT 字幕（保留最重要的部分）
+// ============================================================
+
+function extractKeySRT(srtContent: string, maxLength: number = 3000): string {
+  if (!srtContent) return '';
+  
+  // 如果内容本身不长，直接返回
+  if (srtContent.length <= maxLength) {
+    return srtContent;
+  }
+  
+  console.log(`📝 SRT 过长 (${srtContent.length} 字符)，开始智能截取...`);
+  
+  // 移除时间戳和序号，只保留文本内容
+  const lines = srtContent.split('\n');
+  const textLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    // 跳过序号行和时间戳行
+    if (line && !line.match(/^\d+$/) && !line.match(/\d{2}:\d{2}:\d{2}/)) {
+      textLines.push(line);
+    }
+  }
+  
+  const fullText = textLines.join(' ');
+  
+  // 如果处理后的文本还是太长，按句子智能截取
+  if (fullText.length > maxLength) {
+    const sentences = fullText.split(/[.!?。！？]+/).filter(s => s.trim().length > 0);
+    
+    if (sentences.length === 0) return fullText.slice(0, maxLength);
+    
+    // 策略：取开头 40% + 结尾 40% + 中间 20%
+    const totalSentences = sentences.length;
+    const headCount = Math.ceil(totalSentences * 0.4);
+    const tailCount = Math.ceil(totalSentences * 0.4);
+    const midCount = Math.max(1, totalSentences - headCount - tailCount);
+    
+    const headSentences = sentences.slice(0, headCount);
+    const tailSentences = sentences.slice(-tailCount);
+    const midStart = Math.floor((totalSentences - midCount) / 2);
+    const midSentences = sentences.slice(midStart, midStart + midCount);
+    
+    // 组合关键句子
+    const keySentences = [...headSentences, ...midSentences, ...tailSentences];
+    let result = keySentences.join('. ').trim();
+    
+    // 如果还是太长，直接截断
+    if (result.length > maxLength) {
+      result = result.slice(0, maxLength) + '...';
+    }
+    
+    console.log(`✅ SRT 截取完成: ${srtContent.length} → ${result.length} 字符`);
+    return result;
+  }
+  
+  return fullText;
+}
+
+// ============================================================
 // 辅助函数：调用 DeepSeek AI 生成内容
 // ============================================================
 
@@ -347,15 +440,18 @@ async function generateContentWithDeepSeek(srtContent: string, lessonId: string)
     throw new Error('未配置 DEEPSEEK_API_KEY');
   }
 
+  // 🎯 智能截取 SRT 内容（控制在 3000 字符以内）
+  const processedSRT = extractKeySRT(srtContent, 3000);
+
   const prompt = `你是一位专业的英语教学内容生成助手。请根据以下 SRT 字幕内容，生成高质量的学习材料。
 
 SRT 字幕内容：
-${srtContent}
+${processedSRT}
 
 请生成以下内容（以 JSON 格式返回）：
 
-1. **vocabulary**: 5-8个核心词汇，每个包含：
-   - word: 单词
+1. **vocabulary**: 不限数量，提取所有四级以上难度的核心词汇（包括六级、雅思、托福词汇），以及有价值的短语和搭配，每个包含：
+   - word: 单词或短语
    - phonetic: 音标（英式或美式）
    - definition: 英文释义
    - definition_cn: **中文释义**（必须是纯中文解释，不要包含英文）
@@ -368,14 +464,16 @@ ${srtContent}
    - description: **中文详细说明**（必须是纯中文解释，清晰易懂）
    - example: **英文例句**（最好来自字幕中，展示该语法点的用法）
 
-3. **recall**: 回译练习（完整全文提取），包含：
-   - text_cn: 将字幕中的所有英文内容翻译成一个完整的中文段落（保持原文的完整性和连贯性，不要省略任何内容）
-   - text_en: 字幕中的完整英文原文（整合成一个连贯的段落，去除时间戳和序号）
+3. **recall**: 回译练习（基于提供的字幕内容），包含：
+   - text_cn: 将字幕中的英文内容翻译成一个完整的中文段落。如果内容超过200字符，请分段处理，每段开头缩进2个中文字符（使用全角空格"　　"），段落之间用换行分隔。保持原文的完整性和连贯性。
+   - text_en: 字幕中的英文原文（整合成一个连贯的段落）。如果内容超过200字符，请分段处理，每段开头缩进2个英文字符（使用2个空格"  "），段落之间用换行分隔。去除时间戳和序号，保持内容完整。
 
 **重要**: 
+- vocabulary 不限数量，只要是四级以上难度或有学习价值的词汇/短语都要提取
 - vocabulary 的 definition_cn 必须是纯中文
 - grammar 的 point 格式为"中文 English"（不要括号），description 必须是纯中文，example 必须是英文
-- recall 部分必须包含视频的完整内容，不是摘要或节选
+- recall 部分基于提供的字幕内容生成，保持完整性
+- recall 的长文本要分段，段首缩进2字符（中文用全角空格"　　"，英文用2个空格"  "）
 
 请确保内容准确、实用、适合中高级英语学习者。
 
@@ -385,8 +483,8 @@ ${srtContent}
   "vocabulary": [...],
   "grammar": [...],
   "recall": { 
-    "text_cn": "完整的中文段落...", 
-    "text_en": "完整的英文段落..." 
+    "text_cn": "　　完整的中文段落第一段...\n　　完整的中文段落第二段...", 
+    "text_en": "  Complete English paragraph one...\n  Complete English paragraph two..." 
   }
 }
 \`\`\``;
@@ -411,25 +509,33 @@ ${srtContent}
           }
         ],
         temperature: 0.7,
-        max_tokens: 4000,  // 增加到 4000，以支持完整文本
+        max_tokens: 8192,  // DeepSeek 最大支持 8192
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`DeepSeek API 错误: ${response.status}`);
+      const errorText = await response.text();
+      console.error('DeepSeek API 错误响应:', errorText);
+      throw new Error(`DeepSeek API 错误: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content || '';
 
+    console.log('DeepSeek 返回内容长度:', content.length);
+    console.log('DeepSeek 返回内容预览:', content.substring(0, 500));
+
     // 提取 JSON（处理可能的 markdown 代码块）
     const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('AI 返回格式错误');
+      console.error('无法从 AI 响应中提取 JSON，原始内容:', content);
+      throw new Error('AI 返回格式错误：无法提取 JSON 数据');
     }
 
     const jsonStr = jsonMatch[1] || jsonMatch[0];
     const result = JSON.parse(jsonStr);
+
+    console.log('解析成功 - 词汇数:', result.vocabulary?.length, '语法数:', result.grammar?.length, 'Recall 长度:', result.recall?.text_cn?.length);
 
     return {
       vocabulary: result.vocabulary || [],

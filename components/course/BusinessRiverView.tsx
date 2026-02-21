@@ -70,10 +70,10 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
   const featuredData = lessons.slice(0, 2);
 
   return (
-    <div className="min-h-screen w-full bg-[#2D0F15] text-[#F7F8F9] overflow-hidden relative font-sans selection:bg-[#F7F8F9] selection:text-[#2D0F15]">
+    <div className="min-h-screen w-full bg-[#2D0F15] text-[#F7F8F9] relative font-sans selection:bg-[#F7F8F9] selection:text-[#2D0F15]">
       
       {/* ─── 层级 1: 曼哈顿夜景背景 (The Atmosphere) ─── */}
-      <div className="absolute inset-0 z-0">
+      <div className="fixed inset-0 z-0">
         {/* 图片层 - 根据屏幕方向切换背景 */}
         <div className="w-full h-full">
           <img 
@@ -88,7 +88,7 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
 
 
       {/* ─── 层级 2: UI 内容 ─── */}
-      <div className="relative z-10 w-full h-screen flex flex-col">
+      <div className="relative z-10 w-full min-h-screen flex flex-col">
         
         {/* Header */}
         <header className="px-4 md:px-8 py-6 md:py-8 flex justify-between items-start">
@@ -137,6 +137,11 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
             const isActive = index === activeIndex;
             // 移动端始终显示，桌面端使用 hover 效果
             const isMobileActive = true;
+            
+            // 🔐 检查权限（区分 Sample 和完整课程）
+            const isSample = course.isSample || false;
+            const hasAccessToCourse = checkVideoAccess(tier, 'business', isSample);
+            
             return (
               <motion.div
                 key={course.id}
@@ -161,8 +166,8 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
                     {/* 激活时的光泽层 */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-[#2D0F15]/80 via-transparent to-transparent opacity-60" />
 
-                    {/* 🔒 锁图标 - 季度会员显示 */}
-                    {!hasAccess && (
+                    {/* 🔒 锁图标 - 非 Sample 且无权限时显示 */}
+                    {!hasAccessToCourse && !isSample && (
                       <div className="absolute top-3 right-3 z-20 group/lock">
                         <div className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
                           <Lock size={18} className="text-white" />

@@ -31,6 +31,9 @@ export default function Dashboard() {
   
   // 订阅弹窗状态
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  
+  // 图片查看器状态
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDashboardLayout() {
@@ -76,11 +79,11 @@ export default function Dashboard() {
             };
             
             stream[position] = {
-        id: lesson.id,
+              id: lesson.id,
               type: isImageCard ? "mood" : "episode",
               category: lesson.category?.toUpperCase() || '',
               title: lesson.titleEn || lesson.titleCn || 'Untitled',
-              img: lesson.coverImg || '/images/daily-sketch.jpg',
+              img: lesson.coverImg || '',
               height: getHeight(),
               ep: lesson.ep || '00',
               href: isImageCard ? '#' : `/course/${lesson.category}/${lesson.id}`,
@@ -341,15 +344,15 @@ export default function Dashboard() {
           {/* 移动端：单列布局 - 先左列后右列 */}
           <div className="flex flex-col gap-9 md:hidden">
             {/* 左列：0, 1, 2, 3 */}
-            {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
-            {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
-            {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
-            {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
+            {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} onImageClick={setViewingImage} />)}
+            {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} onImageClick={setViewingImage} />)}
+            {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} onImageClick={setViewingImage} />)}
+            {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} onImageClick={setViewingImage} />)}
             {/* 右列：4, 5, 6, 7 */}
-            {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
-            {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
-            {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
-            {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
+            {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} onImageClick={setViewingImage} />)}
+            {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} onImageClick={setViewingImage} />)}
+            {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} onImageClick={setViewingImage} />)}
+            {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} onImageClick={setViewingImage} />)}
           </div>
 
           {/* 网页端：双列布局 - 保持不变 */}
@@ -357,18 +360,18 @@ export default function Dashboard() {
             
             {/* 左列 (Left Low) */}
             <div className="flex flex-col gap-9 pt-32">
-               {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} />)}
-               {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} />)}
-               {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} />)}
-               {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} />)}
+               {VISUAL_STREAM[0] && (VISUAL_STREAM[0].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[0]} index={0} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[0]} index={0} onImageClick={setViewingImage} />)}
+               {VISUAL_STREAM[1] && (VISUAL_STREAM[1].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[1]} index={1} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[1]} index={1} onImageClick={setViewingImage} />)}
+               {VISUAL_STREAM[2] && (VISUAL_STREAM[2].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[2]} index={2} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[2]} index={2} onImageClick={setViewingImage} />)}
+               {VISUAL_STREAM[3] && (VISUAL_STREAM[3].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[3]} index={3} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[3]} index={3} onImageClick={setViewingImage} />)}
             </div>
 
             {/* 右列 (Right High) */}
             <div className="flex flex-col gap-9 pt-4">
-               {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} />)}
-               {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} />)}
-               {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} />)}
-               {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} />)}
+               {VISUAL_STREAM[4] && (VISUAL_STREAM[4].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[4]} index={4} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[4]} index={4} onImageClick={setViewingImage} />)}
+               {VISUAL_STREAM[5] && (VISUAL_STREAM[5].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[5]} index={5} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[5]} index={5} onImageClick={setViewingImage} />)}
+               {VISUAL_STREAM[6] && (VISUAL_STREAM[6].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[6]} index={6} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[6]} index={6} onImageClick={setViewingImage} />)}
+               {VISUAL_STREAM[7] && (VISUAL_STREAM[7].type === 'episode' ? <EpisodeCard item={VISUAL_STREAM[7]} index={7} onGuestClick={handleCourseClick} /> : <MoodCard item={VISUAL_STREAM[7]} index={7} onImageClick={setViewingImage} />)}
             </div>
 
           </div>
@@ -392,6 +395,36 @@ export default function Dashboard() {
           setShowSubscriptionModal(false);
         }} 
       />
+
+      {/* 图片查看器 */}
+      <AnimatePresence>
+        {viewingImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setViewingImage(null)}
+            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <motion.img
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              src={viewingImage}
+              alt="查看大图"
+              className="max-w-full max-h-full object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors"
+            >
+              <X size={32} strokeWidth={1} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -439,7 +472,8 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
             src={item.img} 
             alt={item.title} 
             onError={(e) => {
-              e.currentTarget.src = '/images/daily-sketch.jpg';
+              // 图片加载失败时，不做任何处理，让背景色显示
+              e.currentTarget.style.opacity = '0';
             }}
             className="w-full h-full object-cover transition-transform duration-[1.2s] group-hover:scale-105" 
           />
@@ -453,7 +487,7 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
   );
 }
 
-function MoodCard({ item, index }: { item: VisualStreamItem; index: number }) {
+function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index: number; onImageClick?: (img: string) => void }) {
   const [aspectRatio, setAspectRatio] = React.useState<number>(1);
   
   return (
@@ -462,7 +496,8 @@ function MoodCard({ item, index }: { item: VisualStreamItem; index: number }) {
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 1, delay: index * 0.1 }}
-      className="pointer-events-none select-none relative w-full"
+      className="group cursor-zoom-in relative w-full"
+      onClick={() => onImageClick?.(item.img)}
     >
       <div 
         className="relative w-full overflow-hidden bg-[#2D0F15]/5"
@@ -471,14 +506,15 @@ function MoodCard({ item, index }: { item: VisualStreamItem; index: number }) {
         <img
           src={item.img}
           alt="mood"
-          className="w-full h-full object-contain grayscale-[20%] opacity-90"
+          className="w-full h-full object-contain grayscale-[20%] opacity-90 transition-transform duration-700 group-hover:scale-105"
           onLoad={(e) => {
             const img = e.currentTarget;
             const ratio = img.naturalWidth / img.naturalHeight;
             setAspectRatio(ratio);
           }}
           onError={(e) => {
-            e.currentTarget.src = '/images/daily-sketch.jpg';
+            // 图片加载失败时，不做任何处理
+            e.currentTarget.style.opacity = '0';
           }}
         />
       </div>

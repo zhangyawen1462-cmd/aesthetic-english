@@ -45,20 +45,25 @@ export default function ExportAudioButton({
   const { tier } = useMembership(); 
   const canExport = tier === 'lifetime'; // 仅永久会员
 
-  // 🆕 如果有预处理的音频，直接下载
+  // 🆕 如果有预处理的音频，直接下载（真·秒下）
   const handleDirectDownload = () => {
     if (!audioUrl) return;
     
     setShowConfirm(false);
     
-    // 创建隐藏的 a 标签触发下载
+    // 从 URL 中提取文件扩展名
+    const urlExt = audioUrl.split('.').pop()?.split('?')[0]?.toLowerCase() || 'mp3';
+    const fileExt = ['mp3', 'm4a', 'aac', 'wav'].includes(urlExt) ? urlExt : 'mp3';
+    
+    // 🚀 关键优化：使用阿里云 OSS 参数强制下载，避免浏览器预览
+    // response-content-disposition 会让浏览器直接弹出"另存为"，零内存占用
+    const separator = audioUrl.includes('?') ? '&' : '?';
+    const downloadUrl = `${audioUrl}${separator}response-content-disposition=attachment;filename=${encodeURIComponent(filename)}.${fileExt}`;
+    
+    // 直接触发系统下载，不经过 fetch，不占用内存
     const link = document.createElement('a');
-    link.href = audioUrl;
-    link.download = `${filename}.m4a`;
-    link.target = '_blank';
-    document.body.appendChild(link);
+    link.href = downloadUrl;
     link.click();
-    document.body.removeChild(link);
   };
 
   const loadFFmpeg = async () => {
@@ -189,18 +194,9 @@ export default function ExportAudioButton({
   };
 
   const renderButton = () => {
+    // 🚫 移动端不显示下载按钮
     if (isMobile) {
-      return (
-        <button
-          onClick={() => setShowConfirm(true)}
-          disabled={!canExport || isExporting}
-          className={`${className} disabled:opacity-50 transition-all`}
-          style={style}
-          title={canExport ? '导出音频' : '需要永久会员'}
-        >
-          {isExporting ? <Loader2 size={iconSize} className="animate-spin" /> : <Download size={iconSize} />}
-        </button>
-      );
+      return null;
     }
 
     return (
@@ -272,7 +268,7 @@ export default function ExportAudioButton({
                   </>
                 ) : (
                   <>
-                    导出为 M4A 音频文件？<br/>
+                    导出为 MP3 音频文件？<br/>
                     <span className="text-[10px] opacity-50">首次使用需加载转换工具（约30MB）</span>
                   </>
                 )}
@@ -290,7 +286,7 @@ export default function ExportAudioButton({
                   className="px-4 py-2 text-[10px] uppercase tracking-widest transition-colors hover:opacity-90 text-white"
                   style={{ backgroundColor: theme?.accent || '#2D0F15' }}
                 >
-                  {audioUrl ? '⚡ 秒速下载' : '导出 M4A'}
+                  {audioUrl ? '⚡ 秒速下载' : '导出 MP3'}
                 </button>
               </div>
             </motion.div>

@@ -218,10 +218,10 @@ export default function LandingPage() {
           Curated by Scarlett Zhang
         </p>
         <a
-          href="mailto:aestheticen@zyw.com"
+          href="mailto:aestheticenglish@outlook.com"
           className="text-[9px] tracking-[0.1em] text-[#2D0F15]/35 hover:text-[#2D0F15]/70 transition-colors"
         >
-          aestheticen@zyw.com
+          aestheticenglish@outlook.com
         </a>
       </motion.div>
     </main>

@@ -9,10 +9,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // 解决 macOS 权限问题
+  // 移除文件大小限制，支持任意大小的字幕和视频文件
   experimental: {
     serverActions: {
-      bodySizeLimit: '2mb',
+      bodySizeLimit: '100mb',
     },
   },
   // 告诉 Next.js 这些包是服务端专用的，不要在客户端打包

@@ -3,13 +3,11 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { PERMISSIONS } from '@/lib/permissions';
+import { getDevChatCount } from '@/lib/dev-storage';
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 );
-
-// 🔧 开发环境：内存存储（与 ai-chat-secure 共享）
-const devChatCounts = new Map<string, number>();
 
 export async function GET(
   req: NextRequest,
@@ -58,8 +56,8 @@ export async function GET(
         success: true,
         data: {
           chatCount: 0,
-          limit: Infinity,
-          remaining: Infinity
+          limit: null, // 🔥 JSON 不支持 Infinity,用 null 表示无限
+          remaining: null
         }
       });
     }
@@ -69,8 +67,8 @@ export async function GET(
     let chatCount = 0;
     
     if (isDev) {
-      // 开发环境：从内存读取
-      chatCount = devChatCounts.get(key) || 0;
+      // 开发环境：从共享内存读取
+      chatCount = getDevChatCount(key);
     } else {
       // 生产环境：从 Vercel KV 读取
       try {

@@ -63,6 +63,7 @@ function lessonToDailyCourse(lesson: Lesson, index: number): DailyCourse {
 export default function DailyCinemaView() {
   const [slots, setSlots] = useState<(DailyCourse | null)[]>(new Array(6).fill(null));
   const [isLoading, setIsLoading] = useState(true);
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   // 游客拦截系统
   const { shouldShowSubscription, handleCourseClick, closeSubscriptionModal } = useSubscriptionGuard();
@@ -180,14 +181,14 @@ export default function DailyCinemaView() {
           {/* 左列 */}
                     <div className="w-1/2 flex flex-col gap-2 md:gap-4">
             {leftCol.map((item, index) => (
-              item && <DailyCard key={item.id} item={item} index={index * 2} onGuestClick={handleCourseClick} />
+              item && <DailyCard key={item.id} item={item} index={index * 2} onGuestClick={handleCourseClick} onImageClick={setViewingImage} />
             ))}
           </div>
 
           {/* 右列 */}
                     <div className="w-1/2 flex flex-col gap-2 md:gap-4">
             {rightCol.map((item, index) => (
-              item && <DailyCard key={item.id} item={item} index={index * 2 + 1} onGuestClick={handleCourseClick} />
+              item && <DailyCard key={item.id} item={item} index={index * 2 + 1} onGuestClick={handleCourseClick} onImageClick={setViewingImage} />
             ))}
           </div>
 
@@ -214,17 +215,49 @@ export default function DailyCinemaView() {
         isOpen={shouldShowSubscription} 
         onClose={closeSubscriptionModal} 
       />
+
+      {/* 图片查看器 */}
+      <motion.div
+        initial={false}
+        animate={viewingImage ? { opacity: 1, pointerEvents: 'auto' as any } : { opacity: 0, pointerEvents: 'none' as any }}
+        onClick={() => setViewingImage(null)}
+        className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
+      >
+        {viewingImage && (
+          <motion.img
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            src={viewingImage}
+            alt="查看大图"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
+        <button
+          onClick={() => setViewingImage(null)}
+          className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={32} strokeWidth={1} className="rotate-180" />
+        </button>
+      </motion.div>
     </div>
   );
 }
 
 // ─── 卡片组件 ───
-function DailyCard({ item, index, onGuestClick }: { item: DailyCourse; index: number; onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) {
-    // 所有卡片都显示标题
-    const isVideoWithTitle = true;
+function DailyCard({ item, index, onGuestClick, onImageClick }: { 
+  item: DailyCourse; 
+  index: number; 
+  onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+  onImageClick?: (img: string) => void;
+}) {
+    // 判断是否为纯图片卡片（无标题且不可点击跳转）
+    const isImageCard = item.type === 'image' && !item.titleCN && !item.titleEN;
     
-    // 判断是否为卡片（无标题且不可点击）
-    const isCard = false;
+    // 所有有标题的都显示标题
+    const hasTitle = item.titleCN || item.titleEN;
 
   return (
     <motion.div
@@ -232,20 +265,23 @@ function DailyCard({ item, index, onGuestClick }: { item: DailyCourse; index: nu
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "50px" }}
             transition={{ duration: 0.8, delay: index * 0.1, type: "spring" }}
-            className={`relative ${isCard ? '' : 'group cursor-pointer'}`}
+            className={`relative ${isImageCard ? 'cursor-zoom-in' : 'group cursor-pointer'}`}
     >
             {/* 1. 图片容器 */}
-            {isCard ? (
-                // 卡片：不可点击
-                <div className={`relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm`}>
+            {isImageCard ? (
+                // 纯图片卡片：点击放大
+                <div 
+                  className={`relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm group`}
+                  onClick={() => onImageClick?.(item.image)}
+                >
                     <img
                         src={item.image}
                         alt="mood"
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                 </div>
             ) : (
-                // 视频：可点击
+                // 视频/课程：可点击跳转
                 <Link href={`/course/daily/${item.id}`} onClick={onGuestClick} className={`block relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm`}>
         <img
           src={item.image}
@@ -264,18 +300,22 @@ function DailyCard({ item, index, onGuestClick }: { item: DailyCourse; index: nu
       </Link>
             )}
 
-            {/* 2. 文字区 - 只有视频显示标题 */}
-            {isVideoWithTitle && (
+            {/* 2. 文字区 - 只有有标题的显示 */}
+            {hasTitle && !isImageCard && (
                 <div className="flex flex-col px-0.5 mt-2 md:mt-3">
         <Link href={`/course/daily/${item.id}`} onClick={onGuestClick}>
                         {/* 中文大标题 */}
+                        {item.titleCN && (
                         <h3 className="font-serif text-[16px] md:text-[22px] leading-[1.2] text-[#2D0F15] mb-1 group-hover:opacity-70 transition-opacity" style={{ fontFamily: 'PingFang SC, -apple-system, sans-serif' }}>
                             {item.titleCN}
                         </h3>
+                        )}
                         {/* 英文小标题 */}
+                        {item.titleEN && (
                         <p className="font-sans text-[11px] md:text-[13px] text-[#2D0F15]/60 tracking-wide uppercase">
             {item.titleEN}
                         </p>
+                        )}
         </Link>
       </div>
             )}

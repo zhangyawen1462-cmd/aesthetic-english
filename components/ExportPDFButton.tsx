@@ -118,18 +118,9 @@ export default function ExportPDFButton({
   // ==========================================
 
   const renderButton = () => {
+    // 🚫 移动端不显示下载按钮
     if (isMobile) {
-      return (
-        <button
-          onClick={() => setShowConfirm(true)}
-          disabled={!canExport || isExporting}
-          className={`${className} disabled:opacity-50 transition-all`}
-          style={style}
-          title={canExport ? '导出 PDF' : '需要年度或永久会员'}
-        >
-          {isExporting ? <Loader2 size={iconSize} className="animate-spin" /> : <Download size={iconSize} />}
-        </button>
-      );
+      return null;
     }
 
     return (

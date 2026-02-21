@@ -3,23 +3,23 @@ import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { PERMISSIONS } from '@/lib/permissions';
+import { getDevChatCount, incrementDevChatCount } from '@/lib/dev-storage';
 
 // JWT 密钥
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 );
 
-// 🔧 开发环境：内存存储（替代 Vercel KV）
-const devChatCounts = new Map<string, number>();
-
 // 验证并解析 JWT Token
 async function verifyMembership(req: NextRequest) {
   try {
     // 🔧 开发环境：允许通过 header 模拟会员身份
-    const isDev = process.env.NODE_ENV === 'development';
     const devTier = req.headers.get('x-dev-tier');
+    const devSecret = req.headers.get('x-dev-secret');
+    const isDev = process.env.NODE_ENV === 'development';
+    const validDevSecret = process.env.DEV_SECRET || 'dev-only-secret-12345';
     
-    if (isDev && devTier) {
+    if (isDev && devTier && devSecret === validDevSecret) {
       console.log('🔧 Dev mode: Using simulated tier:', devTier);
       return {
         valid: true,
@@ -55,9 +55,9 @@ async function verifyMembership(req: NextRequest) {
 async function getChatCount(userId: string, lessonId: string): Promise<number> {
   const key = `chat:${userId}:${lessonId}`;
   
-  // 🔧 开发环境：使用内存存储
+  // 🔧 开发环境：使用共享内存存储
   if (process.env.NODE_ENV === 'development') {
-    return devChatCounts.get(key) || 0;
+    return getDevChatCount(key);
   }
   
   // 生产环境：使用 Vercel KV
@@ -71,16 +71,12 @@ async function getChatCount(userId: string, lessonId: string): Promise<number> {
 }
 
 // 增加对话次数
-async function incrementChatCount(userId: string, lessonId: string): Promise<number> {
+async function incrementChatCountLocal(userId: string, lessonId: string): Promise<number> {
   const key = `chat:${userId}:${lessonId}`;
   
-  // 🔧 开发环境：使用内存存储
+  // 🔧 开发环境：使用共享内存存储
   if (process.env.NODE_ENV === 'development') {
-    const currentCount = devChatCounts.get(key) || 0;
-    const newCount = currentCount + 1;
-    devChatCounts.set(key, newCount);
-    console.log(`💾 Dev chat count: ${newCount} for ${key}`);
-    return newCount;
+    return incrementDevChatCount(key);
   }
   
   // 生产环境：使用 Vercel KV
@@ -101,55 +97,66 @@ async function incrementChatCount(userId: string, lessonId: string): Promise<num
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
-// 🎭 三种人格的核心提示词 - 极简日常版
+// 🎯 智能截取字幕文本（保留最重要的 400-600 字）
+function extractKeyTranscript(transcript: string, targetLength: number = 500): string {
+  if (!transcript) return '';
+  
+  // 如果文本本身就不长，直接返回
+  if (transcript.length <= 800) {
+    return transcript;
+  }
+  
+  // 按句子分割（支持中英文标点）
+  const sentences = transcript.split(/[.!?。！？]+/).filter(s => s.trim().length > 0);
+  
+  if (sentences.length === 0) return transcript.slice(0, 600);
+  
+  // 策略：取开头 40% + 结尾 40% + 中间 20%
+  const totalSentences = sentences.length;
+  const headCount = Math.ceil(totalSentences * 0.4);
+  const tailCount = Math.ceil(totalSentences * 0.4);
+  const midCount = Math.max(1, totalSentences - headCount - tailCount);
+  
+  const headSentences = sentences.slice(0, headCount);
+  const tailSentences = sentences.slice(-tailCount);
+  const midStart = Math.floor((totalSentences - midCount) / 2);
+  const midSentences = sentences.slice(midStart, midStart + midCount);
+  
+  // 组合关键句子
+  const keySentences = [...headSentences, ...midSentences, ...tailSentences];
+  let result = keySentences.join('. ').trim();
+  
+  // 如果还是太长，直接截断到目标长度
+  if (result.length > targetLength + 100) {
+    result = result.slice(0, targetLength) + '...';
+  }
+  
+  console.log(`📝 Transcript optimized: ${transcript.length} chars → ${result.length} chars`);
+  return result;
+}
+
+// 🎭 三种人格的核心提示词 - 灵活情景对话版本
 const PERSONAS = {
+  professional: `
+【靠谱搭档 (The Partner)】
+- 性格：理性、高效、掌控全局、充满智性魅力。像一个靠谱的朋友，总能给出实用建议。
+- 对话风格：务实、直接、有条理。像在咖啡馆里和朋友讨论工作计划。
+- 交互方式：基于当前情景，给出行动建议或深度见解，用开放式问题引导用户思考。
+- 微动作示例：*Checks phone*, *Nods*, *Looks at watch*, *Taps table*
+  `,
   arrogant: `
-【模式 1: The Critic - 挑剔的本地朋友】
-人设：有点傲娇、眼光很高、爱吐槽、但很真实。
-情景任务：对周围的餐馆、物价、游客行为进行吐槽，问用户的意见。
-
-台词风格示例：
-- "Look at that line. Only tourists wait for an hour. Should we skip it?"
-- "15 euros for a pizza here? That's crazy. You still want it?"
-- "This place? Overrated. I know a better spot. Coming?"
-
-核心法则：
-- 绝对不超过 15 个单词！
-- 用最口语化的词（get, take, like, sounds good, no way）
-- 直接对当下环境做出反应
-- 像发微信一样短
+【毒舌老友 (The Critic)】
+- 性格：品味极高、慵懒、挑剔、喜欢冷幽默和吐槽。像那个总是说真话的损友。
+- 对话风格：犀利、戏谑、不留情面。用调侃和反讽表达观点。
+- 交互方式：对情景进行吐槽或点评，用挑衅的反问句逼用户表态。
+- 微动作示例：*Rolls eyes*, *Sips drink*, *Scoffs*, *Raises eyebrow*
   `,
   romantic: `
-【模式 2: The Flâneur - 随性浪漫的旅伴】
-人设：松弛、享受当下、感官敏锐。
-情景任务：关注眼前的夕阳、咖啡的香味、街头的音乐，邀请用户一起享受。
-
-台词风格示例：
-- "Wow, this sunset is unreal. Let's grab a drink. What do you want?"
-- "Listen to that guitar. So chill. Should we sit here for a bit?"
-- "Smell that coffee? Amazing. Want one?"
-
-核心法则：
-- 绝对不超过 15 个单词！
-- 用最简单的感官词（smell, look, listen, feel）
-- 邀请用户一起享受当下
-- 像街头闲聊一样自然
-  `,
-  professional: `
-【模式 3: The Partner - 解决问题的靠谱同伴】
-人设：行动派、帮你搞定吃住行的向导。
-情景任务：遇到具体的生存问题（点单、问路、买票、晚点），和你商量怎么办。
-
-台词风格示例：
-- "Oh no, we missed the bus. I'll check my phone. Can you ask that guy?"
-- "Table for two, right? I'll get the seats, you order the coffee?"
-- "Train's delayed. Should we grab lunch or wait here?"
-
-核心法则：
-- 绝对不超过 15 个单词！
-- 用最实用的动词（check, grab, ask, get）
-- 提出具体的行动方案
-- 像解决问题的伙伴一样直接
+【浪漫旅伴 (The Flâneur)】
+- 性格：感性、松弛、捕捉光影与情绪、充满诗意。像一个有生活情调的旅伴。
+- 对话风格：优美、细腻、充满画面感。用诗意的语言描述感受。
+- 交互方式：分享感性的观察和情绪，用触及内心的问题引发共鸣。
+- 微动作示例：*Closes eyes*, *Smiles softly*, *Looks into distance*, *Sighs*
   `
 };
 
@@ -161,79 +168,94 @@ async function callAI(message: string, mode: string, videoContext: any, conversa
   // 🎭 动态选择人格
   const personaPrompt = PERSONAS[mode as keyof typeof PERSONAS] || PERSONAS.professional;
 
+  // 🎯 智能提取关键字幕（400-600字）
+  const keyTranscript = extractKeyTranscript(videoContext.transcript, 500);
+
   // 🔧 组装完整系统提示词
   const systemPrompt = isSceneStart ? `
-你现在是『美学英语』的专属情景语伴 Gabby。你绝对不能暴露自己是 AI，你是当前视频切片场景里的真实人物，而【用户】正是刚刚推开门走进这个场景的"主人公"。
+你是『美学英语』的情景语伴 Gabby。你不是 AI 老师，而是场景里的真实人物，用户是刚走进来的朋友。
 
-【当前剧本数据注入】
-- 当前所处场景：${videoContext.title} (${videoContext.titleCn})
-- 原片核心字幕/语料：
+【场景背景】
+- 当前场景：${videoContext.title} (${videoContext.titleCn})
+- 场景氛围参考（可选用）：
 """
-${videoContext.transcript.slice(0, 800)}
+${keyTranscript}
 """
-- 用户选择的同行者：${mode}
 
-【同行者人设指南】
-根据用户选择的模式，你必须严格代入以下人格：
+【你的人格】
 ${personaPrompt}
 
-【开场白任务】（最高优先级）：
-用户刚刚进入这个场景，你需要主动打招呼，营造"你已经在这里等着他/她"的感觉。
+【开场白要求】
+用户刚进入场景，你要像老朋友见面一样自然地打招呼。
 
-你的开场白必须：
-1. **基于视频内容**：仔细阅读上方的【原片核心字幕/语料】，从中提取 1-2 个关键场景元素（地点、物品、动作、情绪），自然地融入你的开场白中
-2. **符合人设**：严格按照你的人设（arrogant/romantic/professional）说话
-3. **极简口语**：绝对不超过 15 个英文单词，像朋友见面时随口说的第一句话
-4. **抛出钩子**：结尾必须用一个简单的疑问句，邀请用户回应
+核心原则：
+- 像发微信语音一样随意，不是演讲
+- 用日常口语：grab, check out, wanna, kinda, pretty, really
+- 可以从场景氛围中获取灵感，但不强制使用特定词汇
+- 重点是营造真实的情景感
 
-【强制 JSON 输出格式】
+格式要求：
+1. **微动作**：简单动作（*Smiles*, *Looks up*, *Sips coffee*）
+2. **超级简短**：8-15 个单词
+3. **简单问句**：Wanna...? You think...? Should we...?
+
+【JSON 输出格式】
 {
-  "reply": "（基于视频内容的情景化开场白，必须包含字幕中的场景元素，不超过15词）",
-  "replyCn": "（地道的中文翻译，符合人设口吻）",
+  "used_vocab": ["(如果自然用到的词1)", "(词2)"],
+  "reply": "*动作* (口语化开场白，8-15词)",
+  "replyCn": "(自然的中文翻译)",
   "correction": null
 }
 
-示例（假设视频是关于火车站的）：
-- arrogant: "This station is packed. Should we find a quieter spot?"
-- romantic: "Look at all these people rushing. Where are you heading?"
-- professional: "Train's delayed. Want to grab coffee while we wait?"
+✅ 好的示例：
+- professional: {"used_vocab": ["coffee"], "reply": "*Checks phone* Running late. Wanna grab coffee first?", "replyCn": "要迟到了。先去喝杯咖啡？"}
+- arrogant: {"used_vocab": [], "reply": "*Rolls eyes* This place again? Know somewhere better?", "replyCn": "又是这地方？知道更好的吗？"}
+- romantic: {"used_vocab": ["light"], "reply": "*Looks around* Love this light. You feel it too?", "replyCn": "喜欢这光线。你也感觉到了吗？"}
 ` : `
-你现在是『美学英语』的专属情景语伴 Gabby。你绝对不能暴露自己是 AI，你是当前视频切片场景里的真实人物，而【用户】正是与你并肩站在一起的"主人公"。
+你是『美学英语』的情景语伴 Gabby。你不是 AI 老师，而是和用户一起经历这个场景的朋友。
 
-【当前剧本数据注入】
-- 当前所处场景：${videoContext.title} (${videoContext.titleCn})
-- 原片核心字幕/语料：
+【场景背景】
+- 当前场景：${videoContext.title} (${videoContext.titleCn})
+- 场景内容参考（可选用）：
 """
-${videoContext.transcript.slice(0, 800)}
+${keyTranscript}
 """
-- 用户选择的同行者：${mode}
 
-【同行者人设指南】
-根据用户选择的模式，你必须严格代入以下人格：
+【你的人格】
 ${personaPrompt}
 
-【核心交互法则】（最高指令，违背将导致严重错误）：
-1. **绝对短句**：每次回复【绝对不超过 15 个英文单词】！只能是 1-2 个极其日常的口语短句（A2-B1难度），像 Native Speaker 随口说出的大白话，严禁长篇大论和复杂语法。
+【对话原则】
+1. **情景优先**：基于当前情景和对话流程自然回应，不强制使用字幕词汇
+2. **灵活用词**：如果字幕中有合适的词汇可以自然融入，就用；如果不合适，就用其他词
+3. **保持人设**：严格按照你的人格特点说话
+4. **引导对话**：用开放式问题引导用户深入交流
 
-2. **强制语料复用（关键）**：仔细阅读上方的【原片核心字幕/语料】，在你的极简回复中，【必须自然地化用 1-2 个字幕中的原词或短语】。不要生硬塞入，要像日常聊天一样说出来，帮用户无痛复习。
+【回复要求】
+- **微动作**：符合人设的简单动作
+- **长度灵活**：根据情景自然变化
+  - 简短回应：15-25 词（快速反应、简单评论）
+  - 中等长度：30-45 词（分享观点、讲小故事）
+  - 较长回复：50-70 词（深入讨论、情感表达）
+  - 让对话有节奏感，不要每次都一样长
+- **风格**：口语化、自然、符合人设
+  - 避免使用破折号（—），用逗号、句号或 and/but 连接
+  - 像说话一样自然流畅
+- **结尾**：开放式问题（Why, How, What do you think）
+- **纠错**：如果用户有语病，在 correction 字段给出简短改写
 
-3. **抛出钩子**：每句话的结尾，必须用一个极其简单的疑问句（问主人公的打算或看法），把互动的球踢给用户，推动当前场景的剧情。
-
-4. **隐性纠错**：如果主人公上一句英文有中式英语或轻微语病，在 JSON 的 correction 字段给出最简短地道的改写；但在对白中绝不说教，直接顺着剧情往下聊。
-
-【强制 JSON 输出格式】
-你必须且只能输出合法的 JSON 对象，绝对不要包含任何多余的 Markdown 标记或解释性文字：
+【JSON 输出格式】
 {
-  "reply": "（你带有强烈人设的情景英文台词，必须包含字幕原词，绝不超过15个词）",
-  "replyCn": "（极其地道、符合人设口吻的中文翻译）",
-  "correction": "（如果用户上一句有语病，给出极简的 Native 改写，例如：'Better: I want to eat pizza.'。如果用户表达完美，填 null）"
+  "used_vocab": ["(如果用到字幕词汇就列出，没用到就空数组)"],
+  "reply": "*动作* (符合人设的自然对话，长度灵活变化，以问题结尾)",
+  "replyCn": "(地道的中文翻译)",
+  "correction": "(有错误就改，没错就 null)"
 }
 
 记住：
-- 你是场景里的真实人物，不是 AI 老师
-- 必须从字幕中复用 1-2 个词汇
-- 每句话结尾必须有疑问句钩子
-- 15个词以内，像发短信一样短
+- 你是场景里的真实人物，不是老师
+- 情景和人设比词汇复用更重要
+- 对话要自然流畅，不要为了用词而用词
+- 回复长度要灵活变化，有时简短有力，有时详细深入，让对话更鲜活
 `;
 
   // 🆕 构建消息历史
@@ -276,16 +298,27 @@ ${personaPrompt}
   let parsedReply;
   try {
     parsedReply = JSON.parse(aiReply);
+    
+    // 🔥 验证必要字段
+    if (!parsedReply.reply || !parsedReply.reply.trim()) {
+      console.error('AI returned empty reply field:', parsedReply);
+      throw new Error('AI reply is empty');
+    }
   } catch (e) {
-    console.warn('AI 未返回 JSON，使用原始文本');
+    console.warn('AI JSON parse error or empty reply:', e);
+    console.warn('Raw AI response:', aiReply);
+    
+    // 如果解析失败或 reply 为空，使用原始文本
     parsedReply = {
-      reply: aiReply,
-      replyCn: null,
+      used_vocab: [],
+      reply: aiReply && aiReply.trim() ? aiReply : 'Sorry, I need a moment to think. Can you say that again?',
+      replyCn: '抱歉，让我想一下。你能再说一遍吗？',
       correction: null
     };
   }
 
   return {
+    used_vocab: parsedReply.used_vocab || [],
     reply: parsedReply.reply || aiReply,
     replyCn: parsedReply.replyCn || null,
     correction: parsedReply.correction || null
@@ -315,8 +348,13 @@ export async function POST(req: NextRequest) {
     // 2. 获取会员配置
     const gabbyConfig = PERMISSIONS.gabby.getConfig(tier as any);
 
-    // 3. 检查是否有对话权限（季度会员）
-    if (!gabbyConfig.canChat) {
+    // 3. 检查是否是开场白请求
+    const isSceneStart = message === '[SCENE_START]';
+
+    // 4. 检查是否有对话权限（季度会员）
+    // 🆕 开场白请求：所有会员都可以生成（包括季度）
+    // 🆕 普通对话：季度会员无权限
+    if (!gabbyConfig.canChat && !isSceneStart) {
       return NextResponse.json(
         { 
           success: false, 
@@ -328,17 +366,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. 检查对话次数限制（年度会员）
-    if (gabbyConfig.dailyLimit !== Infinity) {
+    // 5. 检查对话次数限制（年度会员）
+    // 🆕 开场白不计入次数，只有普通对话才计数
+    // 🆕 前 3 次对话免费，不计入次数
+    if (gabbyConfig.dailyLimit !== Infinity && !isSceneStart) {
       const currentCount = await getChatCount(userId, lessonId);
+      
+      // 🎁 前 3 次对话免费，不计数
+      const FREE_CHATS = 3;
+      const effectiveCount = Math.max(0, currentCount - FREE_CHATS);
 
-      if (currentCount >= gabbyConfig.dailyLimit) {
+      if (effectiveCount >= gabbyConfig.dailyLimit) {
         return NextResponse.json(
           { 
             success: false, 
             error: 'paywall_limit_reached', 
             message: `本期视频的对话次数已用完（${gabbyConfig.dailyLimit} 次）`,
-            currentCount,
+            currentCount: effectiveCount,
             limit: gabbyConfig.dailyLimit,
             requiredTier: 'lifetime'
           },
@@ -346,21 +390,28 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 5. 先扣费（防止并发攻击）
-      await incrementChatCount(userId, lessonId);
+      // 增加计数（包括免费的 3 次）
+      await incrementChatCountLocal(userId, lessonId);
     }
 
     // 6. 调用 AI
     const aiResponse = await callAI(message, mode, videoContext, conversationHistory);
 
     // 7. 计算剩余次数
-    const remainingChats = gabbyConfig.dailyLimit === Infinity
-      ? Infinity
-      : gabbyConfig.dailyLimit - (await getChatCount(userId, lessonId));
+    let remainingChats;
+    if (gabbyConfig.dailyLimit === Infinity) {
+      remainingChats = null; // 🔥 JSON 不支持 Infinity,用 null 表示无限
+    } else {
+      const currentCount = await getChatCount(userId, lessonId);
+      const FREE_CHATS = 3;
+      const effectiveCount = Math.max(0, currentCount - FREE_CHATS);
+      remainingChats = gabbyConfig.dailyLimit - effectiveCount;
+    }
 
     // 8. 返回成功响应
     return NextResponse.json({
       success: true,
+      used_vocab: aiResponse.used_vocab,
       reply: aiResponse.reply,
       replyCn: aiResponse.replyCn,
       correction: aiResponse.correction,

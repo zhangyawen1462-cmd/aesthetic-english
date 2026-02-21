@@ -119,7 +119,7 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
 // ==========================================
 // 子组件：单张物理卡片 (处理 3D 翻转与手风琴展开)
 // ==========================================
-const PlanCard = ({ plan, isFocused, onFocus }: any) => {
+const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
 
@@ -141,7 +141,17 @@ const PlanCard = ({ plan, isFocused, onFocus }: any) => {
     <div 
       className="relative w-full lg:w-1/3 perspective-[1500px]"
       onMouseEnter={onFocus}
-      onClick={onFocus}
+      onClick={(e) => {
+        // 点击卡片非文字区域翻转
+        if ((e.target as HTMLElement).tagName !== 'BUTTON' && 
+            (e.target as HTMLElement).tagName !== 'SPAN' &&
+            (e.target as HTMLElement).tagName !== 'P' &&
+            (e.target as HTMLElement).tagName !== 'H3' &&
+            (e.target as HTMLElement).tagName !== 'H4') {
+          setIsFlipped(!isFlipped);
+        }
+        onFocus();
+      }}
     >
       <motion.div
         animate={{ 
@@ -151,120 +161,121 @@ const PlanCard = ({ plan, isFocused, onFocus }: any) => {
         }}
         transition={{ type: "spring", stiffness: 80, damping: 20, mass: 1 }}
         style={{ transformStyle: 'preserve-3d' }}
-        className={`relative w-full h-full transition-shadow duration-700 
+        className={`relative w-full transition-shadow duration-700 
+          ${isMobile ? 'min-h-[180px]' : 'h-full'}
           ${isFocused ? (isWine ? 'shadow-[0_0_50px_rgba(74,29,36,0.5)]' : 'shadow-[0_0_30px_rgba(255,255,255,0.05)]') : 'shadow-none'}
         `}
       >
         {/* ================= 正面 (Front Face) ================= */}
         <div 
           style={{ backfaceVisibility: 'hidden' }}
-          className={`relative flex flex-col p-8 md:p-10 border ${isWine ? 'border-[#F7F8F9]/20' : isDark ? 'border-white/5' : 'border-black/5'} ${frontBg}`}
+          className={`relative flex flex-col border ${isWine ? 'border-[#F7F8F9]/20' : isDark ? 'border-white/5' : 'border-black/5'} ${frontBg} ${isMobile ? 'p-4' : 'p-6 sm:p-8 md:p-10'}`}
         >
-
-
           {/* 顶部标题与价格 */}
-          <div className="text-center mb-6">
-            <span className="text-[9px] uppercase tracking-[0.3em] opacity-40 block mb-3">
-              {plan.subtitle}
-            </span>
-            <h3 className="font-sans text-xl md:text-2xl mb-4">
+          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
+            {!isMobile && (
+              <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.3em] opacity-40 block mb-2 sm:mb-3">
+                {plan.subtitle}
+              </span>
+            )}
+            <h3 className={`font-sans ${isMobile ? 'text-base mb-2' : 'text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4'}`}>
               {plan.title}
             </h3>
-            <div className="flex flex-col items-center gap-2">
+            <div className={`flex ${isMobile ? 'flex-row items-baseline justify-center gap-3' : 'flex-col items-center gap-1 sm:gap-2'}`}>
               {/* 划线原价 */}
               <div className="flex items-baseline gap-1 opacity-40">
-                <span className="text-xs font-light line-through">¥</span>
-                <span className="text-lg md:text-xl font-serif tracking-tighter line-through">{plan.originalPrice}</span>
+                <span className={`font-light line-through ${isMobile ? 'text-[9px]' : 'text-[10px] sm:text-xs'}`}>¥</span>
+                <span className={`font-serif tracking-tighter line-through ${isMobile ? 'text-sm' : 'text-base sm:text-lg md:text-xl'}`}>{plan.originalPrice}</span>
               </div>
               {/* 特惠价 */}
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-light opacity-50">¥</span>
-                <span className="text-4xl md:text-5xl font-serif tracking-tighter">{plan.price}</span>
+                <span className={`font-light opacity-50 ${isMobile ? 'text-[10px]' : 'text-xs sm:text-sm'}`}>¥</span>
+                <span className={`font-serif tracking-tighter ${isMobile ? 'text-2xl' : 'text-3xl sm:text-4xl md:text-5xl'}`}>{plan.price}</span>
               </div>
             </div>
           </div>
 
-          <div className="text-[10px] md:text-[11px] leading-relaxed opacity-70 text-center mb-8 px-2 space-y-1">
-            {plan.desc.split('。').filter(Boolean).map((line: string, i: number) => (
-              <p key={i}>{line}。</p>
-            ))}
-          </div>
+          {!isMobile && (
+            <div className="text-[10px] sm:text-[10px] md:text-[11px] leading-relaxed opacity-70 text-center mb-6 sm:mb-8 px-2 space-y-1">
+              {plan.desc.split('。').filter(Boolean).map((line: string, i: number) => (
+                <p key={i}>{line}。</p>
+              ))}
+            </div>
+          )}
 
-          {/* 方案三：渐进式特权揭示 (Progressive Reveal) */}
-          <div 
-            className="flex-1 flex flex-col justify-end border-t border-current/10 pt-4 cursor-pointer group"
-            onMouseEnter={() => setIsRevealed(true)}
-            onMouseLeave={() => setIsRevealed(false)}
-            onClick={() => setIsRevealed(!isRevealed)}
-          >
-            <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pb-2">
-              <span className="text-[9px] uppercase tracking-[0.2em]">View Privileges</span>
-              <motion.div animate={{ rotate: isRevealed ? 180 : 0 }}>
-                <ChevronDown size={12} strokeWidth={1} />
+          {/* 移动端和网页端都显示 View Privileges */}
+          <>
+            {/* 方案三：渐进式特权揭示 (Progressive Reveal) */}
+            <div 
+              className="flex-1 flex flex-col justify-end border-t border-current/10 pt-3 sm:pt-4 cursor-pointer group"
+              onMouseEnter={() => setIsRevealed(true)}
+              onMouseLeave={() => setIsRevealed(false)}
+              onClick={(e) => { e.stopPropagation(); setIsRevealed(!isRevealed); }}
+            >
+              <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pb-2">
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em]">View Privileges</span>
+                <motion.div animate={{ rotate: isRevealed ? 180 : 0 }}>
+                  <ChevronDown size={12} strokeWidth={1} />
+                </motion.div>
+              </div>
+
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: isRevealed ? 'auto' : 0, opacity: isRevealed ? 1 : 0 }}
+                transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 pb-4 sm:pb-6">
+                  {plan.features.map((f: any, i: number) => (
+                    <div key={i} className="flex justify-between items-start gap-3 sm:gap-4">
+                      <span className={`text-[10px] sm:text-[11px] leading-relaxed tracking-wide ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
+                        {f.text}
+                      </span>
+                      <span className="text-[7px] sm:text-[8px] uppercase tracking-widest opacity-40 whitespace-nowrap pt-1">
+                        {f.status === 'limit' ? 'Limited' : f.status === 'lock' ? 'Locked' : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             </div>
+          </>
 
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: isRevealed ? 'auto' : 0, opacity: isRevealed ? 1 : 0 }}
-              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="overflow-hidden"
-            >
-              <div className="space-y-4 pt-4 pb-6">
-                {plan.features.map((f: any, i: number) => (
-                  <div key={i} className="flex justify-between items-start gap-4">
-                    <span className={`text-[11px] leading-relaxed tracking-wide ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
-                      {f.text}
-                    </span>
-                    <span className="text-[8px] uppercase tracking-widest opacity-40 whitespace-nowrap pt-1">
-                      {f.status === 'limit' ? 'Limited' : f.status === 'lock' ? 'Locked' : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </div>
 
-          {/* 获取邀请函按钮 (触发翻转) */}
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIsFlipped(true); }}
-            className={`w-full py-3 md:py-4 mt-2 text-[9px] md:text-[10px] uppercase tracking-[0.3em] font-medium transition-colors border active:scale-95
-              ${isWine ? 'bg-[#F7F8F9] text-[#2D0F15] hover:bg-white border-transparent' : 
-                isDark ? 'bg-[#857861] text-white hover:bg-[#A6967A] border-transparent' : 
-                'bg-transparent border-[#2D0F15]/20 hover:border-[#2D0F15]'}
-            `}
-          >
-            Acquire Invitation
-          </button>
         </div>
 
         {/* ================= 背面 (Back Face - 礼宾指引) ================= */}
         <div 
           style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-          className={`absolute inset-0 flex flex-col items-center justify-center p-6 md:p-8 border border-current/10 ${backBg}`}
+          className={`absolute inset-0 flex flex-col items-center justify-center border border-current/10 ${backBg} ${isMobile ? 'p-4' : 'p-6 sm:p-6 md:p-8'}`}
+          onClick={(e) => {
+            // 点击非文字区域翻转回正面
+            if ((e.target as HTMLElement).tagName !== 'P' && 
+                (e.target as HTMLElement).tagName !== 'SPAN') {
+              setIsFlipped(false);
+            }
+          }}
         >
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <Search size={20} strokeWidth={1} className="opacity-30 mb-4 md:mb-6" />
-            <h4 className="font-serif text-base md:text-lg italic mb-3 md:mb-4">Official Boutique</h4>
-            <p className="text-[9px] md:text-[10px] uppercase tracking-[0.15em] opacity-60 leading-relaxed mb-6 md:mb-8 px-2">
-              我们的密钥仅通过主理人沙龙发行<br/>
-              为保持私人书房的私密性，暂不开放直接购买
-            </p>
-            <div className="bg-current/5 p-3 md:p-4 w-full">
-              <p className="text-[10px] md:text-[11px] tracking-widest opacity-80 mb-2">Step 1. 前往小红书搜索账号</p>
-              <p className="text-xs md:text-[13px] font-serif italic font-bold">@审美英语Aesthetic</p>
+            {/* 大标题：诚挚邀请 */}
+            <h3 className={`font-serif font-bold mb-4 sm:mb-6 ${isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'}`}>
+              诚挚邀请
+            </h3>
+            
+            {!isMobile && (
+              <p className="text-[9px] sm:text-[9px] md:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.15em] opacity-60 leading-relaxed mb-4 sm:mb-6 md:mb-8 px-2">
+                我们的密钥仅通过主理人沙龙发行<br/>
+                为保持私人书房的私密性，暂不开放直接购买
+              </p>
+            )}
+            <div className={`bg-current/5 w-full ${isMobile ? 'p-2.5' : 'p-3 sm:p-3 md:p-4'}`}>
+              <p className={`tracking-widest opacity-80 mb-2 ${isMobile ? 'text-[9px]' : 'text-[9px] sm:text-[10px] md:text-[11px]'}`}>Step 1. 前往小红书搜索账号</p>
+              <p className={`font-serif font-bold ${isMobile ? 'text-[11px]' : 'text-xs sm:text-xs md:text-[13px]'}`}>@审美英语Aesthetic</p>
             </div>
-            <p className="text-[9px] md:text-[10px] uppercase tracking-[0.15em] opacity-60 mt-3 md:mt-4 px-2">
+            <p className={`uppercase tracking-[0.12em] sm:tracking-[0.15em] opacity-60 px-2 ${isMobile ? 'text-[8px] mt-2' : 'text-[9px] sm:text-[9px] md:text-[10px] mt-3 sm:mt-3 md:mt-4'}`}>
               Step 2. 进入小红书店铺获取您的 {plan.period} 密钥
             </p>
           </div>
-
-          <button 
-            onClick={(e) => { e.stopPropagation(); setIsFlipped(false); }}
-            className="flex items-center gap-2 mt-6 md:mt-8 text-[9px] uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity active:scale-95"
-          >
-            <RotateCcw size={12} /> Return
-          </button>
         </div>
       </motion.div>
     </div>
@@ -279,6 +290,17 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
   // 方案二：聚光灯状态 (默认聚焦中间的年度会员，index = 1)
   const [focusedIndex, setFocusedIndex] = useState<number>(1);
   const [showRedeemInput, setShowRedeemInput] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // 检测移动端
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const plans = [
     {
@@ -291,8 +313,8 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
       desc: "解锁【Daily 美学日常】模块。\n在精选的高审美原声切片中，\n摆脱枯燥背诵，\n重新建立每天听懂地道英语的习惯",
       features: [
         { text: "Daily 日常模块全解锁", status: "full" },
-        { text: "Cognitive 认知模块 (限1期预览)", status: "limit" },
-        { text: "Business 商业模块", status: "lock" },
+        { text: "认知提升 Cognitive Growth 限1期预览", status: "limit" },
+        { text: "商业女性 Business Female 限1期预览", status: "limit" },
         { text: "Gabby AI 缪斯 (仅开场白互动)", status: "limit" },
       ],
       theme: "light", // Daily - Paper White
@@ -305,11 +327,11 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
       originalPrice: "268",
       period: "Annual",
       isRecommended: true,
-      desc: "全面解锁【审美 / 认知 / 商业】三大核心语料。\n配合每期 15 次 AI 深度对话与影子跟读，\n完成从「听懂」到「能深度表达」的蜕变。",
+      desc: "全面解锁【审美 / 认知 / 商业】三大核心语料。\n配合每期 18 次 AI 深度对话与影子跟读，\n完成从「听懂」到「能深度表达」的蜕变。",
       features: [
         { text: "三大核心模块全解锁", status: "full" },
         { text: "导出双语字幕 / 语法精讲 / 词汇", status: "full" },
-        { text: "Gabby AI 每期视频 15次 深度对话", status: "limit" },
+        { text: "Gabby AI 每期视频 18次 深度对话", status: "limit" },
       ],
       theme: "wine", // Business - Plum Wine
     },
@@ -335,7 +357,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-12 safe-top safe-bottom">
-          {/* 深酒红极暗背景 - 配合聚光灯效果 */}
+          {/* 深酒红极暗背景 - 配合聚光灯效果 - 点击背景关闭 */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -350,31 +372,43 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             exit={{ opacity: 0, y: 20 }}
             transition={{ type: "spring", stiffness: 100, damping: 20 }}
             className="relative w-full max-w-6xl max-h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center py-10"
+            onClick={(e) => e.stopPropagation()}
           >
-            <button 
-              onClick={onClose}
-              className="absolute top-0 right-4 z-50 p-2 text-[#F7F8F9]/40 hover:text-[#F7F8F9] transition-colors"
+            {/* Back to Lobby 按钮 */}
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="absolute top-4 left-4 md:top-6 md:left-6 text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80 z-50 pointer-events-auto"
             >
-              <X size={24} strokeWidth={1} />
+              Back to Lobby
             </button>
               
             <div className="text-center mb-12 md:mb-16 text-[#F7F8F9] pointer-events-none px-4">
-              <h2 className="font-serif font-bold text-2xl md:text-5xl tracking-tight mb-3 drop-shadow-lg leading-tight" style={{ letterSpacing: '-0.04em' }}>
-                Aesthetic English is reserved for Patrons
-              </h2>
-              <p className="text-[9px] md:text-[10px] uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-40">
-                美学英语 凭邀入内
-              </p>
+              {/* 移动端：只显示中文，字体较小，透明度降低 */}
+              {isMobile ? (
+                <p className="text-sm opacity-50" style={{ fontFamily: "'PingFang SC', sans-serif" }}>
+                  美学英语 凭邀入内
+                </p>
+              ) : (
+                <>
+                  <h2 className="font-serif font-bold text-2xl md:text-4xl tracking-tight mb-3 drop-shadow-lg leading-tight" style={{ letterSpacing: '-0.04em' }}>
+                    Aesthetic English is reserved for Patrons
+                  </h2>
+                  <p className="text-[9px] md:text-[20px] uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-40">
+                    美学英语 凭邀入内
+                  </p>
+                </>
+              )}
             </div>
 
             {/* 卡片区 */}
-            <div className="flex flex-col lg:flex-row gap-6 lg:gap-6 w-full px-4 lg:px-0 items-center lg:items-stretch">
+            <div className={`flex flex-col lg:flex-row w-full items-center lg:items-stretch ${isMobile ? 'gap-3 px-4' : 'gap-4 sm:gap-6 lg:gap-6 px-4 lg:px-0'}`}>
               {plans.map((plan, idx) => (
                 <PlanCard 
                   key={plan.id} 
                   plan={plan} 
                   isFocused={focusedIndex === idx}
                   onFocus={() => setFocusedIndex(idx)}
+                  isMobile={isMobile}
                 />
               ))}
             </div>

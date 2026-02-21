@@ -98,12 +98,21 @@ export default function CoursePage() {
         if (data.success) {
           const lessonData = data.data;
           
-          // 调试日志：检查视频 URL
+          // 调试日志：检查视频 URL 和权限数据
           console.log('📹 Lesson Data:', {
             id: lessonData.id,
+            category: lessonData.category,
+            isSample: lessonData.isSample,
             videoUrl: lessonData.videoUrl,
             coverImg: lessonData.coverImg,
             hasVideo: !!lessonData.videoUrl,
+          });
+          
+          console.log('🔐 Permission Check:', {
+            tier,
+            category: category as VideoSection,
+            isSample: lessonData.isSample || false,
+            hasAccess: checkVideoAccess(tier, category as VideoSection, lessonData.isSample || false)
           });
           
           setLesson(lessonData);
@@ -876,6 +885,7 @@ export default function CoursePage() {
             <Suspense fallback={null}>
               <ExportAudioButton
                 videoUrl={lesson.videoUrl}
+                audioUrl={lesson.audioUrl}
                 filename={`${lesson.titleEn || lesson.titleCn}-audio`}
                 lessonId={lesson.id}
                 theme={theme}

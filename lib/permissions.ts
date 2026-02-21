@@ -43,12 +43,12 @@ export const PERMISSIONS = {
         // Cognitive 区: ⚠️ 仅限 Sample (这是钩子 - 让他尝到甜头)
         if (section === 'cognitive') return isSample;
         
-        // Business 区: 🔒 完全锁定 (这是墙 - 显示磨砂玻璃)
-        if (section === 'business') return false;
+        // Business 区: ⚠️ 仅限 Sample (这是钩子 - 让他尝到甜头)
+        if (section === 'business') return isSample;
       }
 
-      // 未登录/其他情况: 仅允许 Sample
-      return isSample;
+      // 🚫 游客（未登录）: 什么都看不了
+      return false;
     },
 
     /**
@@ -86,10 +86,10 @@ export const PERMISSIONS = {
         case 'yearly':
           return {
             canChat: true,
-            dailyLimit: 15,           // ✅ 有限使用 (每期视频 15 次)
+            dailyLimit: 18,           // ✅ 有限使用 (每期视频 18 次)
             allowPersonas: false,     // ❌ 仅默认人格
             placeholder: "Message Gabby...",
-            statusText: "15 次/期",
+            statusText: "18 次/期",
             badge: "365"
           };
         
@@ -290,7 +290,7 @@ export const MEMBERSHIP_COMPARISON = {
       },
       gabby: {
         access: 'limited',
-        description: '✅ 有限使用 - 每期视频限制对话 15 次'
+        description: '✅ 有限使用 - 每期视频限制对话 18 次'
       },
       download: {
         notes: true,

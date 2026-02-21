@@ -52,12 +52,17 @@ const DATABASES = {
 
 function getPlainText(property: any): string {
   if (!property) return '';
-  if (property.type === 'title' && property.title?.[0]) {
-    return property.title[0].plain_text;
+  
+  // 处理 title 类型（合并所有文本块）
+  if (property.type === 'title' && property.title) {
+    return property.title.map((t: any) => t.plain_text).join('');
   }
-  if (property.type === 'rich_text' && property.rich_text?.[0]) {
-    return property.rich_text[0].plain_text;
+  
+  // 处理 rich_text 类型（合并所有文本块）
+  if (property.type === 'rich_text' && property.rich_text) {
+    return property.rich_text.map((t: any) => t.plain_text).join('');
   }
+  
   return '';
 }
 
@@ -85,8 +90,14 @@ function getCheckbox(property: any): boolean {
   return property?.checkbox || false;
 }
 
+// 🆕 新增：读取 Select 类型的布尔值（用于 Is_Sample）
+function getSelectBoolean(property: any): boolean {
+  return property?.select?.name === 'true';
+}
+
 // ============================================================
-// 核心函数：获取所有课程
+// 核心函数：获取所有课程（仅基础信息，不含关联数据）
+// 🚀 性能优化：用于列表页，不加载 vocab/grammar/recall
 // ============================================================
 
 export async function getAllLessons(): Promise<Lesson[]> {
@@ -122,14 +133,11 @@ export async function getAllLessons(): Promise<Lesson[]> {
 
       const props = page.properties;
       const lessonId = getPlainText(props.Lesson_ID);
+      
+      // 🔍 使用 Select 类型读取 Is_Sample
+      const isSampleValue = getSelectBoolean(props['Is_Sample']);
 
-      // 获取关联数据
-      const [vocab, grammar, recall] = await Promise.all([
-        getVocabularyByLessonId(page.id),
-        getGrammarByLessonId(page.id),
-        getRecallByLessonId(page.id),
-      ]);
-
+      // 🚀 列表页不需要关联数据，直接返回空数组
       lessons.push({
         id: lessonId,
         category: getSelect(props.Category).toLowerCase() as 'daily' | 'cognitive' | 'business',
@@ -145,10 +153,10 @@ export async function getAllLessons(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
-        isSample: getCheckbox(props.Is_Sample),
-        vocab,
-        grammar,
-        recall,
+        isSample: isSampleValue,
+        vocab: [], // 列表页不需要
+        grammar: [], // 列表页不需要
+        recall: { cn: '', en: '' }, // 列表页不需要
       });
     }
 
@@ -192,6 +200,9 @@ export async function getLessonById(id: string): Promise<Lesson | null> {
     if (!('properties' in page)) return null;
 
     const props = page.properties;
+    
+    // 🔍 使用 Select 类型读取 Is_Sample
+    const isSampleValue = getSelectBoolean(props['Is_Sample']);
 
     // 获取关联数据
     const [vocab, grammar, recall] = await Promise.all([
@@ -211,11 +222,12 @@ export async function getLessonById(id: string): Promise<Lesson | null> {
       coverImg16x9: normalizeCdnUrl(getUrl(props.Cover_Img_16x9)),
       coverRatio: getSelect(props.Cover_Ratio) as '3/4' | '1/1' | '9/16' | '16/9' | 'square',
       videoUrl: normalizeCdnUrl(getUrl(props.Video_URL)),
+      audioUrl: normalizeCdnUrl(getUrl(props.Audio_URL)),
       date: formatDate(getDate(props.Date)),
       srtRaw: getPlainText(props.SRT_Raw),
       displayPosition: getSelect(props.Display_Position),
       sortOrder: getNumber(props.Sort_Order),
-      isSample: getCheckbox(props.Is_Sample),
+      isSample: isSampleValue,
       vocab,
       grammar,
       recall,
@@ -408,13 +420,7 @@ export async function getDashboardLayout(): Promise<Lesson[]> {
 
       const props = page.properties;
 
-      // 获取关联数据
-      const [vocab, grammar, recall] = await Promise.all([
-        getVocabularyByLessonId(page.id),
-        getGrammarByLessonId(page.id),
-        getRecallByLessonId(page.id),
-      ]);
-
+      // 🚀 Dashboard 不需要关联数据,直接返回空数组
       lessons.push({
         id: getPlainText(props.Lesson_ID),
         category: getSelect(props.Category).toLowerCase() as 'daily' | 'cognitive' | 'business',
@@ -430,10 +436,10 @@ export async function getDashboardLayout(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
-        isSample: getCheckbox(props.Is_Sample),
-        vocab,
-        grammar,
-        recall,
+        isSample: getSelectBoolean(props['Is_Sample']),
+        vocab: [], // Dashboard 不需要
+        grammar: [], // Dashboard 不需要
+        recall: { cn: '', en: '' }, // Dashboard 不需要
       });
     }
 
@@ -483,13 +489,7 @@ export async function getDailyCinemaLayout(): Promise<Lesson[]> {
 
       const props = page.properties;
 
-      // 获取关联数据
-      const [vocab, grammar, recall] = await Promise.all([
-        getVocabularyByLessonId(page.id),
-        getGrammarByLessonId(page.id),
-        getRecallByLessonId(page.id),
-      ]);
-
+      // 🚀 列表页不需要关联数据
       lessons.push({
         id: getPlainText(props.Lesson_ID),
         category: getSelect(props.Category).toLowerCase() as 'daily' | 'cognitive' | 'business',
@@ -505,9 +505,10 @@ export async function getDailyCinemaLayout(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
-        vocab,
-        grammar,
-        recall,
+        isSample: getSelectBoolean(props['Is_Sample']),
+        vocab: [],
+        grammar: [],
+        recall: { cn: '', en: '' },
       });
     }
 
@@ -557,13 +558,7 @@ export async function getCognitiveFeaturedLayout(): Promise<Lesson[]> {
 
       const props = page.properties;
 
-      // 获取关联数据
-      const [vocab, grammar, recall] = await Promise.all([
-        getVocabularyByLessonId(page.id),
-        getGrammarByLessonId(page.id),
-        getRecallByLessonId(page.id),
-      ]);
-
+      // 🚀 列表页不需要关联数据
       lessons.push({
         id: getPlainText(props.Lesson_ID),
         category: getSelect(props.Category).toLowerCase() as 'daily' | 'cognitive' | 'business',
@@ -579,9 +574,10 @@ export async function getCognitiveFeaturedLayout(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
-        vocab,
-        grammar,
-        recall,
+        isSample: getSelectBoolean(props['Is_Sample']),
+        vocab: [],
+        grammar: [],
+        recall: { cn: '', en: '' },
       });
     }
 
@@ -631,13 +627,7 @@ export async function getBusinessFeaturedLayout(): Promise<Lesson[]> {
 
       const props = page.properties;
 
-      // 获取关联数据
-      const [vocab, grammar, recall] = await Promise.all([
-        getVocabularyByLessonId(page.id),
-        getGrammarByLessonId(page.id),
-        getRecallByLessonId(page.id),
-      ]);
-
+      // 🚀 列表页不需要关联数据
       lessons.push({
         id: getPlainText(props.Lesson_ID),
         category: getSelect(props.Category).toLowerCase() as 'daily' | 'cognitive' | 'business',
@@ -653,9 +643,10 @@ export async function getBusinessFeaturedLayout(): Promise<Lesson[]> {
         srtRaw: getPlainText(props.SRT_Raw),
         displayPosition: getSelect(props.Display_Position),
         sortOrder: getNumber(props.Sort_Order),
-        vocab,
-        grammar,
-        recall,
+        isSample: getSelectBoolean(props['Is_Sample']),
+        vocab: [],
+        grammar: [],
+        recall: { cn: '', en: '' },
       });
     }
 
