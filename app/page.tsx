@@ -8,12 +8,13 @@ import { ArrowRight } from "lucide-react";
 export default function LandingPage() {
   const router = useRouter();
   const [isExiting, setIsExiting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // --- 🎨 核心色板定义 ---
   // Paper: #F7F8F9 (明信片白)
   // Ink:   #2D0F15 (纯正酒红)
 
-  // --- 物理引擎 ---
+  // --- 物理引擎（仅桌面端启用） ---
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
   const springConfig = { damping: 50, stiffness: 1000, mass: 0.05 };
@@ -21,80 +22,30 @@ export default function LandingPage() {
   const springY = useSpring(mouseY, springConfig);
 
   useEffect(() => {
+    // 检测是否为移动设备
+    const checkMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    setIsMobile(checkMobile);
+
     if (typeof window !== 'undefined') {
         mouseX.set(window.innerWidth / 2);
         mouseY.set(window.innerHeight / 2);
     }
 
+    // 🚀 移动端优化：禁用交互式动画，使用静态位置
+    if (checkMobile) {
+      return; // 移动端不监听任何事件
+    }
+
+    // 仅桌面端启用鼠标跟随
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
     };
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches[0]) {
-        mouseX.set(e.touches[0].clientX);
-        mouseY.set(e.touches[0].clientY);
-      }
-    };
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches[0]) {
-        mouseX.set(e.touches[0].clientX);
-        mouseY.set(e.touches[0].clientY);
-      }
-    };
-
-    // 移动端陀螺仪效果
-    const handleOrientation = (e: DeviceOrientationEvent) => {
-      if (e.gamma !== null && e.beta !== null && typeof window !== 'undefined') {
-        // gamma: 左右倾斜 (-90 到 90)
-        // beta: 前后倾斜 (-180 到 180)
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
-        
-        // 将倾斜角度映射到屏幕坐标，增加灵敏度
-        const x = centerX + (e.gamma * 8); // 左右倾斜影响 X 轴
-        const y = centerY + (e.beta * 8);   // 前后倾斜影响 Y 轴
-        
-        mouseX.set(x);
-        mouseY.set(y);
-      }
-    };
-
-    // 请求陀螺仪权限（iOS 13+ 需要）
-    const requestPermission = async () => {
-      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-        try {
-          const permission = await (DeviceOrientationEvent as any).requestPermission();
-          if (permission === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation);
-          }
-        } catch (error) {
-          // 静默失败，不影响用户体验
-          if (process.env.NODE_ENV === 'development') {
-          console.log('Orientation permission denied');
-          }
-        }
-      } else {
-        // 非 iOS 设备直接监听
-        window.addEventListener('deviceorientation', handleOrientation);
-      }
-    };
 
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    
-    // 检测是否为移动设备
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-      requestPermission();
-    }
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener('deviceorientation', handleOrientation);
     };
   }, [mouseX, mouseY]);
 
@@ -109,14 +60,15 @@ export default function LandingPage() {
       className="flex h-[100dvh] w-full flex-col items-center justify-center overflow-hidden bg-[#F7F8F9] relative shadow-[inset_0_0_120px_rgba(0,0,0,0.02)]"
     >
 
-      {/* ✅ 2. 艺术纸质感层 (Art Paper Texture) */}
-      {/* 使用 SVG 滤镜模拟冷压纸的凹凸纹理，而非简单的噪点 */}
-      <div className="pointer-events-none fixed inset-0 z-10 opacity-[0.6] mix-blend-multiply"
-           style={{
-             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper-grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper-grain)' opacity='0.4'/%3E%3C/svg%3E")`,
-             filter: 'contrast(120%) brightness(105%)'
-           }} 
-      />
+      {/* ✅ 2. 艺术纸质感层 (Art Paper Texture) - 移动端简化 */}
+      {!isMobile && (
+        <div className="pointer-events-none fixed inset-0 z-10 opacity-[0.6] mix-blend-multiply"
+             style={{
+               backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper-grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper-grain)' opacity='0.4'/%3E%3C/svg%3E")`,
+               filter: 'contrast(120%) brightness(105%)'
+             }} 
+        />
+      )}
       
       {/* ✅ 3. 物理光影层 (Vignette) */}
       {/* 模拟光线打在纸面上的漫反射，中间亮四周暗，增加明信片的实体感 */}
@@ -126,32 +78,42 @@ export default function LandingPage() {
            }}
       />
 
-      {/* 三层呼吸晕染系统 - 加深颜色 */}
-      <motion.div
-        className="pointer-events-none fixed z-0 top-0 left-0"
-        style={{ x: springX, y: springY }}
-      >
-        <div className="relative -translate-x-1/2 -translate-y-1/2">
-          <motion.div
-            animate={{ scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }}
-            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] md:w-[800px] h-[600px] md:h-[800px] rounded-full blur-[100px] mix-blend-multiply"
-            style={{ background: "rgba(45, 15, 21, 0.12)" }} 
-          />
-          <motion.div
-            animate={{ scale: [1.1, 1, 1.1], opacity: [0.6, 0.8, 0.6] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[500px] h-[400px] md:h-[500px] rounded-full blur-[80px] mix-blend-multiply"
-            style={{ background: "rgba(45, 15, 21, 0.18)" }} 
-          />
-          <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] md:w-[250px] h-[200px] md:h-[250px] rounded-full blur-[50px] mix-blend-multiply"
-            style={{ background: "rgba(45, 15, 21, 0.25)" }}
+      {/* 三层呼吸晕染系统 - 移动端优化 */}
+      {isMobile ? (
+        // 移动端：静态渐变，无动画
+        <div className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center">
+          <div className="w-[80vw] h-[80vw] rounded-full blur-[60px] mix-blend-multiply opacity-60"
+               style={{ background: "rgba(45, 15, 21, 0.15)" }} 
           />
         </div>
-      </motion.div>
+      ) : (
+        // 桌面端：完整交互式动画
+        <motion.div
+          className="pointer-events-none fixed z-0 top-0 left-0"
+          style={{ x: springX, y: springY }}
+        >
+          <div className="relative -translate-x-1/2 -translate-y-1/2">
+            <motion.div
+              animate={{ scale: [1, 1.1, 1], opacity: [0.8, 1, 0.8] }}
+              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-[100px] mix-blend-multiply"
+              style={{ background: "rgba(45, 15, 21, 0.12)" }} 
+            />
+            <motion.div
+              animate={{ scale: [1.1, 1, 1.1], opacity: [0.6, 0.8, 0.6] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[80px] mix-blend-multiply"
+              style={{ background: "rgba(45, 15, 21, 0.18)" }} 
+            />
+            <motion.div
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[250px] h-[250px] rounded-full blur-[50px] mix-blend-multiply"
+              style={{ background: "rgba(45, 15, 21, 0.25)" }}
+            />
+          </div>
+        </motion.div>
+      )}
 
       {/* 帷幕转场 (保持不变) */}
       {isExiting && (
