@@ -285,7 +285,7 @@ function ArchiveContent() {
 
         {/* Row 2: Navigation Ribbon */}
         <nav className="py-1 md:py-2 overflow-x-auto overflow-y-hidden no-scrollbar transition-colors duration-500" style={{ borderTop: `1px solid ${theme.text}1A` }}>
-            <div className="max-w-[1400px] mx-auto px-6 flex justify-start md:justify-center items-center gap-6 md:gap-16 min-w-max h-[36px] md:h-auto">
+            <div className="max-w-[1400px] mx-auto px-6 flex justify-center items-center gap-6 md:gap-16 min-w-max h-[36px] md:h-auto">
                 {CATEGORIES.map((cat) => (
                     <button
                         key={cat.id}

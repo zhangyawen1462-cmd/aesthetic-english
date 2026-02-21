@@ -177,6 +177,20 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
     stopRecording(line);
   };
 
+  // 移动端点击切换录音状态
+  const handleMobileRecordToggle = (line: TranscriptLine, e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (recordingId === line.id) {
+      // 正在录音，停止录音
+      stopRecording(line);
+    } else {
+      // 未录音，开始录音
+      startRecording(line);
+    }
+  };
+
   const playMyRecord = (id: number) => {
     const url = audioUrls[id];
     if (!url) return;
@@ -192,7 +206,7 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
     const video = videoRef.current;
     if (video) {
       video.currentTime = start;
-      video.play();
+      video.pause(); // 暂停视频，不自动播放
     }
   };
 
@@ -268,18 +282,15 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
                 {/* 录音按钮 */}
                 {(!hasAudio || isRecordingThis) && (
                   <motion.button
+                    // 桌面端：长按录音
                     onMouseDown={(e) => handleRecordStart(line, e)}
                     onMouseUp={(e) => handleRecordStop(line, e)}
                     onMouseLeave={(e) => { 
                       e.stopPropagation(); 
                       if (isRecordingThis) stopRecording(line); 
                     }}
-                    onTouchStart={(e) => handleRecordStart(line, e)}
-                    onTouchEnd={(e) => handleRecordStop(line, e)}
-                    onTouchCancel={(e) => {
-                      e.stopPropagation();
-                      if (isRecordingThis) stopRecording(line);
-                    }}
+                    // 移动端：点击切换录音状态
+                    onTouchStart={(e) => handleMobileRecordToggle(line, e)}
                     onContextMenu={(e) => e.preventDefault()} // 禁用右键菜单
                     whileTap={{ scale: 0.9 }}
                     className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm select-none touch-none"

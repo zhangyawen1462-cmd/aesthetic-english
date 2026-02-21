@@ -286,7 +286,7 @@ export default function ExportAudioButton({
                   className="px-4 py-2 text-[10px] uppercase tracking-widest transition-colors hover:opacity-90 text-white"
                   style={{ backgroundColor: theme?.accent || '#2D0F15' }}
                 >
-                  {audioUrl ? '⚡ 秒速下载' : '导出 MP3'}
+                  {audioUrl ? '确定' : '导出 MP3'}
                 </button>
               </div>
             </motion.div>
