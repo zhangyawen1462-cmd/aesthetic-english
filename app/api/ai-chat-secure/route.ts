@@ -97,6 +97,13 @@ async function incrementChatCountLocal(userId: string, lessonId: string): Promis
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
+// 🔍 调试：检查 API Key 是否存在
+if (!DEEPSEEK_API_KEY) {
+  console.error('❌ DEEPSEEK_API_KEY is not set in environment variables!');
+} else {
+  console.log('✅ DEEPSEEK_API_KEY is configured (length:', DEEPSEEK_API_KEY.length, ')');
+}
+
 // 🎯 智能截取字幕文本（保留最重要的 400-600 字）
 function extractKeyTranscript(transcript: string, targetLength: number = 500): string {
   if (!transcript) return '';
@@ -269,6 +276,14 @@ ${personaPrompt}
     ...(isSceneStart ? [] : [{ role: 'user', content: message }])
   ];
 
+  // 🔍 调试：检查 API Key
+  if (!DEEPSEEK_API_KEY) {
+    console.error('❌ Cannot call DeepSeek API: DEEPSEEK_API_KEY is not set');
+    throw new Error('DEEPSEEK_API_KEY is not configured');
+  }
+
+  console.log('🤖 Calling DeepSeek API with mode:', mode, 'isSceneStart:', isSceneStart);
+
   // 调用 DeepSeek API
   const response = await fetch(DEEPSEEK_API_URL, {
     method: 'POST',
@@ -287,26 +302,38 @@ ${personaPrompt}
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    console.error('DeepSeek API Error:', errorData);
-    throw new Error('DeepSeek API 调用失败');
+    console.error('❌ DeepSeek API Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: errorData
+    });
+    throw new Error(`DeepSeek API 调用失败: ${response.status} ${response.statusText}`);
   }
+
+  console.log('✅ DeepSeek API response received');
 
   const data = await response.json();
   const aiReply = data.choices[0].message.content;
+
+  console.log('📝 Raw AI response:', aiReply);
 
   // 解析 JSON 响应
   let parsedReply;
   try {
     parsedReply = JSON.parse(aiReply);
     
+    console.log('📦 Parsed AI reply:', parsedReply);
+    
     // 🔥 验证必要字段
     if (!parsedReply.reply || !parsedReply.reply.trim()) {
-      console.error('AI returned empty reply field:', parsedReply);
+      console.error('❌ AI returned empty reply field:', parsedReply);
       throw new Error('AI reply is empty');
     }
+    
+    console.log('✅ AI reply is valid:', parsedReply.reply);
   } catch (e) {
-    console.warn('AI JSON parse error or empty reply:', e);
-    console.warn('Raw AI response:', aiReply);
+    console.warn('⚠️ AI JSON parse error or empty reply:', e);
+    console.warn('📄 Raw AI response:', aiReply);
     
     // 如果解析失败或 reply 为空，使用原始文本
     parsedReply = {
@@ -317,10 +344,15 @@ ${personaPrompt}
     };
   }
 
+  // 🔥 最终防御：确保 reply 不为空
+  const finalReply = (parsedReply.reply && parsedReply.reply.trim()) 
+    ? parsedReply.reply 
+    : 'Sorry, I need a moment to think. Can you say that again?';
+
   return {
     used_vocab: parsedReply.used_vocab || [],
-    reply: parsedReply.reply || aiReply,
-    replyCn: parsedReply.replyCn || null,
+    reply: finalReply,
+    replyCn: parsedReply.replyCn || '抱歉，让我想一下。你能再说一遍吗？',
     correction: parsedReply.correction || null
   };
 }

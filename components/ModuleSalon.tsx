@@ -85,11 +85,24 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
   const [paywallMessage, setPaywallMessage] = useState('');
   const [paywallRequiredTier, setPaywallRequiredTier] = useState<'yearly' | 'lifetime'>('lifetime');
   
+  // 🆕 移动端检测
+  const [isMobile, setIsMobile] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 🆕 从 Context 获取会员状态
   const { tier: membershipType } = useMembership();
+
+  // 🆕 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // 🆕 使用"宪法"判断权限（单一数据源）
   const gabbyConfig = PERMISSIONS.gabby.getConfig(membershipType);
@@ -110,11 +123,15 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       try {
         // 🔧 开发环境：传递模拟的会员等级
         const headers: Record<string, string> = {};
-        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (isDev && membershipType) {
-          headers['x-dev-tier'] = membershipType;
+        // 🔥 修复：支持局域网 IP（192.168.x.x）
+        const isDev = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname.startsWith('192.168.');
+        if (isDev) {
+          // 🔥 修复：无条件发送 dev header
+          headers['x-dev-tier'] = membershipType || 'lifetime';
           headers['x-dev-secret'] = 'dev-only-secret-12345';
-          console.log('🔧 Fetching chat usage with dev tier:', membershipType);
+          console.log('🔧 Fetching chat usage with dev tier:', headers['x-dev-tier']);
         }
         
         const response = await fetch(`/api/chat-usage/${lessonId}`, { headers });
@@ -177,10 +194,15 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       try {
         // 2. 调用 AI 生成情景化开场白
         const headers: Record<string, string> = { "Content-Type": "application/json" };
-        const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (isDev && membershipType) {
-          headers['x-dev-tier'] = membershipType;
+        // 🔥 修复：支持局域网 IP
+        const isDev = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' ||
+                      window.location.hostname.startsWith('192.168.');
+        if (isDev) {
+          // 🔥 修复：无条件发送 dev header
+          headers['x-dev-tier'] = membershipType || 'lifetime';
           headers['x-dev-secret'] = 'dev-only-secret-12345';
+          console.log('🔧 Dev mode (opening): Sending x-dev-tier header:', headers['x-dev-tier']);
         }
         
         const response = await fetch("/api/ai-chat-secure", {
@@ -222,14 +244,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
         } else {
           // 失败时使用默认开场白
           console.error('Failed to generate opening:', data.error);
-          const fallbackMessage: Message = {
-            id: "opening",
-            role: "assistant",
-            content: modeConfig.openingHook(videoContext.titleEn),
-            contentCn: modeConfig.openingHookCn(videoContext.titleCn),
-            timestamp: new Date()
-          };
-          setMessages([hiddenMessage, fallbackMessage]);
+          throw new Error(data.error || 'API returned success: false');
         }
       } catch (error) {
         console.error('Opening generation error:', error);
@@ -354,11 +369,15 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     try {
       // 🔧 开发环境：传递模拟的会员等级
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      if (isDev && membershipType) {
-        headers['x-dev-tier'] = membershipType;
+      // 🔥 修复：支持局域网 IP
+      const isDev = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' ||
+                    window.location.hostname.startsWith('192.168.');
+      if (isDev) {
+        // 🔥 修复：无条件发送 dev header，不依赖 membershipType
+        headers['x-dev-tier'] = membershipType || 'lifetime'; // 如果没有 membershipType，默认使用 lifetime
         headers['x-dev-secret'] = 'dev-only-secret-12345';
-        console.log('🔧 Dev mode: Sending x-dev-tier header:', membershipType);
+        console.log('🔧 Dev mode: Sending x-dev-tier header:', headers['x-dev-tier']);
       }
       
       const response = await fetch("/api/ai-chat-secure", {
@@ -465,28 +484,28 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     >
       {/* --- Header: Gabby 的名片 --- */}
       <div
-        className="flex items-center justify-between px-5 py-3 border-b backdrop-blur-md sticky top-0 z-20"
+        className={`flex items-center justify-between border-b backdrop-blur-md sticky top-0 z-20 ${isMobile ? 'px-3 py-2' : 'px-5 py-3'}`}
         style={{ 
           borderColor: `${theme.lineColor}20`,
           backgroundColor: `${theme.background}cc`
         }}
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border border-white/10 relative shadow-sm">
+          <div className={`rounded-full border border-white/10 relative shadow-sm ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}`}>
              <img 
                src="/gabby.png" 
                alt="Gabby" 
                className="w-full h-full object-cover rounded-full"
              />
-             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full z-10"></span>
+             <span className={`absolute bottom-0 right-0 bg-green-500 border-2 border-white rounded-full z-10 ${isMobile ? 'w-2 h-2' : 'w-2.5 h-2.5'}`}></span>
           </div>
           <div>
-            <h3 className="text-sm font-semibold tracking-wide" style={{ color: theme.text }}>
+            <h3 className={`font-semibold tracking-wide ${isMobile ? 'text-xs' : 'text-sm'}`} style={{ color: theme.text }}>
               Gabby
             </h3>
             <div className="flex items-center gap-1.5 opacity-60">
-               <span className="text-xs">{modeConfig.icon}</span>
-               <p className="text-[10px] uppercase tracking-wider">{modeConfig.name} Mode</p>
+               <span className={isMobile ? 'text-[10px]' : 'text-xs'}>{modeConfig.icon}</span>
+               <p className={`uppercase tracking-wider ${isMobile ? 'text-[8px]' : 'text-[10px]'}`}>{modeConfig.name} Mode</p>
             </div>
           </div>
         </div>
@@ -496,11 +515,11 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowModeSelector(!showModeSelector)}
-            className="p-2 rounded-full hover:bg-white/5 transition-colors"
+            className={`rounded-full hover:bg-white/5 transition-colors ${isMobile ? 'p-1.5' : 'p-2'}`}
             style={{ color: theme.text, opacity: canSwitchMode ? 1 : 0.3 }}
             disabled={!canSwitchMode}
           >
-            <RefreshCw size={16} />
+            <RefreshCw size={isMobile ? 14 : 16} />
           </motion.button>
 
           {/* 模式选择器 */}
@@ -512,7 +531,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
                 className="absolute right-0 top-full mt-2 rounded-xl border shadow-xl overflow-hidden z-30"
                 style={{ 
-                  width: '150px',
+                  width: isMobile ? '130px' : '150px',
                   backgroundColor: theme.background,
                   borderColor: theme.lineColor
                 }}
@@ -525,16 +544,16 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                     <button
                       key={mode}
                       onClick={() => handleModeSwitch(mode)}
-                      className="w-full px-4 py-3 text-left hover:bg-white/5 transition-colors border-b last:border-b-0"
+                      className={`w-full text-left hover:bg-white/5 transition-colors border-b last:border-b-0 ${isMobile ? 'px-3 py-2' : 'px-4 py-3'}`}
                       style={{ 
                         borderColor: theme.lineColor,
                         backgroundColor: isActive ? `${theme.accent}10` : 'transparent'
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{config.icon}</span>
+                        <span className={isMobile ? 'text-xl' : 'text-2xl'}>{config.icon}</span>
                         <div className="flex-1">
-                          <div className="text-sm font-medium" style={{ color: theme.text }}>
+                          <div className={`font-medium ${isMobile ? 'text-xs' : 'text-sm'}`} style={{ color: theme.text }}>
                             {config.name}
                           </div>
                         </div>
@@ -549,7 +568,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       </div>
 
       {/* --- Chat Area --- */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      <div className={`flex-1 overflow-y-auto space-y-6 ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`}>
         <AnimatePresence mode="popLayout">
           {messages
             .filter(m => !m.isHidden && m.content !== '[SCENE_START]') // 🆕 过滤隐藏消息
@@ -567,7 +586,8 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                   
                   {/* 消息气泡 */}
                   <div
-                    className={`px-5 py-3 shadow-sm relative overflow-hidden cursor-pointer select-none
+                    className={`shadow-sm relative overflow-hidden cursor-pointer select-none
+                      ${isMobile ? 'px-3 py-2' : 'px-5 py-3'}
                       ${isUser 
                         ? "rounded-2xl rounded-br-none" 
                         : "rounded-2xl rounded-bl-none"
@@ -578,7 +598,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                         ? theme.accent 
                         : `${theme.lineColor}15`,
                       color: isUser ? "#ffffff" : theme.text,
-                      ...(message.isBlurred ? { minHeight: '80px', minWidth: '200px' } : {})
+                      ...(message.isBlurred ? { minHeight: isMobile ? '60px' : '80px', minWidth: isMobile ? '150px' : '200px' } : {})
                     }}
                     // 🆕 长按事件
                     onTouchStart={() => !isUser && handleTouchStart(message.id)}
@@ -590,14 +610,14 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                   >
                     {message.isBlurred ? (
                       <>
-                        <p className="text-sm leading-relaxed blur-sm opacity-50 select-none">
+                        <p className={`leading-relaxed blur-sm opacity-50 select-none ${isMobile ? 'text-xs' : 'text-sm'}`}>
                           {message.content}
                         </p>
                         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/10 backdrop-blur-[2px]">
-                           <div className="p-2 rounded-full bg-black/5 mb-1">
-                             <Lock size={14} style={{ color: theme.text }} />
+                           <div className={`rounded-full bg-black/5 mb-1 ${isMobile ? 'p-1.5' : 'p-2'}`}>
+                             <Lock size={isMobile ? 12 : 14} style={{ color: theme.text }} />
                            </div>
-                           <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: theme.text }}>
+                           <span className={`font-bold uppercase tracking-widest ${isMobile ? 'text-[8px]' : 'text-[10px]'}`} style={{ color: theme.text }}>
                              升级查看
                            </span>
                         </div>
@@ -605,17 +625,17 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                     ) : (
                       <>
                         {/* 英文内容 */}
-                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap relative z-10">
+                        <p className={`leading-relaxed whitespace-pre-wrap relative z-10 ${isMobile ? 'text-sm' : 'text-[15px]'}`}>
                           {message.content}
                         </p>
                         
                         {/* 🆕 词汇标签（仅 AI 消息显示） */}
                         {!isUser && message.usedVocab && message.usedVocab.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t" style={{ borderColor: `${theme.lineColor}20` }}>
+                          <div className={`flex flex-wrap gap-1.5 border-t ${isMobile ? 'mt-2 pt-2' : 'mt-3 pt-3'}`} style={{ borderColor: `${theme.lineColor}20` }}>
                             {message.usedVocab.map((word, idx) => (
                               <span
                                 key={idx}
-                                className="px-2 py-0.5 rounded-full text-[10px] font-medium tracking-wide"
+                                className={`rounded-full font-medium tracking-wide ${isMobile ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]'}`}
                                 style={{
                                   backgroundColor: `${theme.accent}15`,
                                   color: theme.accent
@@ -635,13 +655,13 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                               animate={{ opacity: 1 }}
                               exit={{ opacity: 0 }}
                               transition={{ duration: 0.3 }}
-                              className="absolute inset-0 z-20 flex items-center justify-center p-4 rounded-2xl backdrop-blur-sm"
+                              className={`absolute inset-0 z-20 flex items-center justify-center rounded-2xl backdrop-blur-sm ${isMobile ? 'p-3' : 'p-4'}`}
                               style={{ 
                                 backgroundColor: `${theme.accent}e6`, // 主题色 + 90% 透明度
                               }}
                             >
                               <div className="text-center">
-                                <p className="text-[15px] leading-relaxed text-white font-medium">
+                                <p className={`leading-relaxed text-white font-medium ${isMobile ? 'text-sm' : 'text-[15px]'}`}>
                                   {message.contentCn}
                                 </p>
                               </div>
@@ -654,20 +674,20 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
                   {/* Better Way 胶囊 */}
                   {!isUser && !message.isBlurred && message.correction && (
-                    <div className="mt-2 ml-1">
+                    <div className={isMobile ? 'mt-1.5 ml-1' : 'mt-2 ml-1'}>
                       <motion.button
                         onClick={() => setExpandedCorrectionId(
                           expandedCorrectionId === message.id ? null : message.id
                         )}
-                        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity"
+                        className={`flex items-center gap-1.5 font-bold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity ${isMobile ? 'text-[9px]' : 'text-[10px]'}`}
                         style={{ color: theme.accent }}
                       >
-                        <Sparkles size={10} />
+                        <Sparkles size={isMobile ? 9 : 10} />
                         Better Way
                         <motion.div
                           animate={{ rotate: expandedCorrectionId === message.id ? 180 : 0 }}
                         >
-                           <ChevronDown size={10} />
+                           <ChevronDown size={isMobile ? 9 : 10} />
                         </motion.div>
                       </motion.button>
 
@@ -680,7 +700,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                             className="overflow-hidden"
                           >
                             <div 
-                              className="mt-2 p-3 rounded-lg text-sm border-l-2"
+                              className={`rounded-lg border-l-2 ${isMobile ? 'mt-1.5 p-2 text-xs' : 'mt-2 p-3 text-sm'}`}
                               style={{ 
                                 backgroundColor: `${theme.lineColor}10`,
                                 borderColor: theme.accent,
@@ -696,9 +716,9 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                   )}
 
                   {/* 时间戳 + 长按提示 */}
-                  <div className={`flex items-center gap-2 mt-1.5 ${isUser ? "justify-end mr-1" : "justify-start ml-1"}`}>
+                  <div className={`flex items-center gap-2 ${isUser ? "justify-end mr-1" : "justify-start ml-1"} ${isMobile ? 'mt-1' : 'mt-1.5'}`}>
                     <span 
-                      className="text-[9px] opacity-30 tracking-wide"
+                      className={`opacity-30 tracking-wide ${isMobile ? 'text-[8px]' : 'text-[9px]'}`}
                       style={{ color: theme.text }}
                     >
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' })}
@@ -707,7 +727,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                     {/* 🆕 长按提示（所有 AI 消息都显示） */}
                     {!isUser && !message.isBlurred && message.contentCn && showTranslation !== message.id && (
                       <span 
-                        className="text-[8px] opacity-20 tracking-wider"
+                        className={`opacity-20 tracking-wider ${isMobile ? 'text-[7px]' : 'text-[8px]'}`}
                         style={{ color: theme.text }}
                       >
                         • 长按看中文
@@ -729,14 +749,14 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
             className="flex justify-start"
           >
              <div 
-               className="px-5 py-3 rounded-2xl rounded-bl-none" 
+               className={`rounded-2xl rounded-bl-none ${isMobile ? 'px-3 py-2' : 'px-5 py-3'}`}
                style={{ backgroundColor: `${theme.lineColor}15` }}
              >
                 <div className="flex gap-1.5">
                   {[0, 1, 2].map(i => (
                     <motion.div
                       key={i}
-                      className="w-1.5 h-1.5 rounded-full"
+                      className={`rounded-full ${isMobile ? 'w-1 h-1' : 'w-1.5 h-1.5'}`}
                       style={{ backgroundColor: theme.text }}
                       animate={{ 
                         opacity: [0.3, 0.8, 0.3],
@@ -760,14 +780,15 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
       {/* --- Input Area --- */}
       <div
-        className="px-4 py-4 border-t backdrop-blur-xl"
+        className={`border-t backdrop-blur-xl ${isMobile ? 'px-3 py-3 pb-4' : 'px-4 py-4'}`}
         style={{ 
           borderColor: `${theme.lineColor}20`,
-          backgroundColor: `${theme.background}e6`
+          backgroundColor: `${theme.background}e6`,
+          ...(isMobile ? { paddingBottom: 'calc(0.8rem + env(safe-area-inset-bottom))' } : {})
         }}
       >
         <div
-          className="flex items-end gap-2 rounded-2xl px-4 py-2 border transition-all duration-300 focus-within:ring-1 focus-within:ring-offset-0"
+          className={`flex items-end gap-2 rounded-2xl border transition-all duration-300 focus-within:ring-1 focus-within:ring-offset-0 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'}`}
           style={{ 
             borderColor: input.trim() ? theme.accent : `${theme.lineColor}40`,
             backgroundColor: `${theme.background}`,
@@ -784,7 +805,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                 ? (hasReachedLimit ? "已达到本期对话次数上限..." : "回复 Gabby...") 
                 : "回复 Gabby..."
             } 
-            className="flex-1 bg-transparent outline-none resize-none text-[15px] max-h-24 placeholder-opacity-30 py-2"
+            className={`flex-1 bg-transparent outline-none resize-none max-h-24 placeholder-opacity-30 py-2 ${isMobile ? 'text-sm' : 'text-[15px]'}`}
             style={{ color: theme.text }}
             rows={1}
             disabled={isLoading || (hasAccess && hasReachedLimit)}
@@ -794,26 +815,26 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
             whileTap={{ scale: 0.95 }}
             onClick={handleSend}
             disabled={!input.trim() || isLoading || (hasAccess && hasReachedLimit)}
-            className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all mb-1"
+            className={`flex-shrink-0 rounded-full flex items-center justify-center transition-all mb-1 ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`}
             style={{
               backgroundColor: (input.trim() && !(hasAccess && hasReachedLimit)) ? theme.accent : `${theme.lineColor}20`,
               opacity: (input.trim() && !(hasAccess && hasReachedLimit)) ? 1 : 0.5,
               cursor: (input.trim() && !(hasAccess && hasReachedLimit)) ? 'pointer' : 'default'
             }}
           >
-            <Send size={14} style={{ color: "#ffffff" }} />
+            <Send size={isMobile ? 12 : 14} style={{ color: "#ffffff" }} />
           </motion.button>
         </div>
 
         {/* 底部提示 */}
-        <div className="mt-2 text-center">
+        <div className={isMobile ? 'mt-1.5 text-center' : 'mt-2 text-center'}>
             {!hasAccess && (
-               <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
+               <p className={`uppercase tracking-widest opacity-40 ${isMobile ? 'text-[8px]' : 'text-[9px]'}`} style={{ color: theme.text }}>
                  预览模式 升级到{membershipType === 'quarterly' ? '年度' : '永久'}会员解锁完整功能
                </p>
             )}
             {hasAccess && dailyLimit !== Infinity && (
-               <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
+               <p className={`uppercase tracking-widest opacity-40 ${isMobile ? 'text-[8px]' : 'text-[9px]'}`} style={{ color: theme.text }}>
                  {hasReachedLimit 
                    ? `已用完本期 ${dailyLimit} 次对话 升级到永久会员可无限对话` 
                    : `剩余 ${remainingChats}/${dailyLimit} 次对话 永久会员可切换模式`
@@ -821,7 +842,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
                </p>
             )}
             {hasAccess && dailyLimit === Infinity && (
-               <p className="text-[9px] uppercase tracking-widest opacity-40" style={{ color: theme.text }}>
+               <p className={`uppercase tracking-widest opacity-40 ${isMobile ? 'text-[8px]' : 'text-[9px]'}`} style={{ color: theme.text }}>
                  ∞ 无限对话
                </p>
             )}
