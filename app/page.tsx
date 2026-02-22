@@ -4,11 +4,21 @@ import { motion, useMotionValue, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import emailjs from '@emailjs/browser';
 
 export default function LandingPage() {
   const router = useRouter();
   const [isExiting, setIsExiting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [showContactFields, setShowContactFields] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    message: ''
+  });
 
   // 🚀 检测移动端
   useEffect(() => {
@@ -92,7 +102,7 @@ export default function LandingPage() {
           }
         } catch (error) {
           if (process.env.NODE_ENV === 'development') {
-            console.log('Orientation permission denied');
+          console.log('Orientation permission denied');
           }
         }
       } else {
@@ -120,7 +130,74 @@ export default function LandingPage() {
 
   const handleEnterStudio = () => {
     setIsExiting(true);
-    setTimeout(() => router.push("/dashboard"), 800);
+    // 使用 replace 而不是 push，避免在历史记录中留下 Landing Page
+    // 这样用户点击返回时不会回到 Landing Page
+    setTimeout(() => router.replace("/dashboard"), 800);
+  };
+
+  // 📧 打开邮件弹窗
+  const handleEmailClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    setShowEmailModal(true);
+    setShowContactFields(false);
+    setFormData({ name: '', email: '', message: '' });
+  };
+
+  // 📧 点击投递按钮
+  const handleSubmitMessage = () => {
+    if (!formData.message.trim()) return;
+    setShowContactFields(true);
+  };
+
+  // 📧 发送邮件
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (isSending || !formData.name || !formData.email || !formData.message) return;
+    
+    setIsSending(true);
+    
+    try {
+      const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
+      const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
+      const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
+      
+      if (!serviceId || !templateId || !publicKey) {
+        console.warn('⚠️ EmailJS not configured');
+        alert('邮件服务未配置，请稍后再试');
+        return;
+      }
+      
+      const result = await emailjs.send(
+        serviceId,
+        templateId,
+        {
+          from_name: formData.name,
+          from_email: formData.email,
+          message: formData.message,
+          to_email: 'aestheticenglish@outlook.com',
+          timestamp: new Date().toLocaleString('zh-CN'),
+        },
+        publicKey
+      );
+      
+      console.log('✅ Email sent:', result);
+      setEmailSent(true);
+      
+      // 3秒后关闭弹窗
+      setTimeout(() => {
+        setShowEmailModal(false);
+        setEmailSent(false);
+        setShowContactFields(false);
+        setFormData({ name: '', email: '', message: '' });
+      }, 3000);
+      
+    } catch (error) {
+      console.error('❌ Email send failed:', error);
+      alert('发送失败，请稍后再试');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -144,11 +221,11 @@ export default function LandingPage() {
         // 桌面端保持原有高质量纹理
         <div 
           className="pointer-events-none fixed inset-0 z-10 opacity-[0.6] mix-blend-multiply"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper-grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper-grain)' opacity='0.4'/%3E%3C/svg%3E")`,
-            filter: 'contrast(120%) brightness(105%)'
-          }}
-        />
+           style={{
+             backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper-grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 0.9  0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper-grain)' opacity='0.4'/%3E%3C/svg%3E")`,
+             filter: 'contrast(120%) brightness(105%)'
+           }} 
+      />
       )}
       
       {/* ✅ 3. 物理光影层 (Vignette) */}
@@ -277,11 +354,196 @@ export default function LandingPage() {
         </p>
         <a
           href="mailto:aestheticenglish@outlook.com"
-          className="text-[9px] tracking-[0.1em] text-[#2D0F15]/35 hover:text-[#2D0F15]/70 transition-colors"
+          onClick={handleEmailClick}
+          className="text-[9px] tracking-[0.1em] text-[#2D0F15]/35 hover:text-[#2D0F15]/70 transition-colors cursor-pointer"
         >
           aestheticenglish@outlook.com
         </a>
       </motion.div>
+
+      {/* 📧 邮件表单弹窗 - Plum Wine 风格 */}
+      {showEmailModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm"
+          onClick={() => !isSending && setShowEmailModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="relative w-full max-w-lg bg-[#2D0F15] text-[#F7F8F9] p-10 md:p-12 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 纸质纹理 */}
+            <div 
+              className="pointer-events-none absolute inset-0 opacity-[0.03] mix-blend-overlay"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`
+              }}
+            />
+
+            {emailSent ? (
+              // 成功状态
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center py-12"
+              >
+                <motion.div 
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.1 }}
+                  className="text-6xl mb-6"
+                >
+                  ✓
+                </motion.div>
+                <h3 className="text-2xl font-serif mb-3 tracking-wide">投递成功</h3>
+                <p className="text-sm opacity-60 leading-relaxed">感谢您的来信，期待与您的对话</p>
+              </motion.div>
+            ) : (
+              // 表单
+              <>
+                {/* 标题文案 - 逐行浮现 */}
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="mb-10 space-y-5"
+                  style={{ 
+                    fontFamily: "'SimSun', 'Noto Serif SC', serif",
+                    lineHeight: '1.9'
+                  }}
+                >
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-[15px] md:text-base opacity-90"
+                    style={{ textIndent: '2em' }}
+                  >
+                    这里，是我们精心构建的美学空间。
+                  </motion.p>
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-[15px] md:text-base opacity-75"
+                    style={{ textIndent: '2em' }}
+                  >
+                    欢迎您随时投递：无论是关于语言学习的困惑、某段表达的回响、获取原片视频的请求，还是对空间的期许和建议。
+                  </motion.p>
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-[15px] md:text-base opacity-75"
+                    style={{ textIndent: '2em' }}
+                  >
+                    期待与您进行一场跨越屏幕的对话。
+                  </motion.p>
+                </motion.div>
+
+                {!showContactFields ? (
+                  // 第一步：只显示消息框
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.7 }}
+                    className="space-y-6"
+                  >
+                    <div>
+                      <textarea
+                        value={formData.message}
+                        onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                        className="w-full bg-transparent border border-[#F7F8F9]/15 focus:border-[#F7F8F9]/40 outline-none p-4 text-base transition-all resize-none placeholder:text-[#F7F8F9]/30"
+                        placeholder="在这里写下您想说的话..."
+                        rows={6}
+                        disabled={isSending}
+                        autoFocus
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSubmitMessage}
+                      disabled={!formData.message.trim()}
+                      className="w-full py-4 text-sm tracking-[0.3em] bg-[#F7F8F9] text-[#2D0F15] hover:bg-[#F7F8F9]/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                    >
+                      投递
+                    </button>
+                  </motion.div>
+                ) : (
+                  // 第二步：显示姓名和邮箱
+                  <motion.form
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onSubmit={handleSendEmail}
+                    className="space-y-6"
+                  >
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full bg-transparent border-b border-[#F7F8F9]/15 focus:border-[#F7F8F9]/40 outline-none py-3 text-base transition-all placeholder:text-[#F7F8F9]/30"
+                        placeholder="您的姓名"
+                        required
+                        disabled={isSending}
+                        autoFocus
+                      />
+                    </div>
+
+                    <div>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full bg-transparent border-b border-[#F7F8F9]/15 focus:border-[#F7F8F9]/40 outline-none py-3 text-base transition-all placeholder:text-[#F7F8F9]/30"
+                        placeholder="您的邮箱"
+                        required
+                        disabled={isSending}
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowContactFields(false)}
+                        disabled={isSending}
+                        className="flex-1 py-4 text-sm tracking-[0.2em] border border-[#F7F8F9]/30 hover:bg-[#F7F8F9]/10 transition-all disabled:opacity-40"
+                      >
+                        返回
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSending || !formData.name || !formData.email}
+                        className="flex-1 py-4 text-sm tracking-[0.3em] bg-[#F7F8F9] text-[#2D0F15] hover:bg-[#F7F8F9]/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                      >
+                        {isSending ? '发送中...' : '确认投递'}
+                      </button>
+                    </div>
+                  </motion.form>
+                )}
+              </>
+            )}
+
+            {/* 关闭按钮 */}
+            {!emailSent && (
+              <button
+                onClick={() => setShowEmailModal(false)}
+                disabled={isSending}
+                className="absolute top-6 right-6 text-[#F7F8F9]/40 hover:text-[#F7F8F9]/80 transition-colors text-2xl leading-none disabled:opacity-30"
+                aria-label="关闭"
+              >
+                ×
+              </button>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
     </main>
   );
 }

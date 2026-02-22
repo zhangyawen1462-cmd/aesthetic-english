@@ -97,7 +97,7 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
       type: 'vocabulary',
       content: card.word,
       sub: card.phonetic,
-      note: card.def,
+      note: card.defCn || card.def, // 优先使用中文解释
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),
     });
     setSavedIds(prev => {

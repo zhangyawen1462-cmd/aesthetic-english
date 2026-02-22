@@ -373,3 +373,55 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
     </div>
   );
 }
+
+                  <motion.button
+                    // 桌面端：长按录音
+                    onMouseDown={(e) => handleRecordStart(line, e)}
+                    onMouseUp={(e) => handleRecordStop(line, e)}
+                    onMouseLeave={(e) => { 
+                      e.stopPropagation(); 
+                      if (isRecordingThis) stopRecording(line); 
+                    }}
+                    // 移动端：点击切换录音状态
+                    onTouchStart={(e) => handleMobileRecordToggle(line, e)}
+                    onContextMenu={(e) => e.preventDefault()} // 禁用右键菜单
+                    whileTap={{ scale: 0.9 }}
+                    className="w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm select-none touch-none"
+                    style={{
+                      backgroundColor: isRecordingThis ? style.recordBtnBg : "rgba(255,255,255,0.1)",
+                      color: isRecordingThis ? style.recordBtnText : "currentColor",
+                      WebkitTouchCallout: 'none',
+                      WebkitUserSelect: 'none',
+                    }}
+                  >
+                    {isRecordingThis ? <StopCircle size={18} /> : <Mic size={18} />}
+                  </motion.button>
+                )}
+
+                {/* 回放 & 重试 */}
+                {hasAudio && !isRecordingThis && (
+                  <div className="flex items-center gap-2 animate-in fade-in zoom-in">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); playMyRecord(line.id); }}
+                      className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-105 transition-transform shadow-sm"
+                    >
+                      {isPlayingThis ? <Volume2 size={16} className="animate-pulse" /> : <Play size={16} fill="currentColor" />}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); const newUrls = { ...audioUrls }; delete newUrls[line.id]; setAudioUrls(newUrls); }}
+                      className="p-2 opacity-50 hover:opacity-100 transition-opacity"
+                      title="Re-record"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

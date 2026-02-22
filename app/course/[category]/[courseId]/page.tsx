@@ -7,7 +7,7 @@ import {
   FileText, Headphones, Mic, BookOpen, Lightbulb, RotateCcw, MessageCircle, Settings, Download
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 // --- 数据层 ---
 import type { Lesson } from "@/data/types";
@@ -82,6 +82,7 @@ function ModuleLoader() {
 
 export default function CoursePage() {
   const params = useParams<{ category: string; courseId: string }>();
+  const router = useRouter();
   const category = (params?.category || 'daily') as CategoryKey;
   const courseId = params?.courseId || '';
 
@@ -429,14 +430,14 @@ export default function CoursePage() {
         onMouseMove={handleVideoInteraction}
         onTouchStart={handleVideoInteraction}
       >
-        {/* 返回按钮 — 移动端加大触控区 */}
-        <Link
-          href={`/course/${category}`}
+        {/* 返回按钮 — 智能返回上一页 */}
+        <button
+          onClick={() => router.back()}
           className="absolute top-3 left-3 md:top-4 md:left-4 z-50 text-white/40 hover:text-white active:text-white transition-colors p-2 touch-manipulation"
-          aria-label="返回课程列表"
+          aria-label="返回上一页"
         >
           <ChevronLeft size={isMobile ? 24 : 22} />
-        </Link>
+        </button>
 
         {/* Aesthetic English 水印 */}
         <div className="absolute top-3 right-3 md:top-4 md:right-4 z-50 pointer-events-none">

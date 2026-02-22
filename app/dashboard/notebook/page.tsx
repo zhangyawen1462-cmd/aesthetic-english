@@ -342,6 +342,39 @@ function DetailModal({ item, theme, onClose, onDelete }: {
   onClose: () => void,
   onDelete: (id: string) => void 
 }) {
+  // 朗读单词
+  const handleSpeak = (text: string) => {
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 0.85;
+    utterance.pitch = 1.0;
+    
+    const setVoiceAndSpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const premiumVoice = voices.find(v => 
+        v.lang.startsWith('en') && (
+          v.name.includes("Samantha") || 
+          v.name.includes("Google") || 
+          v.name.includes("Enhanced") ||
+          v.name.includes("Premium")
+        )
+      );
+      if (premiumVoice) {
+        utterance.voice = premiumVoice;
+      }
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      window.speechSynthesis.addEventListener('voiceschanged', setVoiceAndSpeak, { once: true });
+    } else {
+      setVoiceAndSpeak();
+    }
+  };
+  
   return (
     <>
       {/* 背景遮罩 - 删除模糊效果 */}
@@ -386,11 +419,25 @@ function DetailModal({ item, theme, onClose, onDelete }: {
           </button>
 
           {/* 类型标签 */}
-          <div className="flex items-center gap-2 mb-6 opacity-60">
-            <Bookmark size={12} />
-            <span className="text-[10px] uppercase tracking-[0.15em]" style={{ fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}>
-              {item.type}
-            </span>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2 opacity-60">
+              <Bookmark size={12} />
+              <span className="text-[10px] uppercase tracking-[0.15em]" style={{ fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+                {item.type}
+              </span>
+            </div>
+            
+            {/* 播放按钮（仅词汇类型显示） */}
+            {item.type === 'vocabulary' && (
+              <button
+                onClick={() => handleSpeak(item.content)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-sm hover:opacity-60 transition-opacity"
+                style={{ backgroundColor: `${theme.bg}10`, color: theme.bg }}
+              >
+                <Volume2 size={14} />
+                <span className="text-[10px] uppercase tracking-wider">Play</span>
+              </button>
+            )}
           </div>
 
           {/* 主内容 */}
@@ -467,6 +514,39 @@ function NotebookCard({ item, index, theme, onDelete, onClick }: {
   onDelete: (id: string) => void,
   onClick: () => void
 }) {
+  // 朗读单词
+  const handleSpeak = (text: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-US";
+    utterance.rate = 0.85;
+    utterance.pitch = 1.0;
+    
+    const setVoiceAndSpeak = () => {
+      const voices = window.speechSynthesis.getVoices();
+      const premiumVoice = voices.find(v => 
+        v.lang.startsWith('en') && (
+          v.name.includes("Samantha") || 
+          v.name.includes("Google") || 
+          v.name.includes("Enhanced") ||
+          v.name.includes("Premium")
+        )
+      );
+      if (premiumVoice) {
+        utterance.voice = premiumVoice;
+      }
+      window.speechSynthesis.speak(utterance);
+    };
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      window.speechSynthesis.addEventListener('voiceschanged', setVoiceAndSpeak, { once: true });
+    } else {
+      setVoiceAndSpeak();
+    }
+  };
   // 根据类型获取强调色和背景色
   const getTypeStyle = () => {
     switch (item.type) {
@@ -567,8 +647,130 @@ function NotebookCard({ item, index, theme, onDelete, onClick }: {
 
           {/* 底部：播放按钮 */}
           <div className="flex items-center justify-end">
-                {item.timestamp !== undefined && (
-              <PlayCircle size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                {item.type === 'vocabulary' && (
+              <button
+                onClick={(e) => handleSpeak(item.content, e)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95"
+                title="播放发音"
+              >
+                <PlayCircle size={16} style={{ color: theme.accent }} />
+              </button>
+            )}
+                  </div>
+        </div>
+    </div>
+    </motion.div>
+  );
+}
+
+  // 根据类型获取强调色和背景色
+  const getTypeStyle = () => {
+    switch (item.type) {
+      case 'vocabulary':
+        return {
+          borderColor: theme.accent,
+          bgOverlay: `${theme.accent}08`,
+        };
+      case 'sentence':
+        return {
+          borderColor: `${theme.text}90`,
+          bgOverlay: `${theme.text}05`,
+        };
+      case 'grammar':
+        return {
+          borderColor: `${theme.text}70`,
+          bgOverlay: `${theme.text}03`,
+        };
+      default:
+        return {
+          borderColor: theme.accent,
+          bgOverlay: `${theme.accent}08`,
+        };
+    }
+  };
+
+  const typeStyle = getTypeStyle();
+
+  return (
+              <motion.div
+                layout
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      exit={{ opacity: 0, scale: 0.95 }} 
+      transition={{ duration: 0.4, delay: index * 0.05 }}
+      className="group cursor-pointer"
+    >
+      <div className="block h-full" onClick={onClick}>
+        
+        {/* 卡片主体 - 正方形 */}
+        <div className="relative aspect-square w-full overflow-hidden p-5 flex flex-col justify-between transition-all duration-500 hover:shadow-2xl" 
+             style={{ 
+               backgroundColor: theme.secondary, 
+               border: `1px solid ${theme.text}1A`,
+               borderTop: `4px solid ${typeStyle.borderColor}`,
+               boxShadow: `inset 0 0 0 1000px ${typeStyle.bgOverlay}`
+             }}>
+          
+          {/* 顶部：类型标签 */}
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-2 opacity-60">
+              <Bookmark size={10} />
+              <span className="text-[8px] uppercase tracking-[0.15em]" style={{ fontFamily: 'sans-serif' }}>
+                {item.type}
+              </span>
+                  </div>
+                  <button
+              onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+                    className="hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Remove from notebook"
+                  >
+              <Trash2 size={12} />
+                  </button>
+                </div>
+
+          {/* 中间：内容 */}
+          <div className="flex-1 flex flex-col justify-center">
+            <h3 className="text-[16px] leading-tight mb-1.5" 
+                style={{ 
+                  fontFamily: /[\u4e00-\u9fa5]/.test(item.content) 
+                    ? "'PingFang SC', sans-serif" 
+                    : "sans-serif",
+                  fontWeight: 600,
+                  letterSpacing: /[\u4e00-\u9fa5]/.test(item.content) ? '0.02em' : '0.05em'
+                }}>
+                    {item.content}
+                  </h3>
+
+                  {item.sub && (
+              <p className="text-[11px] opacity-60 font-mono tracking-wide mb-3">
+                      {item.sub}
+                    </p>
+                  )}
+
+                  {item.note && (
+              <div className="relative pl-2.5 border-l py-0.5" style={{ borderColor: `${theme.text}20` }}>
+                <p className="text-[11px] opacity-80 leading-relaxed line-clamp-2"
+                   style={{ 
+                     fontFamily: /[\u4e00-\u9fa5]/.test(item.note) 
+                       ? "'PingFang SC', sans-serif" 
+                       : "sans-serif"
+                   }}>
+                        {item.note}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+          {/* 底部：播放按钮 */}
+          <div className="flex items-center justify-end">
+                {item.type === 'vocabulary' && (
+              <button
+                onClick={(e) => handleSpeak(item.content, e)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 active:scale-95"
+                title="播放发音"
+              >
+                <PlayCircle size={16} style={{ color: theme.accent }} />
+              </button>
             )}
                   </div>
         </div>
