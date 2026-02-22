@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { Search, Bookmark, PlayCircle, Trash2 } from "lucide-react";
+import { Search, Bookmark, PlayCircle, Trash2, Volume2 } from "lucide-react";
 import type { CollectedItem } from "@/data/types";
 import { getNotebook, removeFromNotebook } from "@/lib/notebook-store";
 import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
