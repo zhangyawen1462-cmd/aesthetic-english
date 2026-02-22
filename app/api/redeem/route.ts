@@ -216,9 +216,8 @@ export async function POST(req: NextRequest) {
     // 2. 🔥 新逻辑：兑换码变成"永久通行证"
     // 只要兑换码存在且未失效，就允许登录
     
-    // ❌ 唯一拒绝的情况：兑换码已失效
+    // ❌ 检查 1：兑换码本身是否已失效
     if (status === '❌ 已失效') {
-      // 🆕 记录失败日志
       await logRedemptionAttempt({
         code: code.trim().toUpperCase(),
         email: email || '',
@@ -231,6 +230,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'code_expired', message: '该兑换码已失效' },
         { status: 400 }
+      );
+    }
+
+    // ❌ 检查 2：该兑换码对应的会员记录是否被封禁
+    // 查询 Memberships 表，看是否有该兑换码的"已失效"记录
+    const membershipCheck = await notion.databases.query({
+      database_id: MEMBERSHIP_DB,
+      filter: {
+        and: [
+          {
+            property: 'Redemption Code',
+            rich_text: {
+              equals: code.trim().toUpperCase()
+            }
+          },
+          {
+            property: 'Status',
+            select: {
+              equals: '❌ 已失效'
+            }
+          }
+        ]
+      }
+    });
+
+    if (membershipCheck.results.length > 0) {
+      await logRedemptionAttempt({
+        code: code.trim().toUpperCase(),
+        email: email || '',
+        status: '🔴 失败',
+        reason: '该会员账号已被封禁',
+        deviceId,
+        ipAddress
+      });
+      
+      return NextResponse.json(
+        { success: false, error: 'membership_revoked', message: '该会员账号已被封禁，请联系客服' },
+        { status: 403 }
       );
     }
 

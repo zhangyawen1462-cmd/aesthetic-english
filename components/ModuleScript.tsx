@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookmarkCheck, Highlighter, Languages } from "lucide-react";
+import { BookmarkCheck, Languages, LocateFixed } from "lucide-react";
 import type { TranscriptLine } from "@/data/types";
 import type { ThemeConfig } from "@/lib/theme-config";
 import { toggleNotebook, getNotebookByLesson } from "@/lib/notebook-store";
@@ -21,17 +21,11 @@ interface ModuleScriptProps {
 
 type LangMode = 'en' | 'cn' | 'bi';
 
-// 虚拟滚动常量
-const ITEM_HEIGHT = 70;      // 每行预估高度（px）
-const OVERSCAN_COUNT = 5;     // 上下额外渲染的行数
-
 export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, setIsPlaying, transcript, lessonId, category }: ModuleScriptProps) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [langMode, setLangMode] = useState<LangMode>('bi');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [containerHeight, setContainerHeight] = useState(600);
   const [highlightedWords, setHighlightedWords] = useState<Set<string>>(new Set());
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const wordLongPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -39,13 +33,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const [pressProgress, setPressProgress] = useState(0);
   const [pressingWord, setPressingWord] = useState<string | null>(null);
   const [wordPressProgress, setWordPressProgress] = useState(0);
-  const [justSavedId, setJustSavedId] = useState<number | null>(null); // 刚收藏成功的句子ID
-
-  // 🚀 优化：移动端降低虚拟滚动阈值，提升流畅度
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const useVirtualScroll = isMobile 
-    ? transcript.length > 20  // 移动端：20 行启用虚拟滚动
-    : transcript.length > 50; // 桌面端：50 行启用
+  const [justSavedId, setJustSavedId] = useState<number | null>(null);
+  
+  // 🎯 用户接管模式（离合器）
+  const [isUserControlled, setIsUserControlled] = useState(false);
+  const userControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAutoScrollIndex = useRef<number>(-1);
 
   // 初始化：从 localStorage 读取已收藏的句子和标亮的词汇
   useEffect(() => {
@@ -60,103 +53,96 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     setHighlightedWords(wordIds);
   }, [lessonId]);
 
-  // 监测容器高度
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerHeight(entry.contentRect.height);
-      }
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
+  // 🎯 监听用户滚动操作（启动离合器）
+  const handleUserScroll = useCallback(() => {
+    // 用户手动滚动，进入接管模式
+    setIsUserControlled(true);
+    
+    // 清除之前的定时器
+    if (userControlTimeoutRef.current) {
+      clearTimeout(userControlTimeoutRef.current);
+    }
+    
+    // 3秒无操作后，自动退出接管模式
+    userControlTimeoutRef.current = setTimeout(() => {
+      setIsUserControlled(false);
+    }, 3000);
   }, []);
 
-  // 虚拟滚动计算
-  const { visibleItems, totalHeight, offsetY } = useMemo(() => {
-    if (!useVirtualScroll) {
-      return {
-        visibleItems: transcript.map((line, i) => ({ line, index: i })),
-        totalHeight: 0,
-        offsetY: 0,
-      };
+  // 🎯 用户触摸字幕区域，立即进入接管模式
+  const handleUserTouch = useCallback(() => {
+    setIsUserControlled(true);
+    if (userControlTimeoutRef.current) {
+      clearTimeout(userControlTimeoutRef.current);
     }
+  }, []);
 
-    const total = transcript.length * ITEM_HEIGHT;
-    const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN_COUNT);
-    const endIndex = Math.min(
-      transcript.length - 1,
-      Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + OVERSCAN_COUNT
-    );
-
-    const visible = [];
-    for (let i = startIndex; i <= endIndex; i++) {
-      visible.push({ line: transcript[i], index: i });
-    }
-
-    return {
-      visibleItems: visible,
-      totalHeight: total,
-      offsetY: startIndex * ITEM_HEIGHT,
-    };
-  }, [transcript, scrollTop, containerHeight, useVirtualScroll]);
-
-  // 滚动事件（虚拟滚动）
-  const handleScroll = useCallback(() => {
-    if (scrollContainerRef.current && useVirtualScroll) {
-      setScrollTop(scrollContainerRef.current.scrollTop);
-    }
-  }, [useVirtualScroll]);
-
-  // 自动滚动到当前活跃行（优化：减少不必要的滚动）
-  const lastScrolledIndex = useRef<number>(-1);
-  
+  // 🎯 自动滚动到当前活跃行（仅在非接管模式下）
   useEffect(() => {
-    if (!isPlaying || !scrollContainerRef.current) return;
+    // 如果用户正在手动控制，不执行自动滚动
+    if (isUserControlled || !isPlaying || !scrollContainerRef.current) return;
 
     const activeIndex = transcript.findIndex(
       (line) => currentTime >= line.start && currentTime <= line.end
     );
     if (activeIndex < 0) return;
 
-    // 只在切换到新行时才滚动，避免同一行内频繁触发
-    if (activeIndex === lastScrolledIndex.current) return;
-    lastScrolledIndex.current = activeIndex;
+    // 只在切换到新行时才滚动
+    if (activeIndex === lastAutoScrollIndex.current) return;
+    lastAutoScrollIndex.current = activeIndex;
 
     const container = scrollContainerRef.current;
-
-    if (useVirtualScroll) {
-      const targetScrollTop = activeIndex * ITEM_HEIGHT - containerHeight / 2 + ITEM_HEIGHT / 2;
-      const currentScrollTop = container.scrollTop;
+    const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
+    
+    if (activeElement) {
+      const elementTop = activeElement.offsetTop;
+      const elementHeight = activeElement.offsetHeight;
+      const containerScrollTop = container.scrollTop;
+      const containerClientHeight = container.clientHeight;
       
-      // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
-      if (Math.abs(targetScrollTop - currentScrollTop) > ITEM_HEIGHT / 2) {
-        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-      }
-    } else {
-      // 🚀 修复：非虚拟滚动时，手动计算滚动位置（避免 scrollIntoView 引起页面级滚动）
-      const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
-      if (activeElement) {
-        const elementTop = activeElement.offsetTop;
-        const elementHeight = activeElement.offsetHeight;
-        const containerScrollTop = container.scrollTop;
-        const containerClientHeight = container.clientHeight;
-        
-        // 计算目标滚动位置：让元素居中显示
-        const targetScrollTop = elementTop - (containerClientHeight / 2) + (elementHeight / 2);
-        
-        // 只有当目标位置与当前位置差距较大时才滚动（避免微小抖动）
-        if (Math.abs(targetScrollTop - containerScrollTop) > elementHeight / 2) {
-          container.scrollTo({
-            top: targetScrollTop,
-            behavior: 'smooth'
-          });
-        }
+      // 计算目标滚动位置：让元素居中显示
+      const targetScrollTop = elementTop - (containerClientHeight / 2) + (elementHeight / 2);
+      
+      // 只有当目标位置与当前位置差距较大时才滚动
+      if (Math.abs(targetScrollTop - containerScrollTop) > elementHeight / 2) {
+        container.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
+        });
       }
     }
-  }, [currentTime, isPlaying, transcript, useVirtualScroll, containerHeight]);
+  }, [currentTime, isPlaying, transcript, isUserControlled]);
+
+  // 🎯 手动定位到当前播放位置
+  const scrollToCurrentLine = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+
+    const activeIndex = transcript.findIndex(
+      (line) => currentTime >= line.start && currentTime <= line.end
+    );
+    if (activeIndex < 0) return;
+
+    const container = scrollContainerRef.current;
+    const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
+    
+    if (activeElement) {
+      const elementTop = activeElement.offsetTop;
+      const elementHeight = activeElement.offsetHeight;
+      const containerClientHeight = container.clientHeight;
+      const targetScrollTop = elementTop - (containerClientHeight / 2) + (elementHeight / 2);
+      
+      container.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      });
+    }
+
+    // 退出接管模式
+    setIsUserControlled(false);
+    if (userControlTimeoutRef.current) {
+      clearTimeout(userControlTimeoutRef.current);
+    }
+  }, [currentTime, transcript]);
 
   // 获取填充颜色（根据主题）
   const getFillColor = () => {
@@ -398,7 +384,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         onMouseDown={(e) => handlePressStart(line, e)}
         onMouseUp={handlePressCancel}
         onMouseLeave={handlePressCancel}
-        onTouchStart={(e) => handlePressStart(line, e)}
+        onTouchStart={(e) => { handlePressStart(line, e); handleUserTouch(); }}
         onTouchEnd={handlePressCancel}
         initial={false}
         animate={{ 
@@ -414,7 +400,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         `}
         style={{
           borderColor: isActive ? theme.accent : 'transparent',
-          ...(useVirtualScroll ? { height: ITEM_HEIGHT, boxSizing: 'border-box' as const } : {}),
         }}
       >
         {/* 收藏后的背景色 */}
@@ -563,7 +548,8 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       {/* 字幕流 */}
       <div
         ref={scrollContainerRef}
-        onScroll={handleScroll}
+        onScroll={handleUserScroll}
+        onTouchStart={handleUserTouch}
         className="flex-1 w-full max-w-[1600px] mx-auto overflow-y-auto px-2 md:px-4 pb-24 no-scrollbar"
       >
         <div className="h-4" />
@@ -574,22 +560,38 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           </div>
         )}
 
-        {useVirtualScroll ? (
-          // 虚拟滚动模式
-          <div style={{ height: totalHeight, position: 'relative' }}>
-            <div style={{ transform: `translateY(${offsetY}px)`, display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              {visibleItems.map(({ line, index }) => renderLine(line, index))}
-            </div>
-          </div>
-        ) : (
-          // 普通模式（行数 <= 50）
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            {transcript.map((line, index) => renderLine(line, index))}
-          </div>
-        )}
+        {/* 原生 DOM 渲染所有字幕 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          {transcript.map((line, index) => renderLine(line, index))}
+        </div>
       </div>
 
-      {/* iOS风格悬浮语言切换按钮 - 使用 absolute 定位 */}
+      {/* 🎯 用户接管模式提示 + 定位按钮 */}
+      <AnimatePresence>
+        {isUserControlled && isPlaying && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            onClick={scrollToCurrentLine}
+            className="absolute bottom-20 right-6 md:bottom-6 md:right-20 z-40 flex items-center gap-2 px-4 py-3 rounded-full shadow-2xl backdrop-blur-xl border touch-manipulation"
+            style={{
+              backgroundColor: `${theme.bg}F0`,
+              color: theme.accent,
+              borderColor: `${theme.accent}40`,
+              boxShadow: `0 8px 32px ${theme.accent}30`,
+            }}
+          >
+            <LocateFixed size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider">
+              定位当前
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* iOS风格悬浮语言切换按钮 */}
       <div className="absolute bottom-6 right-6 md:left-6 md:right-auto z-50 flex flex-col items-end md:items-start gap-2">
         {/* 展开的选项 */}
         <AnimatePresence>

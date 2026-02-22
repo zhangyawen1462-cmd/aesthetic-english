@@ -202,13 +202,45 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
     }
   };
 
-  const jumpToLine = (start: number) => {
+  // 🎯 播放句子片段（播放完自动暂停）
+  const [playingLineId, setPlayingLineId] = useState<number | null>(null);
+  const playbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const playLineSegment = (line: TranscriptLine) => {
     const video = videoRef.current;
-    if (video) {
-      video.currentTime = start;
-      video.pause(); // 暂停视频，不自动播放
+    if (!video) return;
+
+    // 清除之前的定时器
+    if (playbackTimerRef.current) {
+      clearTimeout(playbackTimerRef.current);
+      playbackTimerRef.current = null;
     }
+
+    // 设置当前播放的句子
+    setPlayingLineId(line.id);
+
+    // 跳转到句子开始位置并播放
+    video.currentTime = line.start;
+    video.play();
+
+    // 计算句子时长（毫秒）
+    const duration = (line.end - line.start) * 1000;
+
+    // 播放完成后自动暂停
+    playbackTimerRef.current = setTimeout(() => {
+      video.pause();
+      setPlayingLineId(null);
+    }, duration);
   };
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (playbackTimerRef.current) {
+        clearTimeout(playbackTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="flex-1 w-full h-full flex flex-col relative overflow-hidden">
@@ -238,11 +270,12 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
           const isRecordingThis = recordingId === line.id;
           const hasAudio = !!audioUrls[line.id];
           const isPlayingThis = playingId === line.id;
+          const isPlayingSegment = playingLineId === line.id;
 
           return (
             <motion.div
               key={line.id}
-              onClick={() => jumpToLine(line.start)}
+              onClick={() => playLineSegment(line)}
               initial={false}
               layout
               animate={{
@@ -259,8 +292,8 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
                 borderRadius: '8px',
                 border: `1px solid ${style.border}`,
                 backdropFilter: 'blur(12px)',
-                boxShadow: isRecordingThis ? style.activeGlow : "none",
-                opacity: isActive || isRecordingThis ? 1 : 0.7,
+                boxShadow: isRecordingThis ? style.activeGlow : (isPlayingSegment ? `0 0 20px ${style.activeGlow}` : "none"),
+                opacity: isActive || isRecordingThis || isPlayingSegment ? 1 : 0.7,
               }}
             >
 
@@ -273,11 +306,19 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
               </div>
 
               {/* 右侧：控制区 */}
-              <div className="flex items-start gap-3 flex-shrink-0 pt-1">
+              <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
 
-                <div className="text-[9px] uppercase tracking-wider font-bold opacity-0 group-hover:opacity-60 transition-opacity whitespace-nowrap hidden md:block">
-                  {isRecordingThis ? "Recording..." : (isActive ? "Listening" : "")}
-                </div>
+                {/* 状态文字 - 移动端显示简化版，桌面端显示完整版 */}
+                {(isRecordingThis || isPlayingSegment || isActive) && (
+                  <div className="text-[8px] md:text-[9px] uppercase tracking-wider font-bold transition-opacity whitespace-nowrap">
+                    <span className="md:hidden">
+                      {isRecordingThis ? "REC" : (isPlayingSegment ? "PLAY" : (isActive ? "LIVE" : ""))}
+                    </span>
+                    <span className="hidden md:inline opacity-0 group-hover:opacity-60">
+                      {isRecordingThis ? "Recording..." : (isPlayingSegment ? "Playing..." : (isActive ? "Listening" : ""))}
+                    </span>
+                  </div>
+                )}
 
                 {/* 录音按钮 */}
                 {(!hasAudio || isRecordingThis) && (

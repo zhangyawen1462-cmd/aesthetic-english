@@ -196,7 +196,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
                 {plan.subtitle}
               </span>
             )}
-            <h3 className={`font-sans ${isMobile ? 'text-lg mb-2' : 'text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4'}`}>
+            <h3 className={`font-sans ${isMobile ? 'text-xl mb-3' : 'text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4'}`}>
               {plan.title}
             </h3>
             <div className={`flex ${isMobile ? 'flex-row items-baseline justify-center gap-3' : 'flex-col items-center gap-1 sm:gap-2'}`}>
@@ -243,7 +243,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
               }}
             >
               <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pb-2">
-                <span className={`uppercase tracking-[0.2em] ${isMobile ? 'text-[9px]' : 'text-[8px] sm:text-[9px]'}`}>View Privileges</span>
+                <span className={`uppercase tracking-[0.2em] ${isMobile ? 'text-[10px]' : 'text-[8px] sm:text-[9px]'}`}>View Privileges</span>
                 <motion.div animate={{ rotate: isRevealed ? 180 : 0 }}>
                   <ChevronDown size={12} strokeWidth={1} />
                 </motion.div>
@@ -258,10 +258,10 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
                 <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 pb-4 sm:pb-6">
                   {plan.features.map((f: any, i: number) => (
                     <div key={i} className="flex justify-between items-start gap-3 sm:gap-4">
-                      <span className={`leading-relaxed tracking-wide ${isMobile ? 'text-[11px]' : 'text-[10px] sm:text-[11px]'} ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
+                      <span className={`leading-relaxed tracking-wide ${isMobile ? 'text-[12px]' : 'text-[10px] sm:text-[11px]'} ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
                         {f.text}
                       </span>
-                      <span className={`uppercase tracking-widest opacity-40 whitespace-nowrap pt-1 ${isMobile ? 'text-[8px]' : 'text-[7px] sm:text-[8px]'}`}>
+                      <span className={`uppercase tracking-widest opacity-40 whitespace-nowrap pt-1 ${isMobile ? 'text-[9px]' : 'text-[7px] sm:text-[8px]'}`}>
                         {f.status === 'limit' ? 'Limited' : f.status === 'lock' ? 'Locked' : ''}
                       </span>
                     </div>
@@ -435,7 +435,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             </div>
 
             {/* 卡片区 */}
-            <div className={`flex flex-col lg:flex-row w-full items-center lg:items-stretch ${isMobile ? 'gap-3 px-4' : 'gap-4 sm:gap-6 lg:gap-6 px-4 lg:px-0'}`}>
+            <div className={`flex flex-col lg:flex-row w-full items-center lg:items-stretch ${isMobile ? 'gap-6 px-4' : 'gap-4 sm:gap-6 lg:gap-6 px-4 lg:px-0'}`}>
               {plans.map((plan, idx) => (
                 <PlanCard 
                   key={plan.id} 
