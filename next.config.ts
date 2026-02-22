@@ -26,3 +26,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+// Force redeploy: Sun Feb 22 14:50:36 CST 2026
