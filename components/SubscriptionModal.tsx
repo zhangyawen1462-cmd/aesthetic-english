@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, KeyRound, Sparkles, Search, RotateCcw, ChevronDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useMembership } from '@/context/MembershipContext';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -15,7 +14,6 @@ interface SubscriptionModalProps {
 // 兑换码输入组件
 // ==========================================
 const RedeemInput = ({ onClose }: { onClose: () => void }) => {
-  const { refreshMembership } = useMembership(); // 🆕 获取刷新函数
   const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -36,8 +34,6 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
     setError('');
 
     try {
-      console.log('🔑 [Redeem] 开始兑换，兑换码:', code.trim());
-      
       const response = await fetch('/api/redeem', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -45,26 +41,16 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
       });
 
       const data = await response.json();
-      console.log('📦 [Redeem] 后端返回:', data);
 
       if (data.success) {
-        console.log('✅ [Redeem] 兑换成功！开始刷新会员状态...');
         setSuccess(true);
-        
-        // 🆕 刷新会员状态
-        await refreshMembership();
-        console.log('✅ [Redeem] 会员状态已刷新，准备跳转...');
-        
         setTimeout(() => {
-          onClose(); // 关闭弹窗
-          window.location.href = '/dashboard'; // 刷新页面
+          window.location.href = '/dashboard';
         }, 1500);
       } else {
-        console.log('❌ [Redeem] 兑换失败:', data.message);
         setError(data.message || '兑换失败，请检查兑换码');
       }
     } catch (err) {
-      console.error('❌ [Redeem] 网络错误:', err);
       setError('网络错误，请稍后重试');
     } finally {
       setIsLoading(false);
@@ -109,7 +95,6 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
       {error && (
         <p className="text-xs text-red-400">{error}</p>
       )}
-      
       <button
         onClick={handleRedeem}
         disabled={isLoading}
@@ -155,7 +140,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
   return (
     <div 
       className="relative w-full lg:w-1/3 perspective-[1500px]"
-      onMouseEnter={isMobile ? undefined : onFocus}
+      onMouseEnter={onFocus}
       onClick={(e) => {
         // 点击卡片非文字区域翻转
         if ((e.target as HTMLElement).tagName !== 'BUTTON' && 
@@ -171,17 +156,14 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
       <motion.div
         animate={{ 
           rotateY: isFlipped ? 180 : 0,
-          scale: isMobile ? 1 : (isFocused ? 1.02 : 1),
-          opacity: isMobile ? 1 : (isFocused ? 1 : 0.85),
+          scale: isFocused ? 1.02 : 1,
+          opacity: isFocused ? 1 : 0.85,
         }}
         transition={{ type: "spring", stiffness: 80, damping: 20, mass: 1 }}
         style={{ transformStyle: 'preserve-3d' }}
         className={`relative w-full transition-shadow duration-700 
           ${isMobile ? 'min-h-[180px]' : 'h-full'}
-          ${isMobile 
-            ? 'shadow-[0_2px_8px_rgba(0,0,0,0.1)]' 
-            : (isFocused ? (isWine ? 'shadow-[0_0_50px_rgba(74,29,36,0.5)]' : 'shadow-[0_0_30px_rgba(255,255,255,0.05)]') : 'shadow-none')
-          }
+          ${isFocused ? (isWine ? 'shadow-[0_0_50px_rgba(74,29,36,0.5)]' : 'shadow-[0_0_30px_rgba(255,255,255,0.05)]') : 'shadow-none'}
         `}
       >
         {/* ================= 正面 (Front Face) ================= */}
@@ -196,19 +178,19 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
                 {plan.subtitle}
               </span>
             )}
-            <h3 className={`font-sans ${isMobile ? 'text-xl mb-3' : 'text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4'}`}>
+            <h3 className={`font-sans ${isMobile ? 'text-base mb-2' : 'text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4'}`}>
               {plan.title}
             </h3>
             <div className={`flex ${isMobile ? 'flex-row items-baseline justify-center gap-3' : 'flex-col items-center gap-1 sm:gap-2'}`}>
               {/* 划线原价 */}
               <div className="flex items-baseline gap-1 opacity-40">
-                <span className={`font-light line-through ${isMobile ? 'text-[10px]' : 'text-[10px] sm:text-xs'}`}>¥</span>
-                <span className={`font-serif tracking-tighter line-through ${isMobile ? 'text-base' : 'text-base sm:text-lg md:text-xl'}`}>{plan.originalPrice}</span>
+                <span className={`font-light line-through ${isMobile ? 'text-[9px]' : 'text-[10px] sm:text-xs'}`}>¥</span>
+                <span className={`font-serif tracking-tighter line-through ${isMobile ? 'text-sm' : 'text-base sm:text-lg md:text-xl'}`}>{plan.originalPrice}</span>
               </div>
               {/* 特惠价 */}
               <div className="flex items-baseline gap-1">
-                <span className={`font-light opacity-50 ${isMobile ? 'text-xs' : 'text-xs sm:text-sm'}`}>¥</span>
-                <span className={`font-serif tracking-tighter ${isMobile ? 'text-3xl' : 'text-3xl sm:text-4xl md:text-5xl'}`}>{plan.price}</span>
+                <span className={`font-light opacity-50 ${isMobile ? 'text-[10px]' : 'text-xs sm:text-sm'}`}>¥</span>
+                <span className={`font-serif tracking-tighter ${isMobile ? 'text-2xl' : 'text-3xl sm:text-4xl md:text-5xl'}`}>{plan.price}</span>
               </div>
             </div>
           </div>
@@ -226,24 +208,12 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
             {/* 方案三：渐进式特权揭示 (Progressive Reveal) */}
             <div 
               className="flex-1 flex flex-col justify-end border-t border-current/10 pt-3 sm:pt-4 cursor-pointer group"
-              onMouseEnter={isMobile ? undefined : () => setIsRevealed(true)}
-              onMouseLeave={isMobile ? undefined : () => setIsRevealed(false)}
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                e.preventDefault();
-                setIsRevealed(!isRevealed); 
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-              }}
-              onTouchEnd={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                setIsRevealed(!isRevealed);
-              }}
+              onMouseEnter={() => setIsRevealed(true)}
+              onMouseLeave={() => setIsRevealed(false)}
+              onClick={(e) => { e.stopPropagation(); setIsRevealed(!isRevealed); }}
             >
               <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pb-2">
-                <span className={`uppercase tracking-[0.2em] ${isMobile ? 'text-[10px]' : 'text-[8px] sm:text-[9px]'}`}>View Privileges</span>
+                <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em]">View Privileges</span>
                 <motion.div animate={{ rotate: isRevealed ? 180 : 0 }}>
                   <ChevronDown size={12} strokeWidth={1} />
                 </motion.div>
@@ -258,10 +228,10 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
                 <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 pb-4 sm:pb-6">
                   {plan.features.map((f: any, i: number) => (
                     <div key={i} className="flex justify-between items-start gap-3 sm:gap-4">
-                      <span className={`leading-relaxed tracking-wide ${isMobile ? 'text-[12px]' : 'text-[10px] sm:text-[11px]'} ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
+                      <span className={`text-[10px] sm:text-[11px] leading-relaxed tracking-wide ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
                         {f.text}
                       </span>
-                      <span className={`uppercase tracking-widest opacity-40 whitespace-nowrap pt-1 ${isMobile ? 'text-[9px]' : 'text-[7px] sm:text-[8px]'}`}>
+                      <span className="text-[7px] sm:text-[8px] uppercase tracking-widest opacity-40 whitespace-nowrap pt-1">
                         {f.status === 'limit' ? 'Limited' : f.status === 'lock' ? 'Locked' : ''}
                       </span>
                     </div>
@@ -393,7 +363,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className={`absolute inset-0 ${isMobile ? 'bg-[#0a0203]/95 backdrop-blur-sm' : 'bg-[#0a0203]/90 backdrop-blur-2xl'}`}
+            className="absolute inset-0 bg-[#0a0203]/90 backdrop-blur-2xl"
           />
 
           <motion.div
@@ -401,22 +371,18 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ type: "spring", stiffness: 100, damping: 20 }}
-            className={`relative w-full max-w-6xl max-h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center ${isMobile ? 'py-6' : 'py-10'}`}
+            className="relative w-full max-w-6xl max-h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center py-10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Back to Lobby 按钮 */}
             <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.location.href = '/dashboard';
-              }}
-              className="absolute top-4 left-4 md:top-6 md:left-6 text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80 z-50 pointer-events-auto touch-manipulation"
+              onClick={() => router.push('/dashboard')}
+              className="absolute top-4 left-4 md:top-6 md:left-6 text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80 z-50 pointer-events-auto"
             >
               Back to Lobby
             </button>
               
-            <div className={`text-center text-[#F7F8F9] pointer-events-none px-4 ${isMobile ? 'mb-6 mt-12' : 'mb-12 md:mb-16'}`}>
+            <div className="text-center mb-12 md:mb-16 text-[#F7F8F9] pointer-events-none px-4">
               {/* 移动端：只显示中文，字体较小，透明度降低 */}
               {isMobile ? (
                 <p className="text-sm opacity-50" style={{ fontFamily: "'PingFang SC', sans-serif" }}>
@@ -435,7 +401,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             </div>
 
             {/* 卡片区 */}
-            <div className={`flex flex-col lg:flex-row w-full items-center lg:items-stretch ${isMobile ? 'gap-6 px-4' : 'gap-4 sm:gap-6 lg:gap-6 px-4 lg:px-0'}`}>
+            <div className={`flex flex-col lg:flex-row w-full items-center lg:items-stretch ${isMobile ? 'gap-3 px-4' : 'gap-4 sm:gap-6 lg:gap-6 px-4 lg:px-0'}`}>
               {plans.map((plan, idx) => (
                 <PlanCard 
                   key={plan.id} 
@@ -448,7 +414,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             </div>
 
             {/* 底部兑换码通道 */}
-            <div className={`text-center px-4 ${isMobile ? 'mt-4' : 'mt-12 md:mt-20'}`}>
+            <div className="mt-12 md:mt-20 text-center px-4">
               <div className="h-px w-10 bg-white/10 mx-auto mb-6 md:mb-8" />
               
               {!showRedeemInput ? (

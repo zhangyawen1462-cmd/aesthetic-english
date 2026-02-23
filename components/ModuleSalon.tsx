@@ -276,11 +276,22 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  // 自动调整输入框高度
+  // 自动调整输入框高度 - 优化：防止布局抖动
   useEffect(() => {
     if (textareaRef.current) {
+      // 🔥 关键修复：先保存当前滚动位置
+      const chatArea = textareaRef.current.closest('.overflow-y-auto');
+      const scrollTop = chatArea?.scrollTop || 0;
+      
+      // 重置高度并重新计算
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 96); // 最大 96px (6行)
+      textareaRef.current.style.height = newHeight + 'px';
+      
+      // 🔥 关键修复：恢复滚动位置，防止页面跳动
+      if (chatArea) {
+        chatArea.scrollTop = scrollTop;
+      }
     }
   }, [input]);
 
@@ -348,8 +359,22 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       timestamp: new Date(),
     };
 
+    // 🔥 关键修复：先保存输入框高度，再清空内容
+    const currentHeight = textareaRef.current?.style.height;
+    
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    
+    // 🔥 关键修复：延迟重置高度，避免布局抖动
+    if (textareaRef.current && currentHeight) {
+      textareaRef.current.style.height = currentHeight;
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+      });
+    }
+    
     setIsLoading(true);
 
     // --- 季度会员的"模糊回复"逻辑：显示模糊的 AI 气泡 ---
@@ -572,7 +597,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       </div>
 
       {/* --- Chat Area --- */}
-      <div className={`flex-1 overflow-y-auto space-y-6 ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`}>
+      <div className={`flex-1 overflow-y-auto space-y-6 ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`} style={{ scrollBehavior: 'smooth' }}>
         <AnimatePresence mode="popLayout">
           {messages
             .filter(m => !m.isHidden && m.content !== '[SCENE_START]') // 🆕 过滤隐藏消息
