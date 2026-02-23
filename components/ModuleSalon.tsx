@@ -276,22 +276,13 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  // 自动调整输入框高度 - 优化：防止布局抖动
+  // 自动调整输入框高度 - 优雅方案：使用 0px 探测真实高度
   useEffect(() => {
     if (textareaRef.current) {
-      // 🔥 关键修复：先保存当前滚动位置
-      const chatArea = textareaRef.current.closest('.overflow-y-auto');
-      const scrollTop = chatArea?.scrollTop || 0;
-      
-      // 重置高度并重新计算
-      textareaRef.current.style.height = 'auto';
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 96); // 最大 96px (6行)
+      // 🎯 关键：使用 0px 而非 auto，避免视觉塌陷
+      textareaRef.current.style.height = '0px'; 
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 96); // 最大 96px (约6行)
       textareaRef.current.style.height = newHeight + 'px';
-      
-      // 🔥 关键修复：恢复滚动位置，防止页面跳动
-      if (chatArea) {
-        chatArea.scrollTop = scrollTop;
-      }
     }
   }, [input]);
 
@@ -359,22 +350,9 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       timestamp: new Date(),
     };
 
-    // 🔥 关键修复：先保存输入框高度，再清空内容
-    const currentHeight = textareaRef.current?.style.height;
-    
+    // 🎯 精简方案：只做状态更新，让 useEffect 自然处理高度
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
-    
-    // 🔥 关键修复：延迟重置高度，避免布局抖动
-    if (textareaRef.current && currentHeight) {
-      textareaRef.current.style.height = currentHeight;
-      requestAnimationFrame(() => {
-        if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto';
-        }
-      });
-    }
-    
     setIsLoading(true);
 
     // --- 季度会员的"模糊回复"逻辑：显示模糊的 AI 气泡 ---
@@ -598,7 +576,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
       {/* --- Chat Area --- */}
       <div className={`flex-1 overflow-y-auto space-y-6 ${isMobile ? 'px-3 py-4' : 'px-4 py-6'}`} style={{ scrollBehavior: 'smooth' }}>
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {messages
             .filter(m => !m.isHidden && m.content !== '[SCENE_START]') // 🆕 过滤隐藏消息
             .map((message) => {
@@ -607,6 +585,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
             return (
               <motion.div
                 key={message.id}
+                layout
                 initial={shouldReduceMotion ? false : { opacity: 0, y: 10, scale: 0.98 }}
                 animate={shouldReduceMotion ? false : { opacity: 1, y: 0, scale: 1 }}
                 className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
