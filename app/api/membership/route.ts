@@ -4,7 +4,14 @@ import { cookies } from 'next/headers';
 import { Client } from '@notionhq/client';
 import { getJwtSecret } from '@/lib/jwt-utils';
 
-const JWT_SECRET = getJwtSecret();
+// JWT 密钥（延迟获取，避免模块加载时就抛出错误）
+let JWT_SECRET: Uint8Array;
+function getJWT() {
+  if (!JWT_SECRET) {
+    JWT_SECRET = getJwtSecret();
+  }
+  return JWT_SECRET;
+}
 
 // 初始化 Notion 客户端
 const notion = new Client({
@@ -62,7 +69,7 @@ export async function GET(req: NextRequest) {
   // 验证 JWT
   let payload;
   try {
-    const verified = await jwtVerify(token, JWT_SECRET);
+    const verified = await jwtVerify(token, getJWT());
     payload = verified.payload;
   } catch (jwtError) {
     // JWT 本身无效（过期/篡改），直接清除 Cookie

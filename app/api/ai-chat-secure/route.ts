@@ -6,8 +6,14 @@ import { PERMISSIONS } from '@/lib/permissions';
 import { getDevChatCount, incrementDevChatCount } from '@/lib/dev-storage';
 import { getJwtSecret } from '@/lib/jwt-utils';
 
-// JWT 密钥（统一从安全工具获取）
-const JWT_SECRET = getJwtSecret();
+// JWT 密钥（延迟获取，避免模块加载时就抛出错误）
+let JWT_SECRET: Uint8Array;
+function getJWT() {
+  if (!JWT_SECRET) {
+    JWT_SECRET = getJwtSecret();
+  }
+  return JWT_SECRET;
+}
 
 // 验证并解析 JWT Token
 async function verifyMembership(req: NextRequest) {
@@ -36,7 +42,7 @@ async function verifyMembership(req: NextRequest) {
       return { valid: false, tier: null, userId: null };
     }
 
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJWT());
     
     return {
       valid: true,

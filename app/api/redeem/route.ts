@@ -15,8 +15,14 @@ const REDEMPTION_DB = process.env.NOTION_DB_REDEMPTION || '';
 const MEMBERSHIP_DB = process.env.NOTION_DB_MEMBERSHIPS || '';
 const REDEMPTION_LOGS_DB = process.env.NOTION_DB_REDEMPTION_LOGS || ''; // 🆕 兑换日志数据库
 
-// JWT 密钥（统一从安全工具获取）
-const JWT_SECRET = getJwtSecret();
+// JWT 密钥（延迟获取，避免模块加载时就抛出错误）
+let JWT_SECRET: Uint8Array;
+function getJWT() {
+  if (!JWT_SECRET) {
+    JWT_SECRET = getJwtSecret();
+  }
+  return JWT_SECRET;
+}
 
 // 🛡️ 创建限流器：同一个 IP 地址，每 1 小时最多只能请求 5 次
 // 使用滑动窗口算法（Sliding Window），比传统的固定时间窗口更平滑、更防刷
@@ -414,7 +420,7 @@ export async function POST(req: NextRequest) {
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(tier === 'lifetime' ? '10y' : tier === 'yearly' ? '1y' : '90d')
-      .sign(JWT_SECRET);
+      .sign(getJWT());
 
     // 7. 设置 HttpOnly Cookie
     const cookieStore = await cookies();
