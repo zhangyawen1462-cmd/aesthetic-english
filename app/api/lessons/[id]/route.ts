@@ -10,8 +10,8 @@ import { getLessonById } from '@/lib/notion-client';
 import { checkVideoAccess } from '@/lib/permissions';
 import type { MembershipTier, VideoSection } from '@/lib/permissions';
 
-// ISR: 每5分钟重新验证一次
-export const revalidate = 300;
+// ISR: 禁用缓存（调试用）
+export const revalidate = 0;
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-in-production'
@@ -37,7 +37,7 @@ export async function GET(
     }
 
     // 🔐 验证用户会员等级
-    let tier: MembershipTier = null;
+    let tier: MembershipTier | null = null;
     try {
       const cookieStore = await cookies();
       const token = cookieStore.get('ae_membership')?.value;
@@ -62,7 +62,7 @@ export async function GET(
     // 🔐 权限检查
     const section = lesson.category as VideoSection;
     const isSample = lesson.isSample || false;
-    const hasAccess = checkVideoAccess(tier, section, isSample);
+    const hasAccess = checkVideoAccess(tier || 'trial', section, isSample);
 
     // 如果没有权限，返回受限数据
     if (!hasAccess) {

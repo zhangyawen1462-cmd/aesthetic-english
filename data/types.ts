@@ -77,7 +77,7 @@ export interface Lesson {
   // ---- 布局管理 ----
   displayPosition?: string;       // 显示位置（dashboard-featured / daily-cinema 等）
   sortOrder?: number;             // 排序顺序（用于布局管理器）
-  isSample?: boolean;             // 是否为 Sample（精选页的钩子视频，游客可看）
+  isSample?: boolean | 'freeTrial';  // false=普通课程 | true=季度会员钩子 | 'freeTrial'=游客试用课程
 }
 
 // ---- 笔记类型 ----

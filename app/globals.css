@@ -31,6 +31,24 @@
 }
 
 /* ============================================================
+   Font Loading Optimization
+   ============================================================ */
+
+@font-face {
+  font-family: 'Verdana';
+  font-display: swap;
+  font-weight: 400;
+  src: local('Verdana');
+}
+
+@font-face {
+  font-family: 'Georgia';
+  font-display: swap;
+  font-weight: 400;
+  src: local('Georgia');
+}
+
+/* ============================================================
    Base Layer
    ============================================================ */
 

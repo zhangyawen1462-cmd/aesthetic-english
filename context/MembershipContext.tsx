@@ -18,12 +18,12 @@ const MembershipContext = createContext<MembershipContextType | undefined>(undef
 
 export function MembershipProvider({ children }: { children: ReactNode }) {
   // 1. 真实用户数据（未来从 Supabase/后端 API 获取）
-  // 目前默认为 null（未登录），模拟真实场景
-  const [realTier, setRealTier] = useState<MembershipTier>(null);
+  // 目前默认为 'visitor'（游客），模拟真实场景
+  const [realTier, setRealTier] = useState<MembershipTier>('visitor');
   const [email, setEmail] = useState<string | undefined>(undefined);
   
   // 2. 开发者覆盖状态（初始为空，不干扰正常逻辑）
-  const [devTier, setDevTierState] = useState<MembershipTier>(null);
+  const [devTier, setDevTierState] = useState<MembershipTier>('visitor');
   const [isLoading, setIsLoading] = useState(true);
 
   // 🚀 优化 2：缓存时间戳，防止频繁查询（移动端延长缓存）
@@ -72,14 +72,14 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
         setEmail(data.data.email);
       } else {
         console.log('❌ [MembershipContext] 用户未认证', data.data.reason ? `原因: ${data.data.reason}` : '');
-        // 未登录或未激活，保持 null
-        setRealTier(null);
+        // 未登录或未激活，设置为 visitor（游客）
+        setRealTier('visitor');
         setEmail(undefined);
       }
     } catch (error) {
       console.error('❌ [MembershipContext] 获取会员状态失败:', error);
-      // 出错时保持 null
-      setRealTier(null);
+      // 出错时设置为 visitor（游客）
+      setRealTier('visitor');
     } finally {
       setIsLoading(false);
     }

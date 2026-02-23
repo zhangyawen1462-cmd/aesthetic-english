@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
+import { motion, useScroll, useTransform, AnimatePresence, LazyMotion, domAnimation, m } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ArrowUpRight, Menu, X, Play, Crown } from "lucide-react";
@@ -10,10 +10,18 @@ import type { Lesson } from "@/data/types";
 import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
 import SubscriptionModal from "@/components/SubscriptionModal";
 import { useMembership } from "@/context/MembershipContext";
+import { preconnect, dnsPrefetch } from "@/lib/preload-utils";
 
 
 
 export default function Dashboard() {
+  // 预连接到 OSS 域名，加速图片加载
+  useEffect(() => {
+    preconnect('https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com');
+    preconnect('https://assets.aestheticenglish.com');
+    dnsPrefetch('https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com');
+    dnsPrefetch('https://assets.aestheticenglish.com');
+  }, []);
   const containerRef = useRef(null);
   const { scrollY } = useScroll();
   
@@ -88,6 +96,7 @@ export default function Dashboard() {
               height: getHeight(),
               ep: lesson.ep || '00',
               href: isImageCard ? '#' : `/course/${lesson.category}/${lesson.id}`,
+              isSample: lesson.isSample ? (lesson.isSample === true ? 'true' : lesson.isSample) : undefined, // 🔥 传递 isSample 字段
             };
           }
         });
@@ -125,6 +134,7 @@ export default function Dashboard() {
   const headerScale = useTransform(scrollY, [0, 500], [1, 0.95]);
 
   return (
+    <LazyMotion features={domAnimation} strict>
     <div
       ref={containerRef}
       className="min-h-screen w-full bg-[#F7F8F9] text-[#2D0F15] relative selection:bg-[#2D0F15] selection:text-[#F7F8F9]"
@@ -164,7 +174,7 @@ export default function Dashboard() {
         {isMobileMenuOpen && (
           <>
             {/* 黑色遮罩 (点击关闭) */}
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.4 }}
               exit={{ opacity: 0 }}
@@ -173,7 +183,7 @@ export default function Dashboard() {
             />
 
             {/* 侧滑内容区 (铺满整个屏幕, Plum Wine 纯色背景) */}
-            <motion.aside
+            <m.aside
               initial={{ x: "-100%" }}
               animate={{ x: "0%" }}
               exit={{ x: "-100%" }}
@@ -204,7 +214,7 @@ export default function Dashboard() {
                    { label: "Cognitive Growth", href: "/course/cognitive", isMain: true },
                    { label: "Business Female", href: "/course/business", isMain: true }
                  ].map((item, i) => (
-                    <motion.div
+                    <m.div
                       key={item.label}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -227,7 +237,7 @@ export default function Dashboard() {
                            {item.label}
                          </span>
                       </Link>
-                    </motion.div>
+                    </m.div>
                  ))}
               </nav>
 
@@ -249,7 +259,7 @@ export default function Dashboard() {
                      </span>
                    </div>
                  ) : (
-                   // 游客/季度/年度会员：显示订阅/升级按钮
+                   // 游客/试用/季度/年度会员：显示订阅/升级按钮
                    <button 
                      onClick={() => {
                        setIsMobileMenuOpen(false);
@@ -257,17 +267,17 @@ export default function Dashboard() {
                      }}
                      className="text-[12px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
                    >
-                     {tier === null ? 'Subscribe' : 'Upgrade'}
+                     {tier === 'visitor' || tier === 'trial' ? 'Subscribe' : 'Upgrade'}
                    </button>
                  )}
               </div>
-            </motion.aside>
+            </m.aside>
           </>
         )}
       </AnimatePresence>
 
       {/* ── 标题：大字号 + 固定水印 ── */}
-      <motion.section
+      <m.section
         style={{ 
           opacity: headerOpacity, 
           filter: `blur(${headerBlur as any})`, 
@@ -278,7 +288,7 @@ export default function Dashboard() {
         <h1 className="font-serif font-bold text-[13vw] md:text-[9.5rem] leading-[0.85] tracking-[-0.04em] text-[#2D0F15] mix-blend-multiply">
           Aesthetic <br /> English
         </h1>
-      </motion.section>
+      </m.section>
 
       {/* 占位高度 */}
       <div className="h-[40vh] md:h-[50vh] w-full pointer-events-none" />
@@ -317,10 +327,10 @@ export default function Dashboard() {
                 </span>
               </div>
             ) : (
-              // 游客/季度/年度会员：显示订阅/升级按钮
+              // 游客/试用/季度/年度会员：显示订阅/升级按钮
               <button onClick={() => setShowSubscriptionModal(true)}>
                 <span className="font-sans text-[11px] uppercase tracking-[0.25em] opacity-40 text-[#2D0F15] hover:opacity-70 transition-opacity cursor-pointer">
-                  {tier === null ? 'Subscribe' : 'Upgrade'}
+                  {tier === 'visitor' || tier === 'trial' ? 'Subscribe' : 'Upgrade'}
                 </span>
               </button>
             )}
@@ -408,14 +418,14 @@ export default function Dashboard() {
       {/* 图片查看器 */}
       <AnimatePresence>
         {viewingImage && (
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setViewingImage(null)}
             className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out"
           >
-            <motion.img
+            <m.img
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -431,10 +441,11 @@ export default function Dashboard() {
             >
               <X size={32} strokeWidth={1} />
             </button>
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
     </div>
+    </LazyMotion>
   );
 }
 
@@ -449,6 +460,7 @@ interface VisualStreamItem {
   ep?: string;
   href?: string;
   caption?: string;
+  isSample?: 'freeTrial' | 'true' | 'false'; // 🔥 添加 isSample 字段
 }
 
 // ─── 辅助函数：将 Tailwind aspect 类名转换为 CSS aspect-ratio 值 ───
@@ -466,16 +478,35 @@ function getAspectRatio(heightClass: string | undefined): number {
 function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; index: number; onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }) {
   // 🚀 移动端禁用动画，提升性能
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const { tier } = useMembership();
+  
+  // 🔥 判断是否需要拦截
+  // 游客：所有视频都拦截
+  // 试用用户：只有 freeTrial 视频不拦截，其他都拦截
+  const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? item.isSample !== 'freeTrial' : false);
+  
+  console.log('🎯 Dashboard EpisodeCard:', {
+    title: item.title,
+    isSample: item.isSample,
+    tier,
+    shouldIntercept
+  });
+  
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (shouldIntercept && onGuestClick) {
+      onGuestClick(e);
+    }
+  };
   
   return (
-    <motion.div
+    <m.div
       initial={isMobile ? undefined : { opacity: 0, y: 0 }}
       whileInView={isMobile ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-10%" }}
       transition={{ duration: 0.6, delay: 0, ease: [0.22, 1, 0.36, 1] }}
       className="group cursor-pointer w-full"
     >
-      <Link href={item.href || "#"} onClick={onGuestClick}>
+      <Link href={item.href || "#"} onClick={handleClick}>
         <div 
           className="relative w-full overflow-hidden bg-[#2D0F15]/5"
           style={{ aspectRatio: getAspectRatio(item.height) }}
@@ -488,7 +519,10 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
             className="object-cover transition-transform duration-[1.2s] group-hover:scale-105"
             sizes="(max-width: 768px) 100vw, 50vw"
             quality={85}
-            loading="lazy"
+            priority={index < 2}
+            loading={index < 2 ? undefined : "lazy"}
+            placeholder="blur"
+            blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI0Y3RjhGOSIvPjwvc3ZnPg=="
             onError={(e) => {
               // 图片加载失败时隐藏
               e.currentTarget.style.opacity = '0';
@@ -500,7 +534,7 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
           <h3 className="font-serif text-3xl md:text-3xl text-[#2D0F15] leading-[1.1] group-hover:italic transition-all">{item.title}</h3>
         </div>
       </Link>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -510,7 +544,7 @@ function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   
   return (
-    <motion.div
+    <m.div
       initial={isMobile ? undefined : { opacity: 0 }}
       whileInView={isMobile ? undefined : { opacity: 1 }}
       viewport={{ once: true }}
@@ -531,6 +565,8 @@ function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index
           sizes="(max-width: 768px) 100vw, 50vw"
           quality={85}
           loading="lazy"
+          placeholder="blur"
+          blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI0Y3RjhGOSIvPjwvc3ZnPg=="
           onLoad={(e) => {
             const img = e.currentTarget as HTMLImageElement;
             // 获取自然宽高比
@@ -544,6 +580,6 @@ function MoodCard({ item, index, onImageClick }: { item: VisualStreamItem; index
           }}
         />
       </div>
-    </motion.div>
+    </m.div>
   );
 }

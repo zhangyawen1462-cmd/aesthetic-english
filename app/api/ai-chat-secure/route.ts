@@ -4,11 +4,10 @@ import { cookies } from 'next/headers';
 import { kv } from '@vercel/kv';
 import { PERMISSIONS } from '@/lib/permissions';
 import { getDevChatCount, incrementDevChatCount } from '@/lib/dev-storage';
+import { getJwtSecret } from '@/lib/jwt-utils';
 
-// JWT 密钥
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-);
+// JWT 密钥（统一从安全工具获取）
+const JWT_SECRET = getJwtSecret();
 
 // 验证并解析 JWT Token
 async function verifyMembership(req: NextRequest) {

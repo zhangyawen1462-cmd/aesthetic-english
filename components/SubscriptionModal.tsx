@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LazyMotion, domAnimation, m } from 'framer-motion';
 import { X, KeyRound, Sparkles, Search, RotateCcw, ChevronDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -59,7 +59,7 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
 
   if (success) {
     return (
-      <motion.div
+      <m.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center gap-4 text-[#F7F8F9]"
@@ -70,7 +70,7 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
           </svg>
         </div>
         <p className="text-sm">兑换成功！正在跳转...</p>
-      </motion.div>
+      </m.div>
     );
   }
 
@@ -153,7 +153,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
         onFocus();
       }}
     >
-      <motion.div
+      <m.div
         animate={{ 
           rotateY: isFlipped ? 180 : 0,
           scale: isFocused ? 1.02 : 1,
@@ -214,12 +214,12 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
             >
               <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pb-2">
                 <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em]">View Privileges</span>
-                <motion.div animate={{ rotate: isRevealed ? 180 : 0 }}>
+                <m.div animate={{ rotate: isRevealed ? 180 : 0 }}>
                   <ChevronDown size={12} strokeWidth={1} />
-                </motion.div>
+                </m.div>
               </div>
 
-              <motion.div
+              <m.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: isRevealed ? 'auto' : 0, opacity: isRevealed ? 1 : 0 }}
                 transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
@@ -237,7 +237,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </m.div>
             </div>
           </>
 
@@ -277,7 +277,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
             </p>
           </div>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 };
@@ -354,11 +354,12 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
   ];
 
   return (
+    <LazyMotion features={domAnimation} strict>
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-12 safe-top safe-bottom">
           {/* 深酒红极暗背景 - 配合聚光灯效果 - 点击背景关闭 */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -366,7 +367,7 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             className="absolute inset-0 bg-[#0a0203]/90 backdrop-blur-2xl"
           />
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
@@ -374,10 +375,16 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             className="relative w-full max-w-6xl max-h-full overflow-y-auto overflow-x-hidden no-scrollbar flex flex-col items-center py-10"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Back to Lobby 按钮 */}
+            {/* Back to Lobby 按钮 - 放在最外层，确保不被遮挡 */}
             <button
-              onClick={() => router.push('/dashboard')}
-              className="absolute top-4 left-4 md:top-6 md:left-6 text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80 z-50 pointer-events-auto"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                console.log('🏠 Back to Lobby clicked! Navigating to /dashboard');
+                onClose(); // 先关闭弹窗
+                router.push('/dashboard'); // 再跳转
+              }}
+              className="absolute top-4 left-4 md:top-6 md:left-6 z-[100] text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80 cursor-pointer px-3 py-2 rounded pointer-events-auto"
             >
               Back to Lobby
             </button>
@@ -425,19 +432,20 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
                 Already hold an invitation?
                 </button>
               ) : (
-                <motion.div
+                <m.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
                 >
                 <RedeemInput onClose={onClose} />
-                </motion.div>
+                </m.div>
               )}
             </div>
 
-          </motion.div>
+          </m.div>
         </div>
       )}
     </AnimatePresence>
+    </LazyMotion>
   );
 }

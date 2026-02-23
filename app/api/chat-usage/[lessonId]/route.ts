@@ -16,6 +16,10 @@ export async function GET(
   try {
     const { lessonId } = await params;
     
+    // 🆕 获取 isSample 参数（从 query string）
+    const { searchParams } = new URL(req.url);
+    const isSample = searchParams.get('isSample') || 'false';
+    
     // 🔧 开发环境：允许通过 header 模拟会员身份
     const isDev = process.env.NODE_ENV === 'development';
     const devTier = req.headers.get('x-dev-tier');
@@ -47,8 +51,8 @@ export async function GET(
       userId = payload.userId as string;
     }
 
-    // 获取会员配置
-    const gabbyConfig = PERMISSIONS.gabby.getConfig(tier as any);
+    // 🆕 获取会员配置（传入 isSample）
+    const gabbyConfig = PERMISSIONS.gabby.getConfig(tier as any, isSample as any);
 
     // 如果是无限对话
     if (gabbyConfig.dailyLimit === Infinity) {

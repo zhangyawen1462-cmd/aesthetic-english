@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { Client } from '@notionhq/client';
+import { getJwtSecret } from '@/lib/jwt-utils';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-);
+const JWT_SECRET = getJwtSecret();
 
 // 初始化 Notion 客户端
 const notion = new Client({
@@ -39,7 +38,8 @@ function convertTierToEnglish(chineseTier: string): string {
   const mapping: Record<string, string> = {
     '季度会员': 'quarterly',
     '年度会员': 'yearly',
-    '永久会员': 'lifetime'
+    '永久会员': 'lifetime',
+    '访客': 'trial' // 🆕 试用用户
   };
   return mapping[chineseTier] || 'quarterly';
 }

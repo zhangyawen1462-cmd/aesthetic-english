@@ -5,7 +5,7 @@
 // 所有组件必须调用此处的函数来判断显示什么内容，严禁在 UI 组件中硬编码逻辑。
 
 // --- 类型定义 ---
-export type MembershipTier = 'quarterly' | 'yearly' | 'lifetime' | null; // null 代表未登录
+export type MembershipTier = 'quarterly' | 'yearly' | 'lifetime' | 'trial' | 'visitor'; // visitor 代表游客（未登录/未激活），trial 代表试用用户（付费试用）
 export type VideoSection = 'daily' | 'cognitive' | 'business';
 
 // --- 中英文映射（用于显示） ---
@@ -13,7 +13,8 @@ export const TIER_LABELS = {
   quarterly: '季度会员',
   yearly: '年度会员',
   lifetime: '永久会员',
-  null: '访客'
+  trial: '试用用户',
+  visitor: '游客'
 } as const;
 
 /**
@@ -29,11 +30,16 @@ export const PERMISSIONS = {
      * 检查用户是否可以观看某个视频
      * @param tier 会员等级
      * @param section 视频所属板块
-     * @param isSample 是否为 Sample（精选页的钩子视频）
+     * @param isSample 是否为 Sample（false=普通 | true=季度会员钩子 | 'freeTrial'=试用用户专享）
      */
-    canAccessVideo: (tier: MembershipTier, section: VideoSection, isSample: boolean = false): boolean => {
+    canAccessVideo: (tier: MembershipTier, section: VideoSection, isSample: boolean | 'freeTrial' = false): boolean => {
       // 👑 Lifetime & Yearly: 拥有所有板块的观看权
       if (tier === 'lifetime' || tier === 'yearly') return true;
+
+      // 🎫 Trial (试用用户): freeTrial 课程完全开放，其他课程不能看
+      if (tier === 'trial') {
+        return isSample === 'freeTrial';
+      }
 
       // 🎫 Quarterly (季度会员):
       if (tier === 'quarterly') {
@@ -41,13 +47,13 @@ export const PERMISSIONS = {
         if (section === 'daily') return true;
         
         // Cognitive 区: ⚠️ 仅限 Sample (这是钩子 - 让他尝到甜头)
-        if (section === 'cognitive') return isSample;
+        if (section === 'cognitive') return isSample === true;
         
         // Business 区: ⚠️ 仅限 Sample (这是钩子 - 让他尝到甜头)
-        if (section === 'business') return isSample;
+        if (section === 'business') return isSample === true;
       }
 
-      // 🚫 游客（未登录）: 什么都看不了
+      // 🚫 Visitor (游客): 什么都看不了
       return false;
     },
 
@@ -70,8 +76,22 @@ export const PERMISSIONS = {
     /**
      * 获取 AI 对话配置
      * 返回完整的配置对象，包含权限、限制、UI 文案等
+     * @param tier 会员等级
+     * @param isSample 当前课程的 isSample 状态（用于判断试用课程）
      */
-    getConfig: (tier: MembershipTier) => {
+    getConfig: (tier: MembershipTier, isSample?: boolean | 'freeTrial') => {
+      // 🎁 FreeTrial 课程：试用用户享受完整权益
+      if (isSample === 'freeTrial' && tier === 'trial') {
+        return {
+          canChat: true,
+          dailyLimit: Infinity,     // 🔥 试用课程无限对话
+          allowPersonas: true,      // ✅ 试用课程可切换人格
+          placeholder: "Message Gabby...",
+          statusText: "试用课程 · 无限对话",
+          badge: "🎁"
+        };
+      }
+      
       switch (tier) {
         case 'lifetime':
           return {
@@ -93,13 +113,15 @@ export const PERMISSIONS = {
             badge: "365"
           };
         
+        case 'trial':
         case 'quarterly':
+        case 'visitor':
         default:
           return {
             canChat: false,           // ❌ 不可用 (只能看开场白)
             dailyLimit: 0,
             allowPersonas: false,
-            placeholder: "Upgrade to chat with Gabby...", // 🔒 诱导文案
+            placeholder: "Subscribe to chat with Gabby...", // 🔒 诱导文案
             statusText: "预览模式",
             badge: null
           };
@@ -108,8 +130,14 @@ export const PERMISSIONS = {
 
     /**
      * 检查是否可以切换 AI 人格模式
+     * @param tier 会员等级
+     * @param isSample 当前课程的 isSample 状态
      */
-    canSwitchPersona: (tier: MembershipTier): boolean => {
+    canSwitchPersona: (tier: MembershipTier, isSample?: boolean | 'freeTrial'): boolean => {
+      // 🎁 FreeTrial 课程：试用用户可以切换人格
+      if (isSample === 'freeTrial' && tier === 'trial') return true;
+      
+      // 只有永久会员可以切换人格
       return tier === 'lifetime';
     }
   },
@@ -120,16 +148,26 @@ export const PERMISSIONS = {
   assets: {
     /**
      * 导出笔记 (双语字幕/语法精讲/重点词汇)
+     * @param tier 会员等级
+     * @param isSample 当前课程的 isSample 状态
      */
-    canExportNotes: (tier: MembershipTier): boolean => {
+    canExportNotes: (tier: MembershipTier, isSample?: boolean | 'freeTrial'): boolean => {
+      // 🎁 FreeTrial 课程：试用用户可以导出
+      if (isSample === 'freeTrial' && tier === 'trial') return true;
+      
       // ✅ Yearly & Lifetime 可用
       return tier === 'yearly' || tier === 'lifetime';
     },
 
     /**
      * 下载原始视频 (4K Raw Video + 音频)
+     * @param tier 会员等级
+     * @param isSample 当前课程的 isSample 状态
      */
-    canDownloadRawVideo: (tier: MembershipTier): boolean => {
+    canDownloadRawVideo: (tier: MembershipTier, isSample?: boolean | 'freeTrial'): boolean => {
+      // 🎁 FreeTrial 课程：试用用户可以下载音频
+      if (isSample === 'freeTrial' && tier === 'trial') return true;
+      
       // 🔥 仅限 Lifetime (尊贵特权)
       return tier === 'lifetime';
     },
@@ -174,7 +212,7 @@ export const PERMISSIONS = {
 export function checkVideoAccess(
   tier: MembershipTier, 
   section: VideoSection, 
-  isSample: boolean = false
+  isSample: boolean | 'freeTrial' = false
 ): boolean {
   return PERMISSIONS.content.canAccessVideo(tier, section, isSample);
 }
@@ -182,22 +220,22 @@ export function checkVideoAccess(
 /**
  * 获取 Gabby AI 配置
  */
-export function getGabbyConfig(tier: MembershipTier) {
-  return PERMISSIONS.gabby.getConfig(tier);
+export function getGabbyConfig(tier: MembershipTier, isSample?: boolean | 'freeTrial') {
+  return PERMISSIONS.gabby.getConfig(tier, isSample);
 }
 
 /**
  * 检查是否可以导出笔记
  */
-export function canExportNotes(tier: MembershipTier): boolean {
-  return PERMISSIONS.assets.canExportNotes(tier);
+export function canExportNotes(tier: MembershipTier, isSample?: boolean | 'freeTrial'): boolean {
+  return PERMISSIONS.assets.canExportNotes(tier, isSample);
 }
 
 /**
  * 检查是否可以下载原始视频
  */
-export function canDownloadRawVideo(tier: MembershipTier): boolean {
-  return PERMISSIONS.assets.canDownloadRawVideo(tier);
+export function canDownloadRawVideo(tier: MembershipTier, isSample?: boolean | 'freeTrial'): boolean {
+  return PERMISSIONS.assets.canDownloadRawVideo(tier, isSample);
 }
 
 /**
@@ -241,8 +279,37 @@ export function isLifetimeMember(tier: MembershipTier): boolean {
 // 📊 会员权益对比表（用于订阅页面）
 // ==============================================================================
 export const MEMBERSHIP_COMPARISON = {
+  trial: {
+    label: '试用用户',
+    labelEn: 'Trial User',
+    price: '¥0',
+    duration: '试用期',
+    features: {
+      daily: {
+        access: 'freeTrial',
+        description: '⚠️ 仅限 freeTrial 课程 - 完整体验'
+      },
+      cognitive: {
+        access: 'freeTrial',
+        description: '⚠️ 仅限 freeTrial 课程 - 完整体验'
+      },
+      business: {
+        access: 'freeTrial',
+        description: '⚠️ 仅限 freeTrial 课程 - 完整体验'
+      },
+      gabby: {
+        access: 'freeTrial',
+        description: '⚠️ 仅限 freeTrial 课程 - 无限对话 + 切换人格'
+      },
+      download: {
+        notes: 'freeTrial',
+        rawVideo: 'freeTrial',
+        description: '⚠️ 仅限 freeTrial 课程 - 可导出笔记和下载音频'
+      }
+    }
+  },
   quarterly: {
-    label: '访客',
+    label: '季度会员',
     labelEn: 'The Season',
     price: '¥99',
     duration: '3个月',
@@ -337,7 +404,7 @@ export const MEMBERSHIP_COMPARISON = {
 /**
  * 将中文会员类型转换为英文
  */
-export function convertTierToEnglish(chineseTier: string | null): MembershipTier {
+export function convertTierToEnglish(chineseTier: string | null): MembershipTier | null {
   const mapping: Record<string, MembershipTier> = {
     '季度会员': 'quarterly',
     '年度会员': 'yearly',

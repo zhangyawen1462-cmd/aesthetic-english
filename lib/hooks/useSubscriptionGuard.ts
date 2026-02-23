@@ -13,17 +13,19 @@ export function useSubscriptionGuard() {
   const { tier, isLoading } = useMembership();
   const [shouldShowSubscription, setShouldShowSubscription] = useState(false);
 
-  // 判断是否为游客（未登录或未激活会员）
-  const isGuest = !tier || tier === null;
+  // 判断是否为游客或试用用户（需要显示订阅弹窗）
+  const isGuest = tier === 'visitor' || tier === 'trial';
 
   /**
    * 处理课程卡片点击
-   * 如果是游客，阻止跳转并显示订阅弹窗
+   * 如果是游客或试用用户，阻止跳转并显示订阅弹窗
    */
-  const handleCourseClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleCourseClick = (e?: React.MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
     if (isGuest && !isLoading) {
-      e.preventDefault();
-      e.stopPropagation();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       setShouldShowSubscription(true);
       return false;
     }

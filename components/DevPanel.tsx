@@ -62,7 +62,8 @@ export default function DevPanel() {
   };
 
   const membershipTypes = [
-    { id: null, name: "重置（真实身份）", icon: Lock, color: "#999", badge: "Real" },
+    { id: "visitor" as MembershipTier, name: "游客", subname: "Visitor", icon: Lock, color: "#999", badge: "0" },
+    { id: "trial" as MembershipTier, name: "试用用户", subname: "Trial User", icon: Sparkles, color: "#10b981", badge: "🎁" },
     { id: "quarterly" as MembershipTier, name: "季度会员", subname: "The Season", icon: Calendar, color: "#3b82f6", badge: "90" },
     { id: "yearly" as MembershipTier, name: "年度会员", subname: "The Resident", icon: Crown, color: "#f59e0b", badge: "365" },
     { id: "lifetime" as MembershipTier, name: "永久会员", subname: "The Patron", icon: Infinity, color: "#8b5cf6", badge: "∞" },

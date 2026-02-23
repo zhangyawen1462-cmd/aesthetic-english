@@ -24,6 +24,8 @@ interface ExportPDFButtonProps {
   showLabel?: boolean;
   isMobile?: boolean;
   theme?: Theme;
+  isSample?: boolean | 'freeTrial'; // 🆕 课程类型
+  onUpgradeClick?: () => void; // 🆕 升级回调
 }
 
 export default function ExportPDFButton({ 
@@ -35,13 +37,19 @@ export default function ExportPDFButton({
   style = {},
   iconSize = 16,
   isMobile = false,
-  theme
+  theme,
+  isSample = false,
+  onUpgradeClick
 }: ExportPDFButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   
   const { tier, email } = useMembership(); 
-  const canExport = tier === 'yearly' || tier === 'lifetime';
+  
+  // 🔐 权限检查：trial 用户只能在 freeTrial 课程中导出
+  const canExport = isSample === 'freeTrial' 
+    ? true // freeTrial 课程所有人都可以导出
+    : (tier === 'yearly' || tier === 'lifetime'); // 其他课程需要年度/永久会员
 
   const getExportDescription = () => {
     const descMap = { script: '双语字幕', vocab: '词汇表', grammar: '语法精讲' };
@@ -117,6 +125,18 @@ export default function ExportPDFButton({
   // UI 渲染 (保持你原本极简优雅的排版)
   // ==========================================
 
+  const handleButtonClick = () => {
+    if (isExporting) return;
+    
+    if (!canExport) {
+      // 🚪 无权限时触发升级弹窗
+      onUpgradeClick?.();
+      return;
+    }
+    
+    setShowConfirm(true);
+  };
+
   const renderButton = () => {
     // 🚫 移动端不显示下载按钮
     if (isMobile) {
@@ -125,12 +145,12 @@ export default function ExportPDFButton({
 
     return (
       <motion.button
-        onClick={() => canExport && !isExporting && setShowConfirm(true)}
-        whileHover={canExport && !isExporting ? "hover" : undefined}
+        onClick={handleButtonClick}
+        whileHover={!isExporting ? "hover" : undefined}
         initial="initial"
-        className={`relative group flex items-center justify-center ${!canExport || isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
+        className={`relative group flex items-center justify-center ${isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
         style={{ width: '64px', height: '40px', ...style }}
-        title={canExport ? '导出 PDF' : '需要年度或永久会员'}
+        title={canExport ? '导出 PDF' : '升级会员以导出'}
       >
         <motion.div
           variants={{

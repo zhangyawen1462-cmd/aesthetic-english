@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   title: "Aesthetic English — Beauty and Brains",
   description: "基于视频切片的影子跟读法，在沉浸式艺术画廊氛围中习得英语。Curated by Scarlett Zhang.",
   keywords: ["English learning", "shadowing", "aesthetic", "语言学习", "影子跟读"],
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export const viewport: Viewport = {

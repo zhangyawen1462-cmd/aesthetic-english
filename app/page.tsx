@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useMotionValue, useSpring } from "framer-motion";
+import { motion, useMotionValue, useSpring, LazyMotion, domAnimation, m } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -201,7 +201,8 @@ export default function LandingPage() {
   };
 
   return (
-    // ✅ 1. 背景升级：基础色 #F7F8F9 + 内阴影模拟纸张厚度
+    <LazyMotion features={domAnimation} strict>
+    {/* ✅ 1. 背景升级：基础色 #F7F8F9 + 内阴影模拟纸张厚度 */}
     <main 
       className="flex h-[100dvh] w-full flex-col items-center justify-center overflow-hidden bg-[#F7F8F9] relative shadow-[inset_0_0_120px_rgba(0,0,0,0.02)]"
     >
@@ -237,13 +238,13 @@ export default function LandingPage() {
       />
 
       {/* 三层呼吸晕染系统 - 移动端优化 */}
-      <motion.div
+      <m.div
         className="pointer-events-none fixed z-0 top-0 left-0"
         style={{ x: springX, y: springY }}
       >
         <div className="relative -translate-x-1/2 -translate-y-1/2">
           {/* 🚀 移动端：使用中等模糊半径 + 渐变边缘，更自然 */}
-          <motion.div
+          <m.div
             animate={{ scale: [1, 1.1, 1], opacity: [0.7, 0.9, 0.7] }}
             transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
             className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ${
@@ -257,7 +258,7 @@ export default function LandingPage() {
               mixBlendMode: 'multiply'
             }} 
           />
-          <motion.div
+          <m.div
             animate={{ scale: [1.1, 1, 1.1], opacity: [0.5, 0.7, 0.5] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ${
@@ -271,7 +272,7 @@ export default function LandingPage() {
               mixBlendMode: 'multiply'
             }} 
           />
-          <motion.div
+          <m.div
             animate={{ scale: [1, 1.05, 1], opacity: [0.6, 0.8, 0.6] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full ${
@@ -286,11 +287,11 @@ export default function LandingPage() {
             }}
           />
         </div>
-      </motion.div>
+      </m.div>
 
       {/* 帷幕转场 (保持不变) */}
       {isExiting && (
-        <motion.div
+        <m.div
           initial={{ y: "100%" }}
           animate={{ y: "0%" }}
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
@@ -302,7 +303,7 @@ export default function LandingPage() {
       <div className="z-30 flex flex-col items-center text-center px-6 relative">
 
         {/* 主标题 */}
-        <motion.h1
+        <m.h1
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.5 }}
@@ -311,10 +312,10 @@ export default function LandingPage() {
           Aesthetic{" "}
           <br className="md:hidden" />
           English
-        </motion.h1>
+        </m.h1>
 
         {/* 副标题 */}
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
@@ -324,10 +325,10 @@ export default function LandingPage() {
           <p className="font-serif text-base md:text-lg text-[#2D0F15]/60 tracking-[0.08em]">
             — Beauty and Brains —
           </p>
-        </motion.div>
+        </m.div>
 
         {/* CTA 按钮 */}
-        <motion.button
+        <m.button
           onClick={handleEnterStudio}
           className="group mt-16 md:mt-20 relative overflow-hidden px-10 py-4 transition-all cursor-pointer touch-active"
         >
@@ -339,11 +340,11 @@ export default function LandingPage() {
             </span>
             <ArrowRight className="h-3 w-3 text-[#2D0F15] group-hover:text-[#F7F8F9] transition-all group-hover:translate-x-1 duration-300" strokeWidth={1.5} />
           </div>
-        </motion.button>
+        </m.button>
       </div>
 
       {/* 底部署名 */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.8 }}
@@ -359,18 +360,18 @@ export default function LandingPage() {
         >
           aestheticenglish@outlook.com
         </a>
-      </motion.div>
+      </m.div>
 
       {/* 📧 邮件表单弹窗 - Plum Wine 风格 */}
       {showEmailModal && (
-        <motion.div
+        <m.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm"
           onClick={() => !isSending && setShowEmailModal(false)}
         >
-          <motion.div
+          <m.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
@@ -388,27 +389,27 @@ export default function LandingPage() {
 
             {emailSent ? (
               // 成功状态
-              <motion.div 
+              <m.div 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center py-12"
               >
-                <motion.div 
+                <m.div 
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", delay: 0.1 }}
                   className="text-6xl mb-6"
                 >
                   ✓
-                </motion.div>
+                </m.div>
                 <h3 className="text-2xl font-serif mb-3 tracking-wide">投递成功</h3>
                 <p className="text-sm opacity-60 leading-relaxed">感谢您的来信，期待与您的对话</p>
-              </motion.div>
+              </m.div>
             ) : (
               // 表单
               <>
                 {/* 标题文案 - 逐行浮现 */}
-                <motion.div 
+                <m.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="mb-10 space-y-5"
@@ -417,7 +418,7 @@ export default function LandingPage() {
                     lineHeight: '1.9'
                   }}
                 >
-                  <motion.p
+                  <m.p
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
@@ -425,8 +426,8 @@ export default function LandingPage() {
                     style={{ textIndent: '2em' }}
                   >
                     这里，是我们精心构建的美学空间。
-                  </motion.p>
-                  <motion.p
+                  </m.p>
+                  <m.p
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
@@ -434,8 +435,8 @@ export default function LandingPage() {
                     style={{ textIndent: '2em' }}
                   >
                     欢迎您随时投递：无论是关于语言学习的困惑、某段表达的回响、获取原片视频的请求，还是对空间的期许和建议。
-                  </motion.p>
-                  <motion.p
+                  </m.p>
+                  <m.p
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 }}
@@ -443,12 +444,12 @@ export default function LandingPage() {
                     style={{ textIndent: '2em' }}
                   >
                     期待与您进行一场跨越屏幕的对话。
-                  </motion.p>
-                </motion.div>
+                  </m.p>
+                </m.div>
 
                 {!showContactFields ? (
                   // 第一步：只显示消息框
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.7 }}
@@ -474,10 +475,10 @@ export default function LandingPage() {
                     >
                       投递
                     </button>
-                  </motion.div>
+                  </m.div>
                 ) : (
                   // 第二步：显示姓名和邮箱
-                  <motion.form
+                  <m.form
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     onSubmit={handleSendEmail}
@@ -525,7 +526,7 @@ export default function LandingPage() {
                         {isSending ? '发送中...' : '确认投递'}
                       </button>
                     </div>
-                  </motion.form>
+                  </m.form>
                 )}
               </>
             )}
@@ -541,9 +542,10 @@ export default function LandingPage() {
                 ×
               </button>
             )}
-          </motion.div>
-        </motion.div>
+          </m.div>
+        </m.div>
       )}
     </main>
+    </LazyMotion>
   );
 }

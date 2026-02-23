@@ -186,14 +186,14 @@ function ArchiveContent() {
       id: 'cognitive', 
       label: 'COGNITIVE GROWTH', 
       shortLabel: 'COGNITIVE', 
-      locked: tier === 'quarterly' || tier === null,
+      locked: tier === 'quarterly' || tier === 'visitor',
       hasUnlockedContent: lessons.some(l => l.category === 'cognitive' && l.isSample)
     },
     { 
       id: 'business', 
       label: 'BUSINESS FEMALE', 
       shortLabel: 'BUSINESS', 
-      locked: tier === 'quarterly' || tier === null,
+      locked: tier === 'quarterly' || tier === 'visitor',
       hasUnlockedContent: lessons.some(l => l.category === 'business' && l.isSample)
     },
   ];
@@ -553,7 +553,7 @@ function ArchiveCard({ item, index, theme, currentTheme }: { item: Lesson, index
   // 判断是否需要显示锁图标
   const needsLock = (item.category === 'cognitive' || item.category === 'business') && 
                     !item.isSample && 
-                    (tier === 'quarterly' || tier === null);
+                    (tier === 'quarterly' || tier === 'visitor');
   
   return (
     <motion.div 

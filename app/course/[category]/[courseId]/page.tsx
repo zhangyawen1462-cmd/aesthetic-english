@@ -28,6 +28,7 @@ import { useResponsive } from "@/lib/hooks/useResponsive";
 import { useVideoControl } from "@/lib/hooks/useVideoControl";
 import { useResizablePanel } from "@/lib/hooks/useResizablePanel";
 import { useKeyboardShortcuts } from "@/lib/hooks/useKeyboardShortcuts";
+import { preconnect, dnsPrefetch } from "@/lib/preload-utils";
 
 // --- 子模块（懒加载优化） ---
 const ModuleScript = lazy(() => import("@/components/ModuleScript"));
@@ -39,6 +40,7 @@ const ModuleRecall = lazy(() => import("@/components/ModuleRecall"));
 const ModuleSalon = lazy(() => import("@/components/ModuleSalon"));
 const ExportPDFButton = lazy(() => import("@/components/ExportPDFButton"));
 const ExportAudioButton = lazy(() => import("@/components/ExportAudioButton"));
+const SubscriptionModal = lazy(() => import("@/components/SubscriptionModal"));
 
 const TABS = [
   { id: 'script', label: 'SCRIPT', num: 'I', icon: FileText },
@@ -136,6 +138,13 @@ export default function CoursePage() {
   const { tier } = useMembership();
   const hasVideoAccess = lesson ? checkVideoAccess(tier, category as VideoSection, lesson.isSample || false) : false;
 
+  // 🚪 trial 用户访问非试用课程时，自动弹出订阅弹窗
+  useEffect(() => {
+    if (lesson && tier === 'trial' && lesson.isSample !== 'freeTrial') {
+      setShowSubscriptionModal(true);
+    }
+  }, [lesson, tier]);
+
   // --- 状态 ---
   const [activeTab, setActiveTab] = useState('script');
   const [currentTheme, setCurrentTheme] = useState<CategoryKey>(category);
@@ -146,6 +155,15 @@ export default function CoursePage() {
   const [isDraggingMobile, setIsDraggingMobile] = useState(false);
   const [showProgressBar, setShowProgressBar] = useState(false); // 控制进度条显示
   const progressBarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false); // 🆕 订阅弹窗
+
+  // 预连接到 OSS 域名，加速视频和图片加载
+  useEffect(() => {
+    preconnect('https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com');
+    preconnect('https://assets.aestheticenglish.com');
+    dnsPrefetch('https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com');
+    dnsPrefetch('https://assets.aestheticenglish.com');
+  }, []);
 
   // --- Hooks ---
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -416,13 +434,38 @@ export default function CoursePage() {
           1. 视频区域
           - 移动端: 自适应 16:9 + 横竖屏自适应 + 支持全屏
           - 桌面端: 可拖拽宽度
-          - 🔐 权限保护: 使用 ContentGate 包裹
+          - 🔐 权限保护: trial 用户访问非试用课程时不显示 ContentGate，直接弹窗
          ═══════════════════════════════════════ */}
-      <ContentGate 
-        section={category as VideoSection} 
-        isSample={lesson.isSample || false}
-        className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top"
-      >
+      {tier === 'trial' && lesson?.isSample !== 'freeTrial' ? (
+        // trial 用户访问非试用课程：显示模糊预览，不用 ContentGate
+        <div
+          className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top relative"
+          style={videoContainerStyle}
+        >
+          <div className="absolute inset-0 blur-xl opacity-20 pointer-events-none select-none grayscale bg-black">
+            {lesson.coverImg && (
+              <img src={lesson.coverImg} alt="" className="w-full h-full object-cover" />
+            )}
+          </div>
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="text-center text-white px-6">
+              <p className="text-sm mb-4 opacity-70">试用课程专享</p>
+              <button
+                onClick={() => setShowSubscriptionModal(true)}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/30 text-xs uppercase tracking-widest transition-colors"
+              >
+                升级会员
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        // 其他用户：正常使用 ContentGate
+        <ContentGate 
+          section={category as VideoSection} 
+          isSample={lesson?.isSample || false}
+          className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top"
+        >
       <div
         ref={videoContainerRef}
         className="relative bg-black flex items-center justify-center w-full h-full"
@@ -577,6 +620,7 @@ export default function CoursePage() {
         )}
       </div>
       </ContentGate>
+      )}
 
       {/* ═══════════════════════════════════════
           1.5 移动端拖拽分隔线
@@ -671,46 +715,6 @@ export default function CoursePage() {
             );
           })}
 
-          {/* 导出按钮 - 移动端 */}
-          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
-            <Suspense fallback={null}>
-              <ExportPDFButton
-                content={
-                  activeTab === 'script' 
-                    ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
-                    : activeTab === 'vocab'
-                    ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
-                    : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
-                }
-                filename={`${activeTab}-${lesson.id}`}
-                lessonId={lesson.id}
-                type={activeTab as 'script' | 'vocab' | 'grammar'}
-                className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0"
-                style={{ color: theme.text, opacity: 0.4 }}
-                iconSize={16}
-                isMobile={true}
-                theme={theme}
-              />
-            </Suspense>
-          )}
-
-          {/* 🆕 音频导出按钮 - 移动端（仅盲听模块显示） */}
-          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
-            <Suspense fallback={null}>
-              <ExportAudioButton
-                videoUrl={lesson.videoUrl}
-                audioUrl={lesson.audioUrl}
-                filename={`${lesson.titleEn || lesson.titleCn}-audio`}
-                lessonId={lesson.id}
-                className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0"
-                style={{ color: theme.text, opacity: 0.4 }}
-                iconSize={16}
-                isMobile={true}
-                theme={theme}
-              />
-            </Suspense>
-          )}
-
           {/* 设置图标 - 主题切换 */}
           <button
             onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
@@ -730,16 +734,9 @@ export default function CoursePage() {
 
         <div className="flex-1 h-full relative overflow-hidden flex flex-col">
 
-          {/* 课程标题（桌面端） - 已隐藏 */}
-          {/* <div className="absolute top-3 right-4 md:top-6 md:right-8 z-30">
-            <span className="hidden md:inline text-[10px] uppercase tracking-[0.15em] opacity-30 font-medium">
-              {lesson.titleEn}
-            </span>
-          </div> */}
-
           {/* ─── 模块内容区（纯净背景 + 移动端优化间距） ─── */}
           <div
-            className="flex-1 overflow-y-auto p-4 pt-[0.2rem] sm:pt-6 md:p-8 md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
+            className="flex-1 overflow-y-auto p-4 pt-4 sm:pt-6 md:p-8 md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
             style={{ backgroundColor: theme.bg }}
           >
             <AnimatePresence mode="wait">
@@ -790,12 +787,116 @@ export default function CoursePage() {
                       }}
                       videoMood={lesson.category === 'business' ? '专业、严谨' : lesson.category === 'cognitive' ? '启发、思辨' : '轻松、自然'}
                       lessonId={lesson.id}
+                      isSample={lesson.isSample}
                     />
                   )}
                 </Suspense>
               </motion.div>
             </AnimatePresence>
           </div>
+        </div>
+
+        {/* ─── 导出按钮：浮动在容器外部，与导航栏对齐 ─── */}
+        <div
+          className="hidden md:flex w-24 h-auto flex-col items-center gap-2 z-40 transition-colors duration-700 absolute pointer-events-auto"
+          style={{ right: '-2rem', top: '1.5rem' }}
+        >
+          {/* PDF 导出按钮 */}
+          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
+            <Suspense fallback={null}>
+              <div className="group/export">
+                <ExportPDFButton
+                  content={
+                    activeTab === 'script' 
+                      ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
+                      : activeTab === 'vocab'
+                      ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
+                      : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
+                  }
+                  filename={`${activeTab}-${lesson.id}`}
+                  lessonId={lesson.id}
+                  type={activeTab as 'script' | 'vocab' | 'grammar'}
+                  className="transition-all duration-300 p-2 touch-manipulation group-hover/export:opacity-100"
+                  style={{ color: theme.text, opacity: 0.4 }}
+                  iconSize={18}
+                  isMobile={false}
+                  theme={theme}
+                  isSample={lesson.isSample}
+                  onUpgradeClick={() => setShowSubscriptionModal(true)}
+                />
+              </div>
+            </Suspense>
+          )}
+
+          {/* 音频导出按钮（仅盲听模块显示） */}
+          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
+            <Suspense fallback={null}>
+              <div className="group/export">
+                <ExportAudioButton
+                  videoUrl={lesson.videoUrl}
+                  audioUrl={lesson.audioUrl}
+                  filename={`${lesson.titleEn || lesson.titleCn}-audio`}
+                  lessonId={lesson.id}
+                  className="transition-all duration-300 p-2 touch-manipulation group-hover/export:opacity-100"
+                  style={{ color: theme.text, opacity: 0.4 }}
+                  iconSize={18}
+                  isMobile={false}
+                  theme={theme}
+                  isSample={lesson.isSample}
+                  onUpgradeClick={() => setShowSubscriptionModal(true)}
+                />
+              </div>
+            </Suspense>
+          )}
+        </div>
+
+        {/* ─── 移动端导出按钮：在内容区域内 ─── */}
+        <div
+          className="md:hidden absolute top-3 right-4 z-40 flex items-center gap-2 pointer-events-auto"
+        >
+          {/* PDF 导出按钮 */}
+          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
+            <Suspense fallback={null}>
+              <ExportPDFButton
+                content={
+                  activeTab === 'script' 
+                    ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
+                    : activeTab === 'vocab'
+                    ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
+                    : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
+                }
+                filename={`${activeTab}-${lesson.id}`}
+                lessonId={lesson.id}
+                type={activeTab as 'script' | 'vocab' | 'grammar'}
+                className="transition-colors p-2 touch-manipulation"
+                style={{ color: theme.text, opacity: 0.4 }}
+                iconSize={20}
+                isMobile={true}
+                theme={theme}
+                isSample={lesson.isSample}
+                onUpgradeClick={() => setShowSubscriptionModal(true)}
+              />
+            </Suspense>
+          )}
+
+          {/* 音频导出按钮（仅盲听模块显示） */}
+          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
+            <Suspense fallback={null}>
+              <ExportAudioButton
+                videoUrl={lesson.videoUrl}
+                audioUrl={lesson.audioUrl}
+                filename={`${lesson.titleEn || lesson.titleCn}-audio`}
+                lessonId={lesson.id}
+                className="transition-colors p-2 touch-manipulation"
+                style={{ color: theme.text, opacity: 0.4 }}
+                iconSize={20}
+                isMobile={true}
+                theme={theme}
+                isSample={lesson.isSample}
+                onUpgradeClick={() => setShowSubscriptionModal(true)}
+              />
+            </Suspense>
+          )}
         </div>
 
         {/* ─── 桌面侧边栏：极简竖线 ─── */}
@@ -859,42 +960,6 @@ export default function CoursePage() {
               </motion.button>
             );
           })}
-          
-          {/* 导出按钮 - 桌面端侧边栏 */}
-          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
-            <Suspense fallback={null}>
-              <ExportPDFButton
-                content={
-                  activeTab === 'script' 
-                    ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
-                    : activeTab === 'vocab'
-                    ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
-                    : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
-                }
-                filename={`${activeTab}-${lesson.id}`}
-                lessonId={lesson.id}
-                type={activeTab as 'script' | 'vocab' | 'grammar'}
-                iconSize={0}
-                isMobile={false}
-                theme={theme}
-              />
-            </Suspense>
-          )}
-          
-          {/* 音频导出按钮 - 桌面端侧边栏（仅盲听模块显示） */}
-          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
-            <Suspense fallback={null}>
-              <ExportAudioButton
-                videoUrl={lesson.videoUrl}
-                audioUrl={lesson.audioUrl}
-                filename={`${lesson.titleEn || lesson.titleCn}-audio`}
-                lessonId={lesson.id}
-                theme={theme}
-                iconSize={0}
-                isMobile={false}
-              />
-            </Suspense>
-          )}
           
           {/* 底部课程信息锚点 */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
@@ -1050,6 +1115,14 @@ export default function CoursePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 🆕 订阅弹窗 */}
+      <Suspense fallback={null}>
+        <SubscriptionModal 
+          isOpen={showSubscriptionModal} 
+          onClose={() => setShowSubscriptionModal(false)} 
+        />
+      </Suspense>
     </div>
   );
 }

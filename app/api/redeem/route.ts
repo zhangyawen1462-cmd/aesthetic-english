@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Client } from '@notionhq/client';
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
+import { Ratelimit } from "@upstash/ratelimit";
+import { kv } from "@vercel/kv";
+import { getJwtSecret } from '@/lib/jwt-utils';
 
 // 初始化 Notion 客户端
 const notion = new Client({
@@ -12,10 +15,16 @@ const REDEMPTION_DB = process.env.NOTION_DB_REDEMPTION || '';
 const MEMBERSHIP_DB = process.env.NOTION_DB_MEMBERSHIPS || '';
 const REDEMPTION_LOGS_DB = process.env.NOTION_DB_REDEMPTION_LOGS || ''; // 🆕 兑换日志数据库
 
-// JWT 密钥
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-);
+// JWT 密钥（统一从安全工具获取）
+const JWT_SECRET = getJwtSecret();
+
+// 🛡️ 创建限流器：同一个 IP 地址，每 1 小时最多只能请求 5 次
+// 使用滑动窗口算法（Sliding Window），比传统的固定时间窗口更平滑、更防刷
+const rateLimit = new Ratelimit({
+  redis: kv,
+  limiter: Ratelimit.slidingWindow(5, "1 h"),
+  analytics: true, // 开启统计，以后可以在 Vercel 后台看谁在攻击你
+});
 
 // 辅助函数：解析 Notion 属性
 function getPlainText(property: any): string {
@@ -132,13 +141,39 @@ function convertTierToEnglish(chineseTier: string): string {
   const mapping: Record<string, string> = {
     '季度会员': 'quarterly',
     '年度会员': 'yearly',
-    '永久会员': 'lifetime'
+    '永久会员': 'lifetime',
+    '访客': 'trial' // 🆕 试用用户
   };
   return mapping[chineseTier] || 'quarterly';
 }
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. 🛡️ 获取请求者的真实 IP
+    const ip = req.headers.get("x-forwarded-for") ?? "127.0.0.1";
+    
+    // 2. 🛡️ 过安检：检查是否超过限流
+    const { success, limit, reset, remaining } = await rateLimit.limit(`ratelimit_redeem_${ip}`);
+
+    if (!success) {
+      // 如果超过 5 次，直接拦截，返回 429 (Too Many Requests)
+      return new Response(
+        JSON.stringify({ 
+          error: "请求过于频繁", 
+          message: "休息一下吧，请在 1 小时后重新尝试兑换。" 
+        }), 
+        {
+          status: 429,
+          headers: {
+            "Content-Type": "application/json",
+            "X-RateLimit-Limit": limit.toString(),
+            "X-RateLimit-Remaining": remaining.toString(),
+            "X-RateLimit-Reset": new Date(reset).toISOString(),
+          },
+        }
+      );
+    }
+
     const { code, email } = await req.json();
     
     // 获取设备信息

@@ -12,7 +12,7 @@ import { useState } from "react";
 interface ContentGateProps {
   children: React.ReactNode;
   section: VideoSection;
-  isSample?: boolean;
+  isSample?: boolean | 'freeTrial';
   fallbackImage?: string;
   className?: string;
 }
@@ -172,7 +172,23 @@ export default function ContentGate({
   className
 }: ContentGateProps) {
   const { tier } = useMembership();
+  
+  // 🔍 调试日志：查看传入的参数
+  console.log('🚪 ContentGate:', {
+    section,
+    isSample,
+    tier,
+  });
+  
   const hasAccess = checkVideoAccess(tier, section, isSample);
+  
+  console.log('🔐 ContentGate Access Check:', {
+    hasAccess,
+    tier,
+    section,
+    isSample,
+  });
+  
   const [showRedeemInput, setShowRedeemInput] = useState(false);
 
   // 如果有权限，直接显示内容
@@ -264,7 +280,7 @@ export default function ContentGate({
                     borderColor: gateConfig.buttonBorder,
                   }}
                 >
-                  {gateConfig.buttonLabel}
+                  {tier === 'trial' || tier === 'visitor' ? 'Subscribe' : 'Upgrade'}
                 </motion.button>
 
                 {/* 当前会员状态 */}

@@ -23,6 +23,8 @@ interface ExportAudioButtonProps {
   iconSize?: number;
   isMobile?: boolean;
   theme?: Theme;
+  isSample?: boolean | 'freeTrial'; // 🆕 课程类型
+  onUpgradeClick?: () => void; // 🆕 升级回调
 }
 
 export default function ExportAudioButton({ 
@@ -34,7 +36,9 @@ export default function ExportAudioButton({
   style = {},
   iconSize = 16,
   isMobile = false,
-  theme
+  theme,
+  isSample = false,
+  onUpgradeClick
 }: ExportAudioButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -43,7 +47,11 @@ export default function ExportAudioButton({
   const ffmpegRef = useRef<FFmpeg | null>(null);
   
   const { tier } = useMembership(); 
-  const canExport = tier === 'lifetime'; // 仅永久会员
+  
+  // 🔐 权限检查：trial 用户只能在 freeTrial 课程中导出
+  const canExport = isSample === 'freeTrial' 
+    ? true // freeTrial 课程所有人都可以导出
+    : (tier === 'lifetime'); // 其他课程需要永久会员
 
   // 🆕 如果有预处理的音频，直接下载（真·秒下）
   const handleDirectDownload = () => {
@@ -193,6 +201,18 @@ export default function ExportAudioButton({
     }
   };
 
+  const handleButtonClick = () => {
+    if (isExporting) return;
+    
+    if (!canExport) {
+      // 🚪 无权限时触发升级弹窗
+      onUpgradeClick?.();
+      return;
+    }
+    
+    setShowConfirm(true);
+  };
+
   const renderButton = () => {
     // 🚫 移动端不显示下载按钮
     if (isMobile) {
@@ -201,12 +221,12 @@ export default function ExportAudioButton({
 
     return (
       <motion.button
-        onClick={() => canExport && !isExporting && setShowConfirm(true)}
-        whileHover={canExport && !isExporting ? "hover" : undefined}
+        onClick={handleButtonClick}
+        whileHover={!isExporting ? "hover" : undefined}
         initial="initial"
-        className={`relative group flex items-center justify-center ${!canExport || isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
+        className={`relative group flex items-center justify-center ${isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
         style={{ width: '64px', height: '40px', ...style }}
-        title={canExport ? '导出音频' : '需要永久会员'}
+        title={canExport ? '导出音频' : '升级会员以导出'}
       >
         <motion.div
           variants={{

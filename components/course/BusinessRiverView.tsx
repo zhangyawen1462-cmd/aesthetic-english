@@ -108,11 +108,22 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
             >
               BUSINESS FEMALE
             </span>
-            <Link href="/archives?filter=business" className="inline-block -mt-1 md:-mt-2">
-              <span className="text-[10px] md:text-[15px] uppercase tracking-[0.15em] md:tracking-[0.2em] font-medium text-[#2D0F15] hover:opacity-70 transition-opacity cursor-pointer">
-                Full Archive
-              </span>
-            </Link>
+            {tier === 'visitor' || tier === 'trial' ? (
+              <button 
+                onClick={handleCourseClick}
+                className="inline-block -mt-1 md:-mt-2"
+              >
+                <span className="text-[10px] md:text-[15px] uppercase tracking-[0.15em] md:tracking-[0.2em] font-medium text-[#2D0F15] hover:opacity-70 transition-opacity cursor-pointer">
+                  Full Archive
+                </span>
+              </button>
+            ) : (
+              <Link href="/archives?filter=business" className="inline-block -mt-1 md:-mt-2">
+                <span className="text-[10px] md:text-[15px] uppercase tracking-[0.15em] md:tracking-[0.2em] font-medium text-[#2D0F15] hover:opacity-70 transition-opacity cursor-pointer">
+                  Full Archive
+                </span>
+              </Link>
+            )}
           </div>
         </header>
 
@@ -142,6 +153,9 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
             const isSample = course.isSample || false;
             const hasAccessToCourse = checkVideoAccess(tier, 'business', isSample);
             
+            // 🚪 游客：所有视频都拦截；试用用户：只有 freeTrial 课程可以直接访问，其他拦截
+            const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? isSample !== 'freeTrial' : false);
+            
             return (
               <motion.div
                 key={course.id}
@@ -152,7 +166,16 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
                 onMouseLeave={() => setActiveIndex(null)}
                 className={`relative group cursor-pointer transition-all duration-700 w-full md:w-auto ${isActive ? 'md:flex-[1.5] opacity-100' : 'md:flex-1 md:opacity-20 md:hover:opacity-40 opacity-100'}`}
               >
-                <Link href={`/course/${category}/${course.id}`} onClick={handleCourseClick} className="block w-full">
+                <Link 
+                  href={shouldIntercept ? '#' : `/course/${category}/${course.id}`}
+                  onClick={(e) => {
+                    if (shouldIntercept) {
+                      e.preventDefault();
+                      handleCourseClick();
+                    }
+                  }}
+                  className="block w-full"
+                >
                   
                   {/* 卡片容器：16:9 比例 */}
                   <div className={`relative w-full aspect-video overflow-hidden shadow-2xl transition-all duration-700 ${isActive ? 'md:scale-105 shadow-[#F7F8F9]/10' : 'scale-100'}`}>
@@ -166,15 +189,15 @@ export default function BusinessRiverView({ category }: BusinessRiverViewProps) 
                     {/* 激活时的光泽层 */}
                     <div className="absolute inset-0 bg-gradient-to-tr from-[#2D0F15]/80 via-transparent to-transparent opacity-60" />
 
-                    {/* 🔒 锁图标 - 非 Sample 且无权限时显示 */}
-                    {!hasAccessToCourse && !isSample && (
+                    {/* 🔒 锁图标 - 访客和试用用户不显示锁，其他会员显示 */}
+                    {!hasAccessToCourse && tier !== 'trial' && tier !== null && (
                       <div className="absolute top-3 right-3 z-20 group/lock">
                         <div className="w-10 h-10 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
                           <Lock size={18} className="text-white" />
                         </div>
                         {/* Tooltip */}
                         <div className="absolute top-12 right-0 opacity-0 group-hover/lock:opacity-100 transition-opacity bg-black/90 text-white text-xs px-3 py-2 rounded-lg whitespace-nowrap pointer-events-none">
-                          需要年度会员
+                          订阅会员解锁
                         </div>
                       </div>
                     )}

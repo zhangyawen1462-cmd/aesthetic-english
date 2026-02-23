@@ -7,6 +7,7 @@ import { ArrowLeft, Play, ArrowUpRight, ArrowRight } from "lucide-react";
 import type { Lesson } from "@/data/types";
 import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
 import SubscriptionModal from "@/components/SubscriptionModal";
+import { useMembership } from "@/context/MembershipContext";
 
 // --- 1. 数据接口：增加 ratio 字段 ---
 interface DailyCourse {
@@ -19,6 +20,7 @@ interface DailyCourse {
   image: string;
   ratio: "aspect-[3/4]" | "aspect-[9/16]" | "aspect-square" | "aspect-video"; // 核心：控制比例
   type: "video" | "image";
+  isSample?: boolean | 'freeTrial'; // 🆕 添加 isSample 字段
 }
 
 // 槽位配置 - 与 layout-manager 保持一致
@@ -57,6 +59,7 @@ function lessonToDailyCourse(lesson: Lesson, index: number): DailyCourse {
     image: lesson.coverImg,
     ratio,
     type: lesson.videoUrl ? "video" : "image",
+    isSample: lesson.isSample, // 🆕 传递 isSample
   };
 }
 
@@ -67,6 +70,9 @@ export default function DailyCinemaView() {
 
   // 游客拦截系统
   const { shouldShowSubscription, handleCourseClick, closeSubscriptionModal } = useSubscriptionGuard();
+  
+  // 获取会员状态
+  const { tier } = useMembership();
 
   // 从 API 获取数据
   useEffect(() => {
@@ -181,14 +187,14 @@ export default function DailyCinemaView() {
           {/* 左列 */}
                     <div className="w-1/2 flex flex-col gap-2 md:gap-4">
             {leftCol.map((item, index) => (
-              item && <DailyCard key={item.id} item={item} index={index * 2} onGuestClick={handleCourseClick} onImageClick={setViewingImage} />
+              item && <DailyCard key={item.id} item={item} index={index * 2} onGuestClick={handleCourseClick} onImageClick={setViewingImage} tier={tier} />
             ))}
           </div>
 
           {/* 右列 */}
                     <div className="w-1/2 flex flex-col gap-2 md:gap-4">
             {rightCol.map((item, index) => (
-              item && <DailyCard key={item.id} item={item} index={index * 2 + 1} onGuestClick={handleCourseClick} onImageClick={setViewingImage} />
+              item && <DailyCard key={item.id} item={item} index={index * 2 + 1} onGuestClick={handleCourseClick} onImageClick={setViewingImage} tier={tier} />
             ))}
           </div>
 
@@ -196,16 +202,32 @@ export default function DailyCinemaView() {
 
         {/* End of Feed */}
                 <div className="mt-20 md:mt-32 py-8 md:py-10 text-center relative z-10 bg-[#F7F8F9]">
-          <Link href="/archives?filter=daily" className="group inline-block relative overflow-hidden px-8 md:px-10 py-3 md:py-4 transition-all cursor-pointer">
-            <span className="absolute inset-0 border border-[#2D0F15]/20 group-hover:border-[#2D0F15] transition-colors duration-500" />
-            <span className="absolute inset-0 bg-[#2D0F15] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
-            <div className="relative flex items-center gap-2 md:gap-3">
-              <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] md:tracking-[0.25em] text-[#2D0F15] group-hover:text-[#F7F8F9] transition-colors duration-300 font-medium">
-                Full Archive
-              </span>
-              <ArrowRight className="h-2.5 w-2.5 md:h-3 md:w-3 text-[#2D0F15] group-hover:text-[#F7F8F9] transition-all group-hover:translate-x-1 duration-300" strokeWidth={1.5} />
-            </div>
-          </Link>
+          {tier === 'visitor' || tier === 'trial' ? (
+            <button 
+              onClick={handleCourseClick}
+              className="group inline-block relative overflow-hidden px-8 md:px-10 py-3 md:py-4 transition-all cursor-pointer"
+            >
+              <span className="absolute inset-0 border border-[#2D0F15]/20 group-hover:border-[#2D0F15] transition-colors duration-500" />
+              <span className="absolute inset-0 bg-[#2D0F15] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
+              <div className="relative flex items-center gap-2 md:gap-3">
+                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] md:tracking-[0.25em] text-[#2D0F15] group-hover:text-[#F7F8F9] transition-colors duration-300 font-medium">
+                  Full Archive
+                </span>
+                <ArrowRight className="h-2.5 w-2.5 md:h-3 md:w-3 text-[#2D0F15] group-hover:text-[#F7F8F9] transition-all group-hover:translate-x-1 duration-300" strokeWidth={1.5} />
+              </div>
+            </button>
+          ) : (
+            <Link href="/archives?filter=daily" className="group inline-block relative overflow-hidden px-8 md:px-10 py-3 md:py-4 transition-all cursor-pointer">
+              <span className="absolute inset-0 border border-[#2D0F15]/20 group-hover:border-[#2D0F15] transition-colors duration-500" />
+              <span className="absolute inset-0 bg-[#2D0F15] translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
+              <div className="relative flex items-center gap-2 md:gap-3">
+                <span className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] md:tracking-[0.25em] text-[#2D0F15] group-hover:text-[#F7F8F9] transition-colors duration-300 font-medium">
+                  Full Archive
+                </span>
+                <ArrowRight className="h-2.5 w-2.5 md:h-3 md:w-3 text-[#2D0F15] group-hover:text-[#F7F8F9] transition-all group-hover:translate-x-1 duration-300" strokeWidth={1.5} />
+              </div>
+            </Link>
+          )}
         </div>
 
       </main>
@@ -247,17 +269,29 @@ export default function DailyCinemaView() {
 }
 
 // ─── 卡片组件 ───
-function DailyCard({ item, index, onGuestClick, onImageClick }: { 
+function DailyCard({ item, index, onGuestClick, onImageClick, tier }: { 
   item: DailyCourse; 
   index: number; 
-  onGuestClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
+  onGuestClick?: () => void;
   onImageClick?: (img: string) => void;
+  tier?: string | null;
 }) {
     // 判断是否为纯图片卡片（无标题且不可点击跳转）
     const isImageCard = item.type === 'image' && !item.titleCN && !item.titleEN;
     
     // 所有有标题的都显示标题
     const hasTitle = item.titleCN || item.titleEN;
+    
+    // 🚪 游客：所有视频都拦截；试用用户：只有 freeTrial 课程可以直接访问，其他拦截
+    const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? item.isSample !== 'freeTrial' : false);
+    
+    // 🔍 调试日志
+    console.log('DailyCard:', {
+      id: item.id,
+      tier,
+      isSample: item.isSample,
+      shouldIntercept
+    });
 
   return (
     <motion.div
@@ -282,7 +316,16 @@ function DailyCard({ item, index, onGuestClick, onImageClick }: {
                 </div>
             ) : (
                 // 视频/课程：可点击跳转
-                <Link href={`/course/daily/${item.id}`} onClick={onGuestClick} className={`block relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm`}>
+                <Link 
+                  href={shouldIntercept ? '#' : `/course/daily/${item.id}`}
+                  onClick={(e) => {
+                    if (shouldIntercept) {
+                      e.preventDefault();
+                      onGuestClick?.();
+                    }
+                  }}
+                  className={`block relative w-full ${item.ratio} overflow-hidden rounded-[2px] bg-[#E5E5E5] shadow-sm`}
+                >
         <img
           src={item.image}
           alt={item.titleEN}
@@ -303,7 +346,15 @@ function DailyCard({ item, index, onGuestClick, onImageClick }: {
             {/* 2. 文字区 - 只有有标题的显示 */}
             {hasTitle && !isImageCard && (
                 <div className="flex flex-col px-0.5 mt-2 md:mt-3">
-        <Link href={`/course/daily/${item.id}`} onClick={onGuestClick}>
+        <Link 
+          href={shouldIntercept ? '#' : `/course/daily/${item.id}`}
+          onClick={(e) => {
+            if (shouldIntercept) {
+              e.preventDefault();
+              onGuestClick?.();
+            }
+          }}
+        >
                         {/* 中文大标题 */}
                         {item.titleCN && (
                         <h3 className="font-serif text-[16px] md:text-[22px] leading-[1.2] text-[#2D0F15] mb-1 group-hover:opacity-70 transition-opacity" style={{ fontFamily: 'PingFang SC, -apple-system, sans-serif' }}>
