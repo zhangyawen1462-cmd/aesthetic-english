@@ -3,7 +3,7 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Play, Pause, ChevronLeft, Maximize, Minimize,
+  Play, Pause, ChevronLeft,
   FileText, Headphones, Mic, BookOpen, Lightbulb, RotateCcw, MessageCircle, Settings, Download
 } from "lucide-react";
 import Link from "next/link";
@@ -43,13 +43,13 @@ const ExportAudioButton = lazy(() => import("@/components/ExportAudioButton"));
 const SubscriptionModal = lazy(() => import("@/components/SubscriptionModal"));
 
 const TABS = [
-  { id: 'script', label: 'SCRIPT', num: 'I', icon: FileText },
-  { id: 'blind', label: 'BLIND', num: 'II', icon: Headphones },
-  { id: 'shadow', label: 'SHADOW', num: 'III', icon: Mic },
-  { id: 'vocab', label: 'VOCAB', num: 'IV', icon: BookOpen },
-  { id: 'grammar', label: 'GRAMMAR', num: 'V', icon: Lightbulb },
-  { id: 'recall', label: 'RECALL', num: 'VI', icon: RotateCcw },
-  { id: 'salon', label: 'SALON', num: 'VII', icon: MessageCircle },
+  { id: 'script', label: '字幕精校', num: 'I', icon: FileText, mobileLabel: '看' },
+  { id: 'blind', label: '音频盲听', num: 'II', icon: Headphones, mobileLabel: '听' },
+  { id: 'shadow', label: '影子跟读', num: 'III', icon: Mic, mobileLabel: '说' },
+  { id: 'vocab', label: '单词闪卡', num: 'IV', icon: BookOpen, mobileLabel: '词' },
+  { id: 'grammar', label: '语法精讲', num: 'V', icon: Lightbulb, mobileLabel: '语法' },
+  { id: 'recall', label: '看中文说英文', num: 'VI', icon: RotateCcw, mobileLabel: '视译' },
+  { id: 'salon', label: 'AI情景对话', num: 'VII', icon: MessageCircle, mobileLabel: '交流' },
 ];
 
 /** 格式化时间 mm:ss */
@@ -149,10 +149,7 @@ export default function CoursePage() {
   const [activeTab, setActiveTab] = useState('script');
   const [currentTheme, setCurrentTheme] = useState<CategoryKey>(category);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isLandscape, setIsLandscape] = useState(false);
-  const [mobileVideoHeight, setMobileVideoHeight] = useState(40); // 移动端视频高度百分比 (dvh)
-  const [isDraggingMobile, setIsDraggingMobile] = useState(false);
+
   const [showProgressBar, setShowProgressBar] = useState(false); // 控制进度条显示
   const progressBarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false); // 🆕 订阅弹窗
@@ -204,8 +201,16 @@ export default function CoursePage() {
     };
   }, [isPlaying]);
 
-  // 鼠标移动或触摸时显示进度条
+  // 鼠标移动或触摸时显示进度条 - 使用节流优化性能
+  const lastInteractionTime = useRef<number>(0);
   const handleVideoInteraction = useCallback(() => {
+    const now = Date.now();
+    // 节流：200ms 内只触发一次
+    if (now - lastInteractionTime.current < 200) {
+      return;
+    }
+    lastInteractionTime.current = now;
+    
     setShowProgressBar(true);
     if (progressBarTimeoutRef.current) {
       clearTimeout(progressBarTimeoutRef.current);
@@ -217,65 +222,7 @@ export default function CoursePage() {
     }
   }, [isPlaying]);
 
-  // --- 监听屏幕方向变化 ---
-  useEffect(() => {
-    const handleOrientationChange = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
-    };
-
-    handleOrientationChange(); // 初始化
-    window.addEventListener('resize', handleOrientationChange);
-    window.addEventListener('orientationchange', handleOrientationChange);
-
-    return () => {
-      window.removeEventListener('resize', handleOrientationChange);
-      window.removeEventListener('orientationchange', handleOrientationChange);
-    };
-  }, []);
-
-  // --- 全屏功能（仅移动端） ---
-  const toggleFullscreen = useCallback(() => {
-    if (!videoContainerRef.current || !isMobile) return;
-
-    if (!isFullscreen) {
-      // 进入全屏
-      if (videoContainerRef.current.requestFullscreen) {
-        videoContainerRef.current.requestFullscreen();
-      } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
-        (videoContainerRef.current as any).webkitRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      // 退出全屏
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen();
-      }
-      setIsFullscreen(false);
-    }
-  }, [isFullscreen, isMobile]);
-
-  // 监听全屏状态变化
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement
-      );
-      setIsFullscreen(isCurrentlyFullscreen);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  // --- 优化：缓存视频容器样式（支持横竖屏自适应） ---
+  // --- 优化：缓存视频容器样式（移动端固定大小，桌面端可拖拽） ---
   const videoContainerStyle = useMemo(() => {
     if (!isMobile) {
       return {
@@ -284,30 +231,19 @@ export default function CoursePage() {
       };
     }
 
-    // 移动端：根据屏幕方向调整
-    if (isLandscape) {
-      // 横屏：占据更多高度
-      return {
-        height: 'auto',
-        minHeight: '50dvh',
-        maxHeight: '70dvh',
-        aspectRatio: '16 / 9',
-        width: '100%',
-      };
-    } else {
-      // 竖屏：使用动态高度
-      return {
-        height: `${mobileVideoHeight}dvh`,
-        width: '100%',
-      };
-    }
-  }, [isMobile, leftWidth, isLandscape, mobileVideoHeight]);
+    // 移动端：固定大小，16:9 比例
+    return {
+      width: '100%',
+      aspectRatio: '16 / 9',
+      flexShrink: 0,
+    };
+  }, [isMobile, leftWidth]);
 
   // --- 键盘快捷键 ---
   useKeyboardShortcuts({
     onPlayPause: togglePlay,
-    onSeekForward: useCallback(() => handleSeek(currentTime + 5), [handleSeek, currentTime]),
-    onSeekBackward: useCallback(() => handleSeek(Math.max(0, currentTime - 5)), [handleSeek, currentTime]),
+    onSeekForward: useCallback(() => handleSeek(currentTime + 5, true), [handleSeek, currentTime]),
+    onSeekBackward: useCallback(() => handleSeek(Math.max(0, currentTime - 5), true), [handleSeek, currentTime]),
     onSpeedUp: useCallback(() => setPlaybackRate(Math.min(playbackRate + 0.25, 2)), [setPlaybackRate, playbackRate]),
     onSpeedDown: useCallback(() => setPlaybackRate(Math.max(playbackRate - 0.25, 0.5)), [setPlaybackRate, playbackRate]),
     onTabSwitch: useCallback((index: number) => {
@@ -344,61 +280,7 @@ export default function CoursePage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab]);
 
-  // --- 移动端视频区域拖拽 ---
-  const handleMobileDragStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
-    if (!isMobile) return;
-    setIsDraggingMobile(true);
-  }, [isMobile]);
 
-  const handleMobileDragMove = useCallback((clientY: number) => {
-    if (!isDraggingMobile || !isMobile) return;
-    
-    const windowHeight = window.innerHeight;
-    const newHeight = (clientY / windowHeight) * 100;
-    
-    // 限制在 20dvh 到 60dvh 之间
-    const clampedHeight = Math.max(20, Math.min(60, newHeight));
-    setMobileVideoHeight(clampedHeight);
-  }, [isDraggingMobile, isMobile]);
-
-  const handleMobileDragEnd = useCallback(() => {
-    setIsDraggingMobile(false);
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile) return;
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (isDraggingMobile) {
-        e.preventDefault();
-        handleMobileDragMove(e.touches[0].clientY);
-      }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isDraggingMobile) {
-        handleMobileDragMove(e.clientY);
-      }
-    };
-
-    const handleEnd = () => {
-      handleMobileDragEnd();
-    };
-
-    if (isDraggingMobile) {
-      document.addEventListener('touchmove', handleTouchMove, { passive: false });
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('touchend', handleEnd);
-      document.addEventListener('mouseup', handleEnd);
-    }
-
-    return () => {
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('touchend', handleEnd);
-      document.removeEventListener('mouseup', handleEnd);
-    };
-  }, [isDraggingMobile, isMobile, handleMobileDragMove, handleMobileDragEnd]);
 
   // --- 加载中 ---
   if (isLoadingLesson) {
@@ -440,7 +322,10 @@ export default function CoursePage() {
         // trial 用户访问非试用课程：显示模糊预览，不用 ContentGate
         <div
           className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top relative"
-          style={videoContainerStyle}
+          style={{
+            ...videoContainerStyle,
+            maxHeight: isMobile ? 'auto' : '100%',
+          }}
         >
           <div className="absolute inset-0 blur-xl opacity-20 pointer-events-none select-none grayscale bg-black">
             {lesson.coverImg && (
@@ -465,10 +350,14 @@ export default function CoursePage() {
           section={category as VideoSection} 
           isSample={lesson?.isSample || false}
           className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top"
+          style={{
+            ...videoContainerStyle,
+            maxHeight: isMobile ? 'auto' : '100%',
+          }}
         >
       <div
         ref={videoContainerRef}
-        className="relative bg-black flex items-center justify-center w-full h-full"
+        className="relative bg-black flex items-center justify-center w-full"
         style={videoContainerStyle}
         onMouseMove={handleVideoInteraction}
         onTouchStart={handleVideoInteraction}
@@ -506,6 +395,7 @@ export default function CoursePage() {
               }
             }}
             playsInline
+            preload="auto"
             aria-label={`${lesson.titleEn} 视频播放器`}
           />
         ) : (
@@ -563,7 +453,7 @@ export default function CoursePage() {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const percent = (e.clientX - rect.left) / rect.width;
                 if (duration > 0) {
-                  handleSeek(percent * duration);
+                  handleSeek(percent * duration, true);
                 }
               }}
               onTouchStart={(e) => {
@@ -571,7 +461,7 @@ export default function CoursePage() {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const percent = (touch.clientX - rect.left) / rect.width;
                 if (duration > 0) {
-                  handleSeek(percent * duration);
+                  handleSeek(percent * duration, true);
                 }
               }}
               role="slider"
@@ -581,8 +471,8 @@ export default function CoursePage() {
               aria-valuenow={currentTime}
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === 'ArrowLeft') handleSeek(Math.max(0, currentTime - 5));
-                if (e.key === 'ArrowRight') handleSeek(Math.min(duration, currentTime + 5));
+                if (e.key === 'ArrowLeft') handleSeek(Math.max(0, currentTime - 5), true);
+                if (e.key === 'ArrowRight') handleSeek(Math.min(duration, currentTime + 5), true);
               }}
             >
               <div className="absolute inset-0 bg-white/10" />
@@ -622,30 +512,7 @@ export default function CoursePage() {
       </ContentGate>
       )}
 
-      {/* ═══════════════════════════════════════
-          1.5 移动端拖拽分隔线
-         ═══════════════════════════════════════ */}
-      {isMobile && !isLandscape && (
-        <div
-          onTouchStart={handleMobileDragStart}
-          onMouseDown={handleMobileDragStart}
-          className="md:hidden relative z-50 flex items-center justify-center cursor-row-resize touch-manipulation"
-          style={{ 
-            height: '12px',
-            backgroundColor: theme.bg,
-            borderTop: `1px solid ${theme.lineColor}20`,
-            borderBottom: `1px solid ${theme.lineColor}20`,
-          }}
-        >
-          {/* 拖拽手柄 */}
-          <div 
-            className="w-12 h-1 rounded-full transition-colors"
-            style={{ 
-              backgroundColor: isDraggingMobile ? theme.accent : `${theme.text}20`,
-            }}
-          />
-        </div>
-      )}
+
 
       {/* ═══════════════════════════════════════
           2. 中轴线（仅桌面）— 8px 渐变暗影分隔带 + 中间 1px accent
@@ -676,13 +543,14 @@ export default function CoursePage() {
 
         {/* ─── 移动端图标导航 ─── */}
         <nav
-          className="flex md:hidden items-center justify-center shrink-0 safe-bottom relative touch-manipulation py-2 px-2 gap-[18px]"
+          className="flex md:hidden items-center justify-center shrink-0 safe-bottom relative touch-manipulation px-2 gap-[22px] pt-[0.5rem]"
           style={{
             borderTop: `1px solid ${theme.lineColor}`,
             background: theme.bg + 'F0',
             backdropFilter: 'blur(20px) saturate(180%)',
             WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             boxShadow: `0 -3px 12px ${theme.lineColor}12, 0 -1px 0 0 ${theme.lineColor}25`,
+            paddingBottom: '0rem', // 移除下边距
           }}
         >
           {TABS.map((tab, index) => {
@@ -692,7 +560,7 @@ export default function CoursePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0"
+                className="relative flex items-center justify-center touch-manipulation p-1 rounded-lg transition-all flex-shrink-0"
                 style={{
                   backgroundColor: isActive ? `${theme.accent}15` : 'transparent',
                 }}
@@ -702,7 +570,7 @@ export default function CoursePage() {
                 <motion.div
                   animate={{
                     opacity: isActive ? 1 : 0.4,
-                    scale: isActive ? 1.1 : 1,
+                    scale: isActive ? 1.452 : 1.32,
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   style={{ 
@@ -718,7 +586,7 @@ export default function CoursePage() {
           {/* 设置图标 - 主题切换 */}
           <button
             onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-            className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0 ml-1"
+            className="relative flex items-center justify-center touch-manipulation p-1 rounded-lg transition-all flex-shrink-0 ml-1"
             aria-label="主题设置"
           >
             <Settings 
@@ -732,11 +600,15 @@ export default function CoursePage() {
           </button>
         </nav>
 
+        {/* ─── 内容区域容器 ─── */}
+        <div className="flex-1 h-full flex flex-row overflow-hidden">
+          
+          {/* 内容区 */}
         <div className="flex-1 h-full relative overflow-hidden flex flex-col">
 
-          {/* ─── 模块内容区（纯净背景 + 移动端优化间距） ─── */}
+            {/* ─── 模块内容区（纯净背景 + 移动端优化间距 + 桌面端左右边距） ─── */}
           <div
-            className="flex-1 overflow-y-auto p-4 pt-4 sm:pt-6 md:p-8 md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
+              className="flex-1 overflow-y-auto p-4 pt-4 sm:pt-6 md:pl-4 md:pr-[0.8rem] md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
             style={{ backgroundColor: theme.bg }}
           >
             <AnimatePresence mode="wait">
@@ -796,65 +668,120 @@ export default function CoursePage() {
           </div>
         </div>
 
-        {/* ─── 导出按钮：浮动在容器外部，与导航栏对齐 ─── */}
-        <div
-          className="hidden md:flex w-24 h-auto flex-col items-center gap-2 z-40 transition-colors duration-700 absolute pointer-events-auto"
-          style={{ right: '-2rem', top: '1.5rem' }}
-        >
-          {/* PDF 导出按钮 */}
-          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
-            <Suspense fallback={null}>
-              <div className="group/export">
-                <ExportPDFButton
-                  content={
-                    activeTab === 'script' 
-                      ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
-                      : activeTab === 'vocab'
-                      ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
-                      : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
-                  }
-                  filename={`${activeTab}-${lesson.id}`}
-                  lessonId={lesson.id}
-                  type={activeTab as 'script' | 'vocab' | 'grammar'}
-                  className="transition-all duration-300 p-2 touch-manipulation group-hover/export:opacity-100"
-                  style={{ color: theme.text, opacity: 0.4 }}
-                  iconSize={18}
-                  isMobile={false}
-                  theme={theme}
-                  isSample={lesson.isSample}
-                  onUpgradeClick={() => setShowSubscriptionModal(true)}
-                />
-              </div>
-            </Suspense>
-          )}
+          {/* ─── 桌面侧边栏：固定在右侧，不浮动 ─── */}
+          <div
+            className="hidden md:flex w-16 h-full flex-col items-center justify-center gap-8 z-30 transition-colors duration-700 shrink-0 relative"
+            style={{ backgroundColor: theme.bg }}
+          >
+            {/* 左侧极细竖线 - 参考 DailyCinemaView 的质感 + 加强阴影 */}
+            <div 
+              className="absolute top-0 bottom-0 w-[1px] transition-colors duration-300 pointer-events-none"
+              style={{ 
+                left: '0.2rem', // 向右移动 0.2rem
+                backgroundColor: theme.text, 
+                opacity: 0.15,
+                boxShadow: '2px 0 6px rgba(0, 0, 0, 0.15), -1px 0 4px rgba(0, 0, 0, 0.08), 1px 0 2px rgba(0, 0, 0, 0.1)'
+              }}
+            />
 
-          {/* 音频导出按钮（仅盲听模块显示） */}
-          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
-            <Suspense fallback={null}>
-              <div className="group/export">
-                <ExportAudioButton
-                  videoUrl={lesson.videoUrl}
-                  audioUrl={lesson.audioUrl}
-                  filename={`${lesson.titleEn || lesson.titleCn}-audio`}
-                  lessonId={lesson.id}
-                  className="transition-all duration-300 p-2 touch-manipulation group-hover/export:opacity-100"
-                  style={{ color: theme.text, opacity: 0.4 }}
-                  iconSize={18}
-                  isMobile={false}
-                  theme={theme}
-                  isSample={lesson.isSample}
-                  onUpgradeClick={() => setShowSubscriptionModal(true)}
-                />
-              </div>
-            </Suspense>
-          )}
-        </div>
+            {TABS.map((tab, index) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              return (
+                <motion.button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  whileHover="hover"
+                  initial="initial"
+                  className="relative group flex items-center justify-center pointer-events-auto"
+                  style={{ width: '56px', height: '40px' }}
+                  aria-label={`切换到 ${tab.label} 模块`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {/* 图标 - 放大 1.3 * 1.1 = 1.43 倍 */}
+                  <motion.div
+                    animate={{
+                      opacity: isActive ? 1 : 0.45,
+                      scale: isActive ? 1.65 : 1.43,
+                    }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="relative z-10"
+                    style={{ 
+                      color: isActive ? theme.accent : theme.text,
+                    }}
+                  >
+                    <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                  </motion.div>
 
-        {/* ─── 移动端导出按钮：在内容区域内 ─── */}
-        <div
-          className="md:hidden absolute top-3 right-4 z-40 flex items-center gap-2 pointer-events-auto"
-        >
-          {/* PDF 导出按钮 */}
+                  {/* 绸缎标签 — hover 时从左侧抽出，深色底浅色字，与图标垂直居中对齐 */}
+                  <motion.div
+                    variants={{
+                      initial: { opacity: 0, x: 15, scaleX: 0.8 },
+                      hover: { opacity: 1, x: 0, scaleX: 1 },
+                    }}
+                    transition={{ 
+                      duration: 0.3,
+                      ease: [0.34, 1.56, 0.64, 1] // 弹性缓动
+                    }}
+                    className="absolute whitespace-nowrap rounded-sm shadow-lg px-3 py-1.5 flex items-center pointer-events-none"
+                    style={{ 
+                      right: 'calc(100% + 12px)',
+                      top: 'calc(20px - 2rem + 0.9rem)', // 先上移2rem，再下移0.9rem，净上移1.1rem
+                      transform: 'translateY(-50%)',
+                      fontFamily: 'PingFang SC, -apple-system, BlinkMacSystemFont, sans-serif',
+                      backgroundColor: theme.text,
+                      border: `1px solid ${theme.text}`,
+                      transformOrigin: 'right center',
+                    }}
+                  >
+                    <span 
+                      className="text-2xl font-medium tracking-wide"
+                      style={{ 
+                        color: theme.bg,
+                      }}
+                    >
+                      {tab.label}
+                    </span>
+                    
+                    {/* 绸缎连接三角 */}
+                    <div 
+                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full"
+                      style={{
+                        width: 0,
+                        height: 0,
+                        borderTop: '5px solid transparent',
+                        borderBottom: '5px solid transparent',
+                        borderLeft: `5px solid ${theme.text}`,
+                      }}
+                    />
+                  </motion.div>
+
+                  {/* 快捷键数字 — hover 时渐入 */}
+                  <span 
+                    className="absolute right-1.5 top-1 text-[7px] font-mono opacity-0 group-hover:opacity-20 transition-opacity"
+                    style={{ color: theme.text }}
+                  >
+                    {index + 1}
+                  </span>
+                </motion.button>
+              );
+            })}
+            
+            {/* 底部课程信息锚点 */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
+              <p 
+                className="text-[7px] uppercase tracking-[0.15em] opacity-20 font-medium"
+                style={{ 
+                  color: theme.text,
+                }}
+              >
+                {lesson.ep != null ? `EP.${lesson.ep}` : ''}
+              </p>
+            </div>
+
+            {/* 下载按钮区域 */}
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50">
+              {/* PDF下载按钮 */}
           {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
             <Suspense fallback={null}>
               <ExportPDFButton
@@ -868,10 +795,10 @@ export default function CoursePage() {
                 filename={`${activeTab}-${lesson.id}`}
                 lessonId={lesson.id}
                 type={activeTab as 'script' | 'vocab' | 'grammar'}
-                className="transition-colors p-2 touch-manipulation"
+                className="transition-all duration-300 p-2 touch-manipulation hover:opacity-100 pointer-events-auto"
                 style={{ color: theme.text, opacity: 0.4 }}
-                iconSize={20}
-                isMobile={true}
+                iconSize={18}
+                isMobile={false}
                 theme={theme}
                 isSample={lesson.isSample}
                 onUpgradeClick={() => setShowSubscriptionModal(true)}
@@ -879,7 +806,7 @@ export default function CoursePage() {
             </Suspense>
           )}
 
-          {/* 音频导出按钮（仅盲听模块显示） */}
+              {/* 音频下载按钮（仅盲听模块显示） */}
           {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
             <Suspense fallback={null}>
               <ExportAudioButton
@@ -887,92 +814,23 @@ export default function CoursePage() {
                 audioUrl={lesson.audioUrl}
                 filename={`${lesson.titleEn || lesson.titleCn}-audio`}
                 lessonId={lesson.id}
-                className="transition-colors p-2 touch-manipulation"
+                className="transition-all duration-300 p-2 touch-manipulation hover:opacity-100 pointer-events-auto"
                 style={{ color: theme.text, opacity: 0.4 }}
-                iconSize={20}
-                isMobile={true}
+                iconSize={18}
+                isMobile={false}
                 theme={theme}
                 isSample={lesson.isSample}
                 onUpgradeClick={() => setShowSubscriptionModal(true)}
               />
             </Suspense>
           )}
+            </div>
         </div>
 
-        {/* ─── 桌面侧边栏：极简竖线 ─── */}
-        <div
-          className="hidden md:flex w-24 h-full flex-col items-center justify-center gap-3 z-30 transition-colors duration-700 absolute top-0"
-          style={{ right: '-2rem' }}
-        >
-          {TABS.map((tab, index) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <motion.button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                whileHover="hover"
-                initial="initial"
-                className="relative group flex items-center justify-center pointer-events-auto"
-                style={{ width: '64px', height: '40px' }}
-                aria-label={`切换到 ${tab.label} 模块`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                {/* 竖线 */}
-                <motion.div
-                  animate={{
-                    height: isActive ? '40px' : '24px',
-                    opacity: isActive ? 1 : 0.3,
-                  }}
-                  transition={{ type: "spring", ...ANIMATION_CONFIG.spring.medium }}
-                  className="w-[1.5px] rounded-full"
-                  style={{ 
-                    backgroundColor: isActive ? theme.accent : theme.text,
-                  }}
-                />
-
-                {/* 文字标签 — hover 时渐入，右对齐距离竖线 3rem */}
-                <motion.div
-                  variants={{
-                    initial: { opacity: 0, x: -5 },
-                    hover: { opacity: 1, x: 0 },
-                  }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute whitespace-nowrap text-right"
-                  style={{ right: '3rem' }}
-                >
-                  <span 
-                    className="text-sm font-bold tracking-wide font-serif"
-                    style={{ 
-                      color: theme.text,
-                    }}
-                  >
-                    {tab.label}
-                  </span>
-                </motion.div>
-
-                {/* 快捷键数字 — hover 时渐入 */}
-                <span 
-                  className="absolute right-2 text-[7px] font-mono opacity-0 group-hover:opacity-20 transition-opacity"
-                  style={{ color: theme.text }}
-                >
-                  {index + 1}
-                </span>
-              </motion.button>
-            );
-          })}
-          
-          {/* 底部课程信息锚点 */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
-            <p 
-              className="text-[7px] uppercase tracking-[0.15em] opacity-20 font-medium"
-              style={{ 
-                color: theme.text,
-              }}
-            >
-              {lesson.ep != null ? `EP.${lesson.ep}` : ''}
-            </p>
-          </div>
         </div>
+
+        {/* ─── 桌面侧边栏：已移到内容区域容器内 ─── */}
+
       </div>
 
       {/* ─── The Fabric Swatch (面料色卡) - 仅桌面端显示 ─── */}

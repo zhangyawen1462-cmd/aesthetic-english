@@ -225,31 +225,20 @@ export default function ExportAudioButton({
         whileHover={!isExporting ? "hover" : undefined}
         initial="initial"
         className={`relative group flex items-center justify-center ${isExporting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
-        style={{ width: '64px', height: '40px', ...style }}
+        style={{ width: '40px', height: '40px', ...style }}
         title={canExport ? '导出音频' : '升级会员以导出'}
       >
         <motion.div
           variants={{
-            initial: { height: '24px', opacity: canExport ? 0.3 : 0.15 },
-            hover: { height: '32px', opacity: canExport ? 0.5 : 0.2 }
+            initial: { scale: 1, opacity: canExport ? 0.4 : 0.2 },
+            hover: { scale: 1.15, opacity: canExport ? 0.7 : 0.3 }
           }}
           transition={{ duration: 0.3, ease: 'easeOut' }}
-          className="w-[1.5px] rounded-full"
-          style={{ backgroundColor: theme?.text || '#000' }}
-        />
-        <motion.div
-          variants={{ initial: { opacity: 0, x: -5 }, hover: { opacity: 1, x: 0 } }}
-          transition={{ duration: 0.2 }}
-          className="absolute whitespace-nowrap text-right"
-          style={{ right: '3rem' }}
         >
-          <span className="text-sm font-bold tracking-wide font-serif" style={{ color: theme?.text || '#000' }}>
-            {isExporting ? `${Math.round(progress)}%` : 'Audio Export'}
-          </span>
-          {isExporting && statusText && (
-            <span className="block text-[10px] opacity-60 mt-0.5">
-              {statusText}
-            </span>
+          {isExporting ? (
+            <Loader2 size={iconSize} className="animate-spin" style={{ color: theme?.text || '#000' }} />
+          ) : (
+            <Download size={iconSize} strokeWidth={2} style={{ color: theme?.text || '#000' }} />
           )}
         </motion.div>
       </motion.button>

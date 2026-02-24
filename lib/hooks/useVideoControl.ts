@@ -33,7 +33,7 @@ export function useVideoControl(videoRef: RefObject<HTMLVideoElement | null>) {
   }, [videoRef]);
 
   const handleSeek = useCallback(
-    (time: number) => {
+    (time: number, autoPlay: boolean = false) => {
       if (!videoRef.current) return;
       
       // 检查视频源是否有效
@@ -43,11 +43,15 @@ export function useVideoControl(videoRef: RefObject<HTMLVideoElement | null>) {
       }
       
       videoRef.current.currentTime = time;
-      videoRef.current.play().catch((error) => {
-        console.error('Failed to play video after seek:', error);
-        setIsPlaying(false);
-      });
-      setIsPlaying(true);
+      
+      // 只有明确要求自动播放时才播放
+      if (autoPlay) {
+        videoRef.current.play().catch((error) => {
+          console.error('Failed to play video after seek:', error);
+          setIsPlaying(false);
+        });
+        setIsPlaying(true);
+      }
     },
     [videoRef]
   );

@@ -251,13 +251,13 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
 
       {/* 顶部标题 - 仅网页端显示 */}
       <div className="hidden md:block w-full px-8 py-6 z-20 sticky top-0 backdrop-blur-sm">
-        <h1 className="font-bold font-serif" style={{ color: style.titleColor, fontSize: '30px' }}>
+        <h1 className="font-bold" style={{ color: style.titleColor, fontSize: '30px', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
           Shadowing Studio
         </h1>
       </div>
 
       {/* 列表流 */}
-      <div className="flex-1 w-full max-w-2xl mx-auto overflow-y-auto px-6 pb-40 no-scrollbar pt-8 md:pt-2 space-y-3">
+      <div className="flex-1 w-full max-w-2xl mx-auto overflow-y-auto px-3 md:px-6 pb-40 no-scrollbar pt-8 md:pt-2 space-y-3">
 
         {transcript.length === 0 && showEmptyState && (
           <div className="flex items-center justify-center h-40 opacity-30 animate-in fade-in duration-500">
@@ -285,7 +285,7 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
                 layout: { duration: 0.2, ease: "easeInOut" },
                 scale: { duration: 0.2 }
               }}
-              className="relative w-full flex items-start justify-between min-h-[72px] px-6 py-4 cursor-pointer group"
+              className="relative w-full flex items-start justify-between min-h-[72px] px-3 md:px-6 py-4 cursor-pointer group"
               style={{
                 backgroundColor: style.cardBg,
                 color: style.text,
@@ -299,8 +299,10 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
 
               {/* 左侧：序号 + 英文原文 */}
               <div className="flex-1 flex items-start gap-4 mr-4">
-                <span className="text-[10px] font-sans opacity-40 w-4 flex-shrink-0 pt-1">0{line.id}</span>
-                <p className="text-[15px] md:text-[17px] font-normal leading-snug tracking-tight font-sans break-words">
+                <span className="text-[10px] opacity-40 w-4 flex-shrink-0 pt-1"
+                      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>0{line.id}</span>
+                <p className="text-[17px] md:text-[19px] font-normal leading-snug tracking-tight break-words"
+                   style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif' }}>
                   {line.en}
                 </p>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, Sparkles, Lock, ChevronDown, Wand2, RefreshCw } from "lucide-react";
 import type { SalonData } from "@/data/types";
@@ -274,17 +274,26 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     return () => clearTimeout(timer);
   }, [videoContext, currentMode, modeConfig, lessonId, membershipType, messages.length]);
 
-  // 自动滚动
+  // 自动滚动 - 只在聊天区域内滚动，不影响整个页面
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesEndRef.current) {
+      // 使用 scrollIntoView 的 block: 'nearest' 选项，避免影响父容器
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: "smooth",
+        block: "nearest", // 关键：只在必要时滚动，不影响父容器
+        inline: "nearest"
+      });
+    }
   }, [messages, isLoading]);
 
-  // 自动调整输入框高度 - 平滑方案：避免抖动
-  useEffect(() => {
+  // 🎯 自动调整输入框高度 - 修复抖动 Bug
+  useLayoutEffect(() => {
     if (textareaRef.current) {
-      // 🎯 先重置到最小高度，然后根据内容调整
-      textareaRef.current.style.height = 'auto';
+      // 1. 使用 0px 替代 auto，避免浏览器强行渲染默认行高造成的布局塌陷
+      textareaRef.current.style.height = '0px';
+      // 2. 计算实际需要的滚动高度
       const newHeight = Math.min(textareaRef.current.scrollHeight, 96); // 最大 96px (约6行)
+      // 3. 赋予新高度
       textareaRef.current.style.height = newHeight + 'px';
     }
   }, [input]);
@@ -489,7 +498,8 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
   return (
     <div 
-      className="w-full h-full flex flex-col relative overflow-hidden font-sans"
+      className="w-full h-full flex flex-col relative overflow-hidden"
+      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", system-ui, sans-serif' }}
       style={getBackgroundStyle()}
     >
       {/* --- Header: Gabby 的名片 --- */}

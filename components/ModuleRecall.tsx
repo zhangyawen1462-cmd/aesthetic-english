@@ -59,7 +59,7 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
               style={{ 
                 color: color,
                 fontWeight: 500,
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", sans-serif',
+                fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
                 letterSpacing: '0.02em',
                 lineHeight: '1.65',
               }}
@@ -100,7 +100,7 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
               className="text-sm md:text-xl leading-loose whitespace-pre-wrap"
               style={{ 
                 color: color,
-                fontFamily: 'Georgia, "Times New Roman", Baskerville, serif',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
                 fontWeight: 400,
                 letterSpacing: '0.015em',
                 lineHeight: '1.85',
@@ -123,7 +123,7 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
                   style={{ 
                     color: color,
                     fontWeight: 400,
-                    fontFamily: 'PingFang SC, sans-serif',
+                    fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
                   }}
                 >
                   Press to Reveal

@@ -10,7 +10,7 @@ import type { ThemeConfig } from "@/lib/theme-config";
 
 interface ModuleGrammarProps {
   theme: ThemeConfig;
-  onSeek: (time: number) => void;
+  onSeek: (time: number, autoPlay?: boolean) => void;
   grammarNotes: GrammarNote[];
   lessonId: string;
   category?: string;
@@ -136,7 +136,7 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, c
 
       {/* 顶部标题 - 仅网页端显示 */}
       <div className="hidden md:block w-full px-8 py-6 z-20 sticky top-0 backdrop-blur-sm">
-        <h1 className="font-bold" style={{ color: theme.text, fontSize: '30px', fontFamily: 'PingFang SC' }}>
+        <h1 className="font-bold" style={{ color: theme.text, fontSize: '30px', fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }}>
           Grammar Notes
         </h1>
       </div>
@@ -146,7 +146,7 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, c
 
         {grammarNotes.length === 0 && (
           <div className="flex items-center justify-center h-40 opacity-30">
-            <p className="text-[10px] uppercase tracking-widest" style={{ fontFamily: 'PingFang SC' }}>No Notes Recorded</p>
+            <p className="text-[10px] uppercase tracking-widest" style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>No Notes Recorded</p>
           </div>
         )}
 
@@ -215,7 +215,7 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, c
                     }}
                   >
                     <BookmarkCheck size={12} />
-                    <span className="text-[9px] font-bold uppercase tracking-wider" style={{ fontFamily: 'PingFang SC' }}>已收藏</span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider" style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>已收藏</span>
                   </motion.div>
                 )}
 
@@ -225,8 +225,8 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, c
                   {/* 标题行 */}
                   <div className="flex justify-between items-start gap-4 mb-2">
                     <h3 className="text-base md:text-lg font-bold leading-snug transition-colors cursor-pointer"
-                        style={{ color: theme.text, fontFamily: 'PingFang SC' }}
-                        onClick={(e) => { e.stopPropagation(); onSeek(item.start); }}
+                        style={{ color: theme.text, fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}
+                        onClick={(e) => { e.stopPropagation(); onSeek(item.start, true); }}
                         onMouseEnter={(e) => e.currentTarget.style.color = theme.accent}
                         onMouseLeave={(e) => e.currentTarget.style.color = theme.text}>
                       {item.point}
@@ -247,7 +247,7 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, c
                   {/* 解释文本 */}
                   <div className="mb-2">
                     <p className="text-[13px] md:text-[14px] leading-relaxed opacity-80"
-                       style={{ fontFamily: 'PingFang SC' }}>
+                       style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
                       {item.desc}
                     </p>
                   </div>
@@ -256,7 +256,7 @@ export default function ModuleGrammar({ theme, onSeek, grammarNotes, lessonId, c
                   <div className="relative py-2 px-3 rounded-md transition-colors duration-300"
                        style={{ backgroundColor: `${theme.accent}08` }}>
                     <p className="text-[13px] md:text-[14px] leading-relaxed opacity-90"
-                       style={{ fontFamily: 'PingFang SC', color: theme.accent }}>
+                       style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif', color: theme.accent }}>
                       {item.ex}
                     </p>
                   </div>

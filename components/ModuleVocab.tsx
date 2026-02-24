@@ -112,7 +112,7 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
     <div className="h-full flex flex-col items-center justify-center p-4 relative overflow-hidden">
 
       {/* 1. 顶部提示条 - 跟随卡片宽度 */}
-      <div className="w-[85vw] max-w-[320px] mb-4 group relative h-6">
+      <div className="w-[280px] mb-4 group relative h-6">
         <div className="flex justify-between items-center w-full px-1 transition-all duration-1000 ease-out opacity-0 blur-sm group-hover:opacity-40 group-hover:blur-0">
           <span className="text-[9px] uppercase tracking-[0.2em] italic" style={{ color: theme.text }}>← Unknown</span>
           <span className="text-[9px] uppercase tracking-[0.2em] italic" style={{ color: theme.text }}>Known →</span>
@@ -120,13 +120,12 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-[1px] bg-current transition-all duration-1000 group-hover:w-full opacity-10" style={{ backgroundColor: theme.text }} />
       </div>
 
-      {/* 2. 卡片容器 - 物理尺寸限制 + 灵活高度 */}
+      {/* 2. 卡片容器 - 固定尺寸 */}
       <div 
         className="relative"
         style={{ 
-          width: '85vw',           // 小屏友好
-          maxWidth: '320px',       // 大屏精致锁定
-          height: 'clamp(420px, 55dvh, 500px)', // 灵活适配不同屏幕
+          width: '280px',
+          height: '400px',
         }}
       >
         <AnimatePresence>
@@ -188,12 +187,12 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                       {/* 中央单词 */}
                       <div className="flex flex-col items-center gap-2 px-4 w-full">
                         <h2 
-                          className="text-3xl md:text-5xl tracking-tight font-sans font-normal text-center break-words w-full"
-                          style={{ lineHeight: '1.1' }}
+                          className="text-3xl md:text-5xl tracking-tight font-normal text-center break-words w-full"
+                          style={{ lineHeight: '1.1', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                         >
                           {card.word}
                         </h2>
-                        <p className="font-sans opacity-40 text-xs md:text-sm">{card.phonetic}</p>
+                        <p className="opacity-40 text-xs md:text-sm" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>{card.phonetic}</p>
                       </div>
 
                       {/* 底部提示 */}
@@ -250,14 +249,16 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
 
                         {/* Content */}
                         <div className="flex-1 flex flex-col justify-center min-h-0">
-                          <h2 className="text-2xl md:text-4xl tracking-tight mb-2 font-sans font-normal shrink-0">
+                          <h2 className="text-2xl md:text-4xl tracking-tight mb-2 font-normal shrink-0"
+                              style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}>
                             {card.word}
                           </h2>
                           <div className="h-[1px] w-6 mb-3 opacity-20 shrink-0" style={{ backgroundColor: theme.text }} />
                           
                           {/* 限制文本高度，防止溢出 */}
                           <div className="overflow-y-auto pr-1 no-scrollbar">
-                            <p className="text-sm md:text-base leading-relaxed opacity-80 font-sans mb-3">
+                            <p className="text-sm md:text-base leading-relaxed opacity-80 mb-3"
+                               style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
                               {card.defCn || card.def}
                             </p>
                           </div>
@@ -265,7 +266,8 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
 
                         {/* Footer Example */}
                         <div className="border-t pt-3 mt-2 shrink-0" style={{ borderColor: 'rgba(0,0,0,0.05)' }}>
-                          <p className="text-[11px] md:text-xs font-sans opacity-50 leading-relaxed italic line-clamp-3">
+                          <p className="text-[11px] md:text-xs leading-relaxed italic line-clamp-3 opacity-50"
+                             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>
                             &quot;{card.ex}&quot;
                           </p>
                         </div>
