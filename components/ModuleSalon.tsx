@@ -494,7 +494,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
     >
       {/* --- Header: Gabby 的名片 --- */}
       <div
-        className={`flex items-center justify-between border-b backdrop-blur-md sticky top-0 z-20 ${isMobile ? 'px-4 py-4' : 'px-6 py-5'}`}
+        className={`flex items-center justify-between border-b backdrop-blur-md shrink-0 z-20 ${isMobile ? 'px-4 py-4' : 'px-6 py-5'}`}
         style={{ 
           borderColor: `${theme.lineColor}20`,
           backgroundColor: `${theme.background}cc`
@@ -578,7 +578,7 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
       </div>
 
       {/* --- Chat Area --- */}
-      <div className={`flex-1 overflow-y-auto ${isMobile ? 'px-4 py-5 space-y-5' : 'px-6 py-6 space-y-6'}`} style={{ scrollBehavior: 'smooth' }}>
+      <div className={`flex-1 overflow-y-auto min-h-0 ${isMobile ? 'px-4 py-5 space-y-5 pb-32' : 'px-6 py-6 space-y-6 pb-40'}`} style={{ scrollBehavior: 'smooth' }}>
         <AnimatePresence>
           {messages
             .filter(m => !m.isHidden && m.content !== '[SCENE_START]') // 🆕 过滤隐藏消息
@@ -791,10 +791,10 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
       {/* --- Input Area --- */}
       <div
-        className={`border-t backdrop-blur-xl ${isMobile ? 'px-4 py-4 pb-5' : 'px-6 py-5'}`}
+        className={`absolute bottom-0 left-0 right-0 border-t backdrop-blur-xl z-30 ${isMobile ? 'px-4 py-4 pb-5' : 'px-6 py-5'}`}
         style={{ 
           borderColor: `${theme.lineColor}20`,
-          backgroundColor: `${theme.background}e6`,
+          backgroundColor: `${theme.background}F5`,
           ...(isMobile ? { paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' } : {})
         }}
       >
