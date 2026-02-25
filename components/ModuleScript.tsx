@@ -96,6 +96,14 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const [swipeStartWordIndex, setSwipeStartWordIndex] = useState<{ lineId: number; wordIndex: number } | null>(null);
   const [swipeCurrentWordIndex, setSwipeCurrentWordIndex] = useState<number | null>(null);
 
+  // 🎨 荧光笔颜色配置
+  const activeHighlightColors = [
+    { id: 'yellow', color: '#FFEA28', name: '马克黄' },
+    { id: 'green', color: '#32FF7E', name: '苹果青' },
+    { id: 'pink', color: '#FF5EBC', name: '亮芭比粉' },
+    { id: 'blue', color: '#00D8FF', name: '冰川蓝' },
+  ];
+
   // 🎯 将文本按空格拆分成单词数组（保留标点符号）
   const tokenizeWords = (text: string): string[] => {
     return text.split(/(\s+)/).filter(token => token.length > 0);
