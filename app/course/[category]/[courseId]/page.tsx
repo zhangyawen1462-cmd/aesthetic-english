@@ -3,8 +3,8 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Play, Pause, ChevronLeft,
-  FileText, Headphones, Mic, BookOpen, Lightbulb, RotateCcw, MessageCircle, Settings, Download
+  Play, Pause, ChevronLeft, BookmarkPlus, ChevronRight, Notebook,
+  FileText, Headphones, Mic, BookOpen, Lightbulb, RotateCcw, MessageCircle, Settings, Download, Palette, Languages
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -41,6 +41,9 @@ const ModuleSalon = lazy(() => import("@/components/ModuleSalon"));
 const ExportPDFButton = lazy(() => import("@/components/ExportPDFButton"));
 const ExportAudioButton = lazy(() => import("@/components/ExportAudioButton"));
 const SubscriptionModal = lazy(() => import("@/components/SubscriptionModal"));
+
+// --- 导入类型 ---
+import type { LangMode } from "@/components/ModuleScript";
 
 const TABS = [
   { id: 'script', label: '字幕精校', num: 'I', icon: FileText, mobileLabel: '看' },
@@ -149,10 +152,41 @@ export default function CoursePage() {
   const [activeTab, setActiveTab] = useState('script');
   const [currentTheme, setCurrentTheme] = useState<CategoryKey>(category);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [scriptLangMode, setScriptLangMode] = useState<LangMode>('bi'); // 🆕 Script 模块的语言模式
 
   const [showProgressBar, setShowProgressBar] = useState(false); // 控制进度条显示
   const progressBarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false); // 🆕 订阅弹窗
+  const [isCollected, setIsCollected] = useState(false); // 🆕 收藏状态
+
+  // 🆕 字幕控制：上一句/下一句
+  const handlePrevSubtitle = () => {
+    if (transcript.length === 0 || !videoRef.current) return;
+    
+    const time = videoRef.current.currentTime;
+    // 找到当前时间之前的字幕
+    const currentIndex = transcript.findIndex(line => line.start > time);
+    const prevIndex = currentIndex > 0 ? currentIndex - 1 : 0;
+    
+    if (prevIndex >= 0 && transcript[prevIndex]) {
+      handleSeek(transcript[prevIndex].start, true);
+    }
+  };
+
+  const handleNextSubtitle = () => {
+    if (transcript.length === 0 || !videoRef.current) return;
+    
+    const time = videoRef.current.currentTime;
+    // 找到当前时间之后的字幕
+    const nextIndex = transcript.findIndex(line => line.start > time);
+    
+    if (nextIndex >= 0 && nextIndex < transcript.length && transcript[nextIndex]) {
+      handleSeek(transcript[nextIndex].start, true);
+    }
+  };
+
+  // 判断字幕控制按钮是否可用（仅在字幕精校和影子跟读模块）
+  const isSubtitleControlEnabled = activeTab === 'script' || activeTab === 'shadow';
 
   // 预连接到 OSS 域名，加速视频和图片加载
   useEffect(() => {
@@ -161,6 +195,45 @@ export default function CoursePage() {
     dnsPrefetch('https://aesthetic-assets.oss-cn-hongkong.aliyuncs.com');
     dnsPrefetch('https://assets.aestheticenglish.com');
   }, []);
+
+  // 🆕 检查视频是否已收藏
+  useEffect(() => {
+    if (lesson) {
+      const notebook = JSON.parse(localStorage.getItem('notebook') || '[]');
+      const collected = notebook.some((item: any) => item.lessonId === lesson.id && item.type === 'video');
+      setIsCollected(collected);
+    }
+  }, [lesson]);
+
+  // 🆕 收藏/取消收藏视频
+  const toggleCollectVideo = () => {
+    if (!lesson) return;
+    
+    const notebook = JSON.parse(localStorage.getItem('notebook') || '[]');
+    const existingIndex = notebook.findIndex((item: any) => item.lessonId === lesson.id && item.type === 'video');
+    
+    if (existingIndex >= 0) {
+      // 取消收藏
+      notebook.splice(existingIndex, 1);
+      setIsCollected(false);
+    } else {
+      // 添加收藏
+      notebook.push({
+        id: `video-${lesson.id}-${Date.now()}`,
+        type: 'video',
+        content: lesson.titleCn || lesson.titleEn,
+        sub: lesson.titleEn,
+        lessonId: lesson.id,
+        category: lesson.category,
+        videoUrl: lesson.videoUrl,
+        coverImg: lesson.coverImg,
+        timestamp: Date.now(),
+      });
+      setIsCollected(true);
+    }
+    
+    localStorage.setItem('notebook', JSON.stringify(notebook));
+  };
 
   // --- Hooks ---
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -313,6 +386,58 @@ export default function CoursePage() {
     >
 
       {/* ═══════════════════════════════════════
+          🆕 Top Navigation Bar - 仅移动端显示
+         ═══════════════════════════════════════ */}
+      {isMobile && (
+        <div 
+          className="flex md:hidden items-center justify-between px-3 shrink-0 z-50 safe-top"
+          style={{
+            backgroundColor: theme.bg,
+            borderBottom: `1px solid ${theme.lineColor}`,
+            height: '40px'
+          }}
+        >
+          {/* 左侧：返回按钮 + 标题 */}
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+              onClick={() => router.back()}
+              className="flex items-center justify-center w-10 h-10 transition-colors touch-manipulation shrink-0"
+              style={{ color: theme.text }}
+              aria-label="返回上一页"
+            >
+              <ChevronLeft size={24} strokeWidth={2} />
+            </button>
+            
+            {lesson && (
+              <h1 
+                className="text-[17.5px] font-medium truncate"
+                style={{ 
+                  fontFamily: "'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif",
+                  color: theme.text
+                }}
+              >
+                {lesson.titleCn}
+              </h1>
+            )}
+          </div>
+
+          {/* 右侧：收藏按钮 */}
+          <button
+            onClick={toggleCollectVideo}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-md transition-all touch-manipulation shrink-0"
+            style={{
+              backgroundColor: isCollected ? `${theme.accent}15` : 'transparent',
+              color: isCollected ? theme.accent : theme.text,
+            }}
+            aria-label={isCollected ? '取消收藏' : '收藏视频'}
+          >
+            <Notebook size={16} fill={isCollected ? 'currentColor' : 'none'} strokeWidth={2} />
+            <span className="text-[11px] font-medium">收藏本</span>
+          </button>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════
           1. 视频区域
           - 移动端: 自适应 16:9 + 横竖屏自适应 + 支持全屏
           - 桌面端: 可拖拽宽度
@@ -349,34 +474,34 @@ export default function CoursePage() {
         <ContentGate 
           section={category as VideoSection} 
           isSample={lesson?.isSample || false}
-          className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top"
-          style={{
-            ...videoContainerStyle,
-            maxHeight: isMobile ? 'auto' : '100%',
-          }}
         >
       <div
         ref={videoContainerRef}
-        className="relative bg-black flex items-center justify-center w-full"
+        className="shrink-0 z-10 shadow-2xl transition-all overflow-hidden w-full md:h-full md:basis-auto safe-top relative bg-black flex items-center justify-center"
         style={videoContainerStyle}
         onMouseMove={handleVideoInteraction}
         onTouchStart={handleVideoInteraction}
       >
-        {/* 返回按钮 — 智能返回上一页 */}
-        <button
-          onClick={() => router.back()}
-          className="absolute top-3 left-3 md:top-4 md:left-4 z-50 text-white/40 hover:text-white active:text-white transition-colors p-2 touch-manipulation"
-          aria-label="返回上一页"
-        >
-          <ChevronLeft size={isMobile ? 24 : 22} />
-        </button>
+        {/* 桌面端：返回按钮和水印 */}
+        {!isMobile && (
+          <>
+            {/* 返回按钮 */}
+            <button
+              onClick={() => router.back()}
+              className="absolute top-3 left-3 md:top-4 md:left-4 z-50 text-white/40 hover:text-white active:text-white transition-colors p-2 touch-manipulation"
+              aria-label="返回上一页"
+            >
+              <ChevronLeft size={22} />
+            </button>
 
-        {/* Aesthetic English 水印 */}
-        <div className="absolute top-3 right-3 md:top-4 md:right-4 z-50 pointer-events-none">
-          <p className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-white/20 font-serif">
-            Aesthetic English
-          </p>
-        </div>
+            {/* Aesthetic English 水印 */}
+            <div className="absolute top-3 right-3 md:top-4 md:right-4 z-50 pointer-events-none">
+              <p className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-white/20 font-serif">
+                Aesthetic English
+              </p>
+            </div>
+          </>
+        )}
 
         {lesson.videoUrl && lesson.videoUrl.trim() !== '' ? (
           <video
@@ -419,24 +544,29 @@ export default function CoursePage() {
             <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-lg active:scale-95 transition-transform">
               <Play size={isMobile ? 28 : 32} className="text-white ml-0.5" fill="currentColor" />
             </div>
-            {/* 中文标题 */}
-            {lesson.titleCn && (
-              <p className="mt-4 text-white/90 text-sm sm:text-base font-sans max-w-[85%] text-center px-4 font-medium">
-                {lesson.titleCn}
-              </p>
+            {/* 桌面端显示标题 */}
+            {!isMobile && (
+              <>
+                {/* 中文标题 */}
+                {lesson.titleCn && (
+                  <p className="mt-4 text-white/90 text-sm sm:text-base font-sans max-w-[85%] text-center px-4 font-medium">
+                    {lesson.titleCn}
+                  </p>
+                )}
+                {/* 英文标题 */}
+                {lesson.titleEn && (
+                  <p className="mt-2 text-white/70 text-xs sm:text-sm font-sans max-w-[85%] text-center px-4">
+                    {lesson.titleEn}
+                  </p>
+                )}
+                {lesson.ep != null && <p className="mt-2 text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">EP.{lesson.ep}</p>}
+              </>
             )}
-            {/* 英文标题 */}
-            {lesson.titleEn && (
-              <p className="mt-2 text-white/70 text-xs sm:text-sm font-sans max-w-[85%] text-center px-4">
-                {lesson.titleEn}
-              </p>
-            )}
-            {lesson.ep != null && <p className="mt-2 text-[9px] sm:text-[10px] uppercase tracking-widest text-white/40">EP.{lesson.ep}</p>}
           </div>
         )}
 
-        {/* 视频进度条：流畅的液态动画 - 根据状态显示/隐藏 */}
-        {lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
+        {/* 视频进度条：仅桌面端显示 */}
+        {!isMobile && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
           <motion.div 
             className="absolute bottom-0 left-0 right-0 z-30 group/progress"
             initial={{ opacity: 0, y: 10 }}
@@ -447,19 +577,11 @@ export default function CoursePage() {
             transition={{ duration: 0.3, ease: "easeOut" }}
           >
             <div
-              className="h-[3px] sm:h-[2px] group-hover/progress:h-1.5 cursor-pointer transition-all duration-200 flex items-center touch-manipulation relative"
+              className="h-[2px] group-hover/progress:h-1.5 cursor-pointer transition-all duration-200 flex items-center relative"
               style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%)' }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const percent = (e.clientX - rect.left) / rect.width;
-                if (duration > 0) {
-                  handleSeek(percent * duration, true);
-                }
-              }}
-              onTouchStart={(e) => {
-                const touch = e.touches[0];
-                const rect = e.currentTarget.getBoundingClientRect();
-                const percent = (touch.clientX - rect.left) / rect.width;
                 if (duration > 0) {
                   handleSeek(percent * duration, true);
                 }
@@ -493,16 +615,16 @@ export default function CoursePage() {
                   backgroundColor: theme.accent,
                 }}
               >
-                {/* 圆形拖拽手柄 — 移动端始终显示，桌面端 hover 显示 */}
+                {/* 圆形拖拽手柄 — 桌面端 hover 显示 */}
                 <motion.div
                   layout
-                  className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full bg-white shadow-md border border-white/30 transition-opacity ${isMobile ? 'opacity-100' : 'opacity-0 group-hover/progress:opacity-100'}`}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md border border-white/30 transition-opacity opacity-0 group-hover/progress:opacity-100"
                   style={{ transform: 'translate(50%, -50%)' }}
                 />
               </motion.div>
             </div>
-            {/* 时间显示：移动端始终显示，桌面端 hover 渐入 */}
-            <div className={`flex justify-between px-3 sm:px-4 py-1.5 text-[8px] sm:text-[9px] text-white/40 transition-opacity ${isMobile ? 'opacity-100' : 'opacity-0 group-hover/progress:opacity-100'}`}>
+            {/* 时间显示：桌面端 hover 渐入 */}
+            <div className="flex justify-between px-4 py-1.5 text-[9px] text-white/40 transition-opacity opacity-0 group-hover/progress:opacity-100">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
@@ -541,64 +663,7 @@ export default function CoursePage() {
          ═══════════════════════════════════════ */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative z-10" style={{ backgroundColor: theme.bg }}>
 
-        {/* ─── 移动端图标导航 ─── */}
-        <nav
-          className="flex md:hidden items-center justify-center shrink-0 safe-bottom relative touch-manipulation px-2 gap-[22px] pt-[0.5rem]"
-          style={{
-            borderTop: `1px solid ${theme.lineColor}`,
-            background: theme.bg + 'F0',
-            backdropFilter: 'blur(20px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-            boxShadow: `0 -3px 12px ${theme.lineColor}12, 0 -1px 0 0 ${theme.lineColor}25`,
-            paddingBottom: '0rem', // 移除下边距
-          }}
-        >
-          {TABS.map((tab, index) => {
-            const isActive = activeTab === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="relative flex items-center justify-center touch-manipulation p-1 rounded-lg transition-all flex-shrink-0"
-                style={{
-                  backgroundColor: isActive ? `${theme.accent}15` : 'transparent',
-                }}
-                aria-label={`切换到 ${tab.label} 模块`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <motion.div
-                  animate={{
-                    opacity: isActive ? 1 : 0.4,
-                    scale: isActive ? 1.452 : 1.32,
-                  }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  style={{ 
-                    color: isActive ? theme.accent : theme.text,
-                  }}
-                >
-                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                </motion.div>
-              </button>
-            );
-          })}
-
-          {/* 设置图标 - 主题切换 */}
-          <button
-            onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-            className="relative flex items-center justify-center touch-manipulation p-1 rounded-lg transition-all flex-shrink-0 ml-1"
-            aria-label="主题设置"
-          >
-            <Settings 
-              size={16} 
-              strokeWidth={1.5}
-              style={{ 
-                color: theme.text,
-                opacity: 0.25,
-              }}
-            />
-          </button>
-        </nav>
+        {/* ─── 移动端：删除横向图标导航栏 ─── */}
 
         {/* ─── 内容区域容器 ─── */}
         <div className="flex-1 h-full flex flex-row overflow-hidden">
@@ -608,7 +673,7 @@ export default function CoursePage() {
 
             {/* ─── 模块内容区（纯净背景 + 移动端优化间距 + 桌面端左右边距） ─── */}
           <div
-              className="flex-1 overflow-y-auto p-4 pt-4 sm:pt-6 md:pl-4 md:pr-[0.8rem] md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
+              className="flex-1 overflow-y-auto p-4 pt-4 sm:pt-6 md:pl-4 md:pr-[0.8rem] md:pt-6 pb-[5rem] md:pb-[0.2rem] no-scrollbar relative"
             style={{ backgroundColor: theme.bg }}
           >
             <AnimatePresence mode="wait">
@@ -622,7 +687,18 @@ export default function CoursePage() {
               >
                 <Suspense fallback={<ModuleLoader />}>
                   {activeTab === 'script' && (
-                    <ModuleScript currentTime={currentTime} isPlaying={isPlaying} theme={theme} setIsPlaying={setIsPlaying} onSeek={handleSeek} transcript={transcript} lessonId={lesson.id} category={lesson.category} />
+                    <ModuleScript 
+                      currentTime={currentTime} 
+                      isPlaying={isPlaying} 
+                      theme={theme} 
+                      setIsPlaying={setIsPlaying} 
+                      onSeek={handleSeek} 
+                      transcript={transcript} 
+                      lessonId={lesson.id} 
+                      category={lesson.category}
+                      langMode={scriptLangMode}
+                      onLangModeChange={setScriptLangMode}
+                    />
                   )}
                   {activeTab === 'blind' && (
                     <ModuleBlind 
@@ -866,11 +942,7 @@ export default function CoursePage() {
               initial={{ opacity: 0, scale: 0.9, x: 10 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.9, x: 10 }}
-              className="absolute bottom-0 right-14 sm:right-16 flex flex-col gap-2 p-2.5 sm:p-3 rounded-sm backdrop-blur-md shadow-2xl"
-              style={{ 
-                backgroundColor: `${theme.sidebar}F5`,
-                border: `1px solid ${theme.text}1A`
-              }}
+              className="absolute bottom-0 right-14 sm:right-16 flex flex-col gap-2 p-2"
             >
               {(Object.keys(THEMES) as CategoryKey[]).map((key) => {
                 const t = THEMES[key];
@@ -881,34 +953,23 @@ export default function CoursePage() {
                       setCurrentTheme(key);
                       setIsThemeMenuOpen(false);
                     }}
-                    className="group/swatch flex items-center gap-2.5 sm:gap-3 px-2.5 sm:px-3 py-2 rounded-[2px] transition-all hover:scale-105 active:scale-95 touch-manipulation"
-                    style={{ 
-                      backgroundColor: currentTheme === key ? `${theme.text}10` : 'transparent'
-                    }}
+                    className="group/swatch transition-all hover:scale-110 active:scale-95 touch-manipulation"
                     aria-label={`切换到 ${t.label} 主题`}
                   >
                     {/* 色卡样本 */}
                     <div 
-                      className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-[2px] transition-transform"
+                      className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-sm transition-transform"
                       style={{ 
                         backgroundColor: t.bg,
-                        border: `1.5px solid ${t.text}`,
-                        boxShadow: `0 2px 6px ${t.text}30`
+                        border: `2px solid ${t.text}`,
+                        boxShadow: `0 4px 12px ${t.text}40`
                       }}
                     >
                       <div 
-                        className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-[1px]"
+                        className="absolute bottom-1 right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-[1px]"
                         style={{ backgroundColor: t.accent }}
                       />
                     </div>
-                    
-                    {/* 名称 */}
-                    <span 
-                      className="text-[10px] sm:text-[11px] uppercase tracking-wider font-medium"
-                      style={{ color: currentTheme === key ? theme.accent : theme.text }}
-                    >
-                      {key === 'daily' ? 'Daily' : key === 'cognitive' ? 'Cognitive' : 'Business'}
-                    </span>
                   </button>
                 );
               })}
@@ -917,60 +978,298 @@ export default function CoursePage() {
         </AnimatePresence>
       </div>
 
+      {/* ─── 移动端底部控制栏（固定在最底部）─── */}
+      {isMobile && (
+        <div 
+          className="fixed bottom-0 left-0 right-0 z-[60] flex items-center justify-between px-6 safe-bottom"
+          style={{
+            backgroundColor: theme.bg,
+            borderTop: `1px solid ${theme.lineColor}`,
+            boxShadow: `0 -2px 10px ${theme.lineColor}20`,
+            height: '80px'
+          }}
+        >
+          {/* 左侧：设置按钮 */}
+          <button
+            onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+            className="flex items-center justify-center touch-manipulation transition-all active:scale-95"
+            style={{ color: theme.text, opacity: 0.5 }}
+            aria-label="更多设置"
+          >
+            <Settings size={26} strokeWidth={2} />
+          </button>
+
+          {/* 中间：播放控制组（垂直居中）*/}
+          <div className="flex items-center gap-6">
+            {/* 上一句 */}
+            <button
+              onClick={handlePrevSubtitle}
+              disabled={!isSubtitleControlEnabled}
+              className="flex items-center justify-center touch-manipulation transition-all active:scale-95"
+              style={{
+                color: isSubtitleControlEnabled ? theme.text : `${theme.text}30`,
+                opacity: isSubtitleControlEnabled ? 0.7 : 0.3
+              }}
+              aria-label="上一句"
+            >
+              <ChevronLeft size={24} strokeWidth={2} />
+            </button>
+
+            {/* 播放/暂停（视觉焦点）*/}
+            <button
+              onClick={togglePlay}
+              className="flex items-center justify-center rounded-full touch-manipulation transition-all active:scale-95"
+              style={{
+                width: '56px',
+                height: '56px',
+                backgroundColor: `${theme.accent}20`,
+                color: theme.accent,
+                border: `2px solid ${theme.accent}30`,
+                boxShadow: `0 1px 3px ${theme.accent}05`
+              }}
+              aria-label={isPlaying ? '暂停' : '播放'}
+            >
+              {isPlaying ? (
+                <Pause size={26} fill="currentColor" />
+              ) : (
+                <Play size={26} fill="currentColor" className="ml-0.5" />
+              )}
+            </button>
+
+            {/* 下一句 */}
+            <button
+              onClick={handleNextSubtitle}
+              disabled={!isSubtitleControlEnabled}
+              className="flex items-center justify-center touch-manipulation transition-all active:scale-95"
+              style={{
+                color: isSubtitleControlEnabled ? theme.text : `${theme.text}30`,
+                opacity: isSubtitleControlEnabled ? 0.7 : 0.3
+              }}
+              aria-label="下一句"
+            >
+              <ChevronRight size={24} strokeWidth={2} />
+            </button>
+          </div>
+
+          {/* 右侧：语言切换按钮（仅在 script 模块显示）*/}
+          {activeTab === 'script' ? (
+            <button
+              onClick={() => {
+                const modes: LangMode[] = ['bi', 'en', 'cn'];
+                const currentIndex = modes.indexOf(scriptLangMode);
+                const nextIndex = (currentIndex + 1) % modes.length;
+                setScriptLangMode(modes[nextIndex]);
+              }}
+              className="flex items-center justify-center touch-manipulation transition-all active:scale-95"
+              style={{ 
+                color: theme.accent,
+                opacity: 0.8
+              }}
+              aria-label="切换语言模式"
+            >
+              <div className="flex flex-col items-center gap-0.5">
+                <Languages size={20} strokeWidth={2} />
+                <span className="text-[9px] font-medium uppercase tracking-wider">
+                  {scriptLangMode === 'bi' ? 'Dual' : scriptLangMode === 'en' ? 'EN' : 'CN'}
+                </span>
+              </div>
+            </button>
+          ) : (
+            <div style={{ width: '26px' }} />
+          )}
+        </div>
+      )}
+
       {/* ─── 移动端主题切换菜单 ─── */}
       <AnimatePresence>
         {isThemeMenuOpen && isMobile && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex gap-3 p-3 rounded-lg backdrop-blur-md shadow-2xl"
-            style={{ 
-              backgroundColor: `${theme.bg}F5`,
-              border: `1px solid ${theme.text}1A`
-            }}
-          >
-            {(Object.keys(THEMES) as CategoryKey[]).map((key) => {
-              const t = THEMES[key];
-              return (
-                <button
-                  key={key}
-                  onClick={() => {
-                    setCurrentTheme(key);
-                    setIsThemeMenuOpen(false);
-                  }}
-                  className="flex flex-col items-center gap-1.5 p-2 rounded-lg transition-all active:scale-95 touch-manipulation"
+          <>
+            {/* 背景遮罩 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsThemeMenuOpen(false)}
+              className="md:hidden fixed inset-0 z-[60] bg-black/40"
+            />
+            
+            {/* 底部弹出菜单 */}
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="md:hidden fixed bottom-0 left-0 right-0 z-[70] rounded-t-2xl safe-bottom"
+              style={{ 
+                backgroundColor: theme.bg,
+                boxShadow: `0 -4px 20px ${theme.lineColor}30`
+              }}
+            >
+              {/* 拖动条 */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div 
+                  className="w-10 h-1 rounded-full"
+                  style={{ backgroundColor: `${theme.text}20` }}
+                />
+              </div>
+
+              {/* 菜单标题 */}
+              <div className="px-6 py-3 border-b" style={{ borderColor: theme.lineColor }}>
+                <h3 
+                  className="text-base font-medium"
                   style={{ 
-                    backgroundColor: currentTheme === key ? `${theme.accent}15` : 'transparent'
+                    color: theme.text,
+                    fontFamily: "'PingFang SC', -apple-system, BlinkMacSystemFont, sans-serif"
                   }}
-                  aria-label={`切换到 ${t.label} 主题`}
                 >
-                  {/* 色卡样本 */}
-                  <div 
-                    className="relative w-10 h-10 rounded-md transition-transform"
-                    style={{ 
-                      backgroundColor: t.bg,
-                      border: `2px solid ${t.text}`,
-                      boxShadow: `0 2px 8px ${t.text}30`
-                    }}
+                  更多功能
+                </h3>
+              </div>
+
+              {/* 菜单内容 */}
+              <div className="px-6 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+                
+                {/* 学习模块列表 */}
+                <div>
+                  <p 
+                    className="text-xs mb-3 opacity-60"
+                    style={{ color: theme.text }}
                   >
-                    <div 
-                      className="absolute bottom-1 right-1 w-2 h-2 rounded-[1px]"
-                      style={{ backgroundColor: t.accent }}
-                    />
+                    学习模块
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TABS.map((tab) => {
+                      const Icon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setIsThemeMenuOpen(false);
+                          }}
+                          className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 touch-manipulation"
+                          style={{
+                            backgroundColor: isActive ? `${theme.accent}15` : `${theme.text}08`,
+                            border: isActive ? `2px solid ${theme.accent}` : `1px solid ${theme.lineColor}`
+                          }}
+                        >
+                          <Icon 
+                            size={20} 
+                            strokeWidth={2}
+                            style={{ color: isActive ? theme.accent : theme.text }}
+                          />
+                          <span 
+                            className="text-sm font-medium"
+                            style={{ color: isActive ? theme.accent : theme.text }}
+                          >
+                            {tab.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    
+                    {/* 导出按钮（放在交流右边） */}
+                    {lesson && (
+                      <button
+                        onClick={() => {
+                          // 根据当前模块显示对应的导出功能
+                          // 这里只是占位，实际导出功能在下方
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 touch-manipulation"
+                        style={{
+                          backgroundColor: `${theme.text}08`,
+                          border: `1px solid ${theme.lineColor}`
+                        }}
+                      >
+                        <Download 
+                          size={20} 
+                          strokeWidth={2}
+                          style={{ color: theme.text }}
+                        />
+                        <span 
+                          className="text-sm font-medium"
+                          style={{ color: theme.text }}
+                        >
+                          导出
+                        </span>
+                      </button>
+                    )}
                   </div>
-                  
-                  {/* 名称 */}
-                  <span 
-                    className="text-[9px] uppercase tracking-wider font-medium"
-                    style={{ color: currentTheme === key ? theme.accent : theme.text, opacity: 0.7 }}
+                </div>
+
+                {/* 分隔线 */}
+                <div className="h-px" style={{ backgroundColor: theme.lineColor }} />
+                
+                {/* 主题切换 */}
+                <div>
+                  <p 
+                    className="text-xs mb-2 opacity-60 flex items-center gap-1.5"
+                    style={{ color: theme.text }}
                   >
-                    {key === 'daily' ? 'Daily' : key === 'cognitive' ? 'Cog' : 'Biz'}
-                  </span>
+                    <Palette size={14} />
+                    色板
+                  </p>
+                  <div className="flex gap-3">
+                    {(Object.keys(THEMES) as CategoryKey[]).map((key) => {
+                      const t = THEMES[key];
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setCurrentTheme(key);
+                            setIsThemeMenuOpen(false);
+                          }}
+                          className="flex-1 flex flex-col items-center gap-2 p-3 rounded-lg transition-all active:scale-95 touch-manipulation"
+                          style={{ 
+                            backgroundColor: currentTheme === key ? `${theme.accent}15` : `${theme.text}08`,
+                            border: currentTheme === key ? `2px solid ${theme.accent}` : `1px solid ${theme.lineColor}`
+                          }}
+                        >
+                          <div 
+                            className="w-8 h-8 rounded-md"
+                            style={{ 
+                              backgroundColor: t.bg,
+                              border: `1.5px solid ${t.text}`,
+                            }}
+                          >
+                            <div 
+                              className="w-full h-full flex items-end justify-end p-1"
+                            >
+                              <div 
+                                className="w-2 h-2 rounded-[1px]"
+                                style={{ backgroundColor: t.accent }}
+                              />
+                            </div>
+                          </div>
+                          <span 
+                            className="text-[10px] font-medium"
+                            style={{ color: currentTheme === key ? theme.accent : theme.text }}
+                          >
+                            {key === 'daily' ? '日常' : key === 'cognitive' ? '认知' : '商务'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 关闭按钮 */}
+              <div className="px-6 pb-6">
+                <button
+                  onClick={() => setIsThemeMenuOpen(false)}
+                  className="w-full py-3 rounded-lg transition-all touch-manipulation"
+                  style={{ 
+                    backgroundColor: `${theme.text}08`,
+                    color: theme.text
+                  }}
+                >
+                  <span className="text-sm font-medium">关闭</span>
                 </button>
-              );
-            })}
-          </motion.div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 

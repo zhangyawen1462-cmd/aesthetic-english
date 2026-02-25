@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { Search, Bookmark, PlayCircle, Trash2, Volume2 } from "lucide-react";
+import { Search, Bookmark, PlayCircle, Trash2, Volume2, Download } from "lucide-react";
 import type { CollectedItem } from "@/data/types";
 import { getNotebook, removeFromNotebook } from "@/lib/notebook-store";
 import { useSubscriptionGuard } from "@/lib/hooks/useSubscriptionGuard";
@@ -80,10 +80,73 @@ export default function MyNotebook() {
 
   const CATEGORIES = [
     { id: 'all', label: 'ALL COLLECTIONS' },
+    { id: 'video', label: 'VIDEOS' },
     { id: 'vocabulary', label: 'VOCABULARY' },
     { id: 'sentence', label: 'SENTENCES' },
     { id: 'grammar', label: 'GRAMMAR' },
   ];
+
+  // 📥 导出功能
+  const handleExport = () => {
+    if (filteredItems.length === 0) {
+      alert('没有可导出的内容');
+      return;
+    }
+
+    // 生成 Markdown 格式内容
+    let content = '# MY NOTEBOOK\n\n';
+    content += `导出时间: ${new Date().toLocaleString('zh-CN')}\n\n`;
+    content += `---\n\n`;
+
+    // 按类型分组
+    const groupedItems: { [key: string]: CollectedItem[] } = {};
+    filteredItems.forEach(item => {
+      if (!groupedItems[item.type]) {
+        groupedItems[item.type] = [];
+      }
+      groupedItems[item.type].push(item);
+    });
+
+    // 生成内容
+    Object.entries(groupedItems).forEach(([type, items]) => {
+      const typeLabel = CATEGORIES.find(c => c.id === type)?.label || type.toUpperCase();
+      content += `## ${typeLabel}\n\n`;
+      
+      items.forEach((item, index) => {
+        content += `### ${index + 1}. ${item.content}\n\n`;
+        if (item.sub) {
+          content += `**翻译/释义:** ${item.sub}\n\n`;
+        }
+        if (item.note) {
+          content += `**笔记:** ${item.note}\n\n`;
+        }
+        if (item.lessonId) {
+          content += `**来源:** ${item.lessonId}\n\n`;
+        }
+        content += `---\n\n`;
+      });
+    });
+
+    // 创建下载
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `notebook_${new Date().getTime()}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    // 触摸反馈
+    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+      try {
+        window.navigator.vibrate([30, 50, 30]);
+      } catch (e) {
+        console.log('Vibration not supported');
+      }
+    }
+  };
 
   // 🔐 如果是游客，显示拦截界面
   if (isGuest) {
@@ -128,6 +191,9 @@ export default function MyNotebook() {
 
             {/* 右侧：工具栏 */}
             <div className="absolute right-6 flex items-center gap-6" style={{ color: theme.text }}>
+                <button onClick={handleExport} className="hover:opacity-60 transition-opacity" title="导出笔记">
+                    <Download size={20} strokeWidth={1.5} />
+                </button>
                 <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="hover:opacity-60 transition-opacity">
                     <Search size={20} strokeWidth={1.5} />
                 </button>
@@ -276,11 +342,7 @@ export default function MyNotebook() {
               initial={{ opacity: 0, scale: 0.9, x: 10 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.9, x: 10 }}
-              className="absolute bottom-0 right-16 flex flex-col gap-2 p-3 rounded-sm backdrop-blur-md shadow-2xl"
-              style={{ 
-                backgroundColor: `${theme.secondary}F5`,
-                border: `1px solid ${theme.text}1A`
-              }}
+              className="absolute bottom-0 right-16 flex flex-col gap-2 p-2"
             >
               {Object.values(THEMES).map((t) => (
               <button
@@ -289,34 +351,21 @@ export default function MyNotebook() {
                     setCurrentTheme(t.id as keyof typeof THEMES);
                     setIsThemeMenuOpen(false);
                   }}
-                  className="group/swatch flex items-center gap-3 px-3 py-2 rounded-[2px] transition-all hover:scale-105"
-                  style={{ 
-                    backgroundColor: currentTheme === t.id ? `${theme.text}10` : 'transparent'
-                  }}
+                  className="group/swatch transition-all hover:scale-110"
                 >
                   <div 
-                    className="relative w-8 h-8 rounded-[2px] transition-transform"
+                    className="relative w-10 h-10 rounded-sm transition-transform"
                     style={{ 
                       backgroundColor: t.bg,
-                      border: `1.5px solid ${t.text}`,
-                      boxShadow: `0 2px 6px ${t.text}30`
+                      border: `2px solid ${t.text}`,
+                      boxShadow: `0 4px 12px ${t.text}40`
                     }}
                   >
                     <div 
-                      className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-[1px]"
+                      className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-[1px]"
                       style={{ backgroundColor: t.accent }}
                     />
                   </div>
-                  
-                  <span 
-                    className="text-[11px] uppercase tracking-wider font-medium"
-                    style={{ 
-                      color: currentTheme === t.id ? theme.accent : theme.text,
-                      fontFamily: "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif"
-                    }}
-                  >
-                    {t.displayName}
-                  </span>
               </button>
             ))}
             </motion.div>
@@ -547,9 +596,15 @@ function NotebookCard({ item, index, theme, onDelete, onClick }: {
       setVoiceAndSpeak();
     }
   };
+  
   // 根据类型获取强调色和背景色
   const getTypeStyle = () => {
     switch (item.type) {
+      case 'video':
+        return {
+          borderColor: '#E63946',
+          bgOverlay: 'rgba(230, 57, 70, 0.08)',
+        };
       case 'vocabulary':
         return {
           borderColor: theme.accent,
@@ -574,6 +629,78 @@ function NotebookCard({ item, index, theme, onDelete, onClick }: {
   };
 
   const typeStyle = getTypeStyle();
+
+  // 视频卡片特殊渲染
+  if (item.type === 'video') {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 20 }} 
+        animate={{ opacity: 1, y: 0 }} 
+        exit={{ opacity: 0, scale: 0.95 }} 
+        transition={{ duration: 0.4, delay: index * 0.05 }}
+        className="group cursor-pointer"
+      >
+        <Link href={`/course/${item.category || 'daily'}/${item.lessonId}`} className="block h-full">
+          
+          {/* 视频卡片 - 16:9 比例 */}
+          <div className="relative w-full overflow-hidden transition-all duration-500 hover:shadow-2xl" 
+               style={{ 
+                 aspectRatio: '16 / 9',
+                 backgroundColor: theme.secondary, 
+                 border: `1px solid ${theme.text}1A`,
+                 borderTop: `4px solid ${typeStyle.borderColor}`,
+               }}>
+            
+            {/* 视频封面 */}
+            {item.coverImg && (
+              <div className="absolute inset-0">
+                <img 
+                  src={item.coverImg} 
+                  alt={item.content}
+                  className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+              </div>
+            )}
+
+            {/* 播放图标 */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-12 h-12 flex items-center justify-center rounded-full bg-white/20 backdrop-blur-sm border border-white/30 group-hover:scale-110 transition-transform">
+                <PlayCircle size={24} className="text-white" />
+              </div>
+            </div>
+
+            {/* 标题覆盖层 */}
+            <div className="absolute bottom-0 left-0 right-0 p-3">
+              <h3 className="text-white text-sm font-medium leading-tight mb-1 line-clamp-2">
+                {item.content}
+              </h3>
+              {item.sub && (
+                <p className="text-white/70 text-xs line-clamp-1">
+                  {item.sub}
+                </p>
+              )}
+            </div>
+
+            {/* 删除按钮 */}
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(item.id); }}
+              className="absolute top-2 right-2 p-1.5 rounded-full bg-black/40 backdrop-blur-sm hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <Trash2 size={12} className="text-white" />
+            </button>
+
+            {/* 类型标签 */}
+            <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm">
+              <Bookmark size={8} className="text-white" />
+              <span className="text-white text-[8px] uppercase tracking-wider">VIDEO</span>
+            </div>
+          </div>
+        </Link>
+      </motion.div>
+    );
+  }
 
   return (
               <motion.div

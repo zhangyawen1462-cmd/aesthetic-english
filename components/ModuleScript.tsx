@@ -2,11 +2,13 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookmarkCheck, Languages, Copy, Bookmark, Edit3 } from "lucide-react";
+import { BookmarkCheck, Languages, Copy, Bookmark, Edit3, Star } from "lucide-react";
 import type { TranscriptLine } from "@/data/types";
 import type { ThemeConfig } from "@/lib/theme-config";
 import { toggleNotebook, getNotebookByLesson } from "@/lib/notebook-store";
 import { toggleWordHighlight, getHighlightsByLesson } from "@/lib/word-highlight-store";
+
+export type LangMode = 'en' | 'cn' | 'bi';
 
 interface ModuleScriptProps {
   currentTime: number;
@@ -17,14 +19,36 @@ interface ModuleScriptProps {
   transcript: TranscriptLine[];
   lessonId: string;
   category?: string;
+  langMode?: LangMode;
+  onLangModeChange?: (mode: LangMode) => void;
 }
 
-type LangMode = 'en' | 'cn' | 'bi';
-
-export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, setIsPlaying, transcript, lessonId, category }: ModuleScriptProps) {
+export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, setIsPlaying, transcript, lessonId, category, langMode: externalLangMode, onLangModeChange }: ModuleScriptProps) {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [langMode, setLangMode] = useState<LangMode>('bi');
+  const [internalLangMode, setInternalLangMode] = useState<LangMode>('bi');
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  
+  // 使用外部传入的 langMode，如果没有则使用内部状态
+  const langMode = externalLangMode !== undefined ? externalLangMode : internalLangMode;
+  const setLangMode = (mode: LangMode) => {
+    if (onLangModeChange) {
+      onLangModeChange(mode);
+    } else {
+      setInternalLangMode(mode);
+    }
+  };
+  
+  // 🎯 检测是否为移动端
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [notes, setNotes] = useState<{ [key: string]: string }>({});
@@ -121,23 +145,18 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       
       if (activeElement) {
         const elementTop = activeElement.offsetTop;
-        const elementHeight = activeElement.offsetHeight;
-        const containerScrollTop = container.scrollTop;
-        const containerClientHeight = container.clientHeight;
         
-        // 计算目标滚动位置：让元素居中显示
-        const targetScrollTop = elementTop - (containerClientHeight / 2) + (elementHeight / 2);
+        // 🎯 字幕立即滚动到顶部（移动端和桌面端统一）- 移除阈值判断，确保灵敏响应
+        const targetScrollTop = elementTop - 16; // 距离顶部 16px
         
-        // 只有当目标位置与当前位置差距较大时才滚动
-        if (Math.abs(targetScrollTop - containerScrollTop) > elementHeight / 2) {
-          container.scrollTo({
-            top: targetScrollTop,
-            behavior: 'smooth'
-          });
-        }
+        // 直接滚动，不做阈值判断，确保每次切换字幕都立即滚动
+        container.scrollTo({
+          top: targetScrollTop,
+          behavior: 'smooth'
+        });
       }
     });
-  }, [currentTime, isPlaying, transcript, isUserControlled]);
+  }, [currentTime, isPlaying, transcript, isUserControlled, isMobile]);
 
   // 🎯 手动定位到当前播放位置
   const scrollToCurrentLine = useCallback(() => {
@@ -308,6 +327,29 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const applyHighlight = useCallback((color: string) => {
     if (!selectedRange) return;
 
+    // 🛡️ 防御性检查：拦截与已有高亮重叠的选区
+    const hasOverlap = highlights.some(h => 
+      h.lineId === selectedRange.lineId && 
+      !(selectedRange.endOffset <= h.startOffset || selectedRange.startOffset >= h.endOffset)
+    );
+
+    if (hasOverlap) {
+      // 重叠时：清除选择，关闭调色盘，轻震动提示
+      window.getSelection()?.removeAllRanges();
+      setShowColorPicker(false);
+      setSelectedRange(null);
+      
+      // 轻微的"拒绝"震动反馈（两次短促震动）
+      if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+        try {
+          window.navigator.vibrate([15, 30, 15]);
+        } catch (e) {
+          console.log('Vibration not supported');
+        }
+      }
+      return;
+    }
+
     const newHighlight = {
       id: `${lessonId}-${selectedRange.lineId}-${Date.now()}`,
       text: selectedRange.text,
@@ -326,7 +368,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     setShowColorPicker(false);
     setSelectedRange(null);
 
-    // 震动反馈
+    // 成功的震动反馈
     if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
       try {
         window.navigator.vibrate([20]);
@@ -482,13 +524,11 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const getActiveBgColor = () => {
     switch (theme.id) {
       case 'daily':
-        // 比明信片白(#F7F8F9)更浅的白色
-        // HSL(210°, 15%, 98%) - 极浅的冷白色，带一丝蓝调
-        return '#FAFBFC';
+        // 荧光黄色 - 更鲜艳的马克笔黄
+        return '#FFF4CC';
       case 'cognitive':
-        // 比浅蓝色(#A8C5DD)更浅的蓝色
-        // HSL(207°, 35%, 92%) - 非常浅的天蓝色
-        return '#E5EEF5';
+        // 荧光黄色 - 明亮的柠檬黄
+        return '#FFF5D6';
       case 'business':
         // plum wine(#2D0F15)的浅色版本
         // HSL(348°, 20%, 29%) - 深红木色，比plum wine浅但保持酒红调
@@ -496,6 +536,25 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       default:
         return '#F5F5F5'; // 默认浅灰色
     }
+  };
+
+  // 获取文字颜色（根据主题）
+  const getTextColor = () => {
+    switch (theme.id) {
+      case 'daily':
+        return '#000000'; // 纯黑色
+      default:
+        return 'inherit'; // 其他主题继承默认颜色
+    }
+  };
+
+  // 获取活跃字幕的边框颜色（与文字颜色相同，稍微透明）
+  const getActiveBorderColor = () => {
+    const textColor = getTextColor();
+    if (textColor === '#000000') {
+      return 'rgba(0, 0, 0, 0.15)'; // 纯黑色的15%透明度
+    }
+    return `${theme.text}26`; // 其他主题使用主题文字颜色的15%透明度
   };
 
   const renderLine = (line: TranscriptLine, index: number) => {
@@ -514,12 +573,13 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         data-line-id={index}
         onClick={() => handleLineClick(line.start)}
         initial={false}
-        className={`relative py-4 px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
+        className={`relative py-4 px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
         style={{
           backgroundColor: isActive ? getActiveBgColor() : (isSaved ? savedStyle.backgroundColor : `${theme.bg}F5`),
           boxShadow: isActive 
-            ? '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02)'
+            ? '0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02), 0 1px 2px rgba(0, 0, 0, 0.01)'
             : '0 2px 6px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02)',
+          border: isActive ? `0.5px solid ${getActiveBorderColor()}` : 'none',
         }}
       >
         {/* 收藏后的背景色 */}
@@ -554,12 +614,14 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         )}
 
         <div className="flex flex-col gap-2">
-          {/* 英文 */}
+          {/* 英文 - 放大1号 + 加粗 + 移动端缩小1号 */}
           {(langMode === 'en' || langMode === 'bi') && (
             <p 
-              className="text-[18px] md:text-[21px] font-normal tracking-tight select-text"
+              className={`font-medium tracking-tight select-text transition-all duration-300 ${
+                isActive ? 'text-[19px] md:text-[23px]' : 'text-[18px] md:text-[22px]'
+              }`}
               style={{
-                color: isSaved && !isActive ? savedStyle.color : 'inherit',
+                color: isSaved && !isActive ? savedStyle.color : getTextColor(),
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
                 lineHeight: '1.2',
               }}
@@ -570,12 +632,15 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
             </p>
           )}
 
-          {/* 纯中文模式 */}
+          {/* 纯中文模式 - 缩小1号 + 调浅 + 移动端缩小1号 */}
           {langMode === 'cn' && (
             <p 
-              className="text-[21px] md:text-[23px] select-text"
+              className={`select-text transition-all duration-300 ${
+                isActive ? 'text-[20px] md:text-[23px]' : 'text-[19px] md:text-[22px]'
+              }`}
               style={{
-                color: isSaved && !isActive ? savedStyle.color : 'inherit',
+                color: isSaved && !isActive ? savedStyle.color : getTextColor(),
+                opacity: 0.75,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif',
                 lineHeight: '1.2',
               }}
@@ -586,13 +651,16 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
             </p>
           )}
 
-          {/* 双语模式下的中文 */}
+          {/* 双语模式下的中文 - 缩小1号 + 调浅 + 移动端缩小1号 */}
           {langMode === 'bi' && (
             <p 
-              className="text-[17px] md:text-[19px] select-text" 
+              className={`select-text transition-all duration-300 ${
+                isActive ? 'text-[16px] md:text-[19px]' : 'text-[15px] md:text-[18px]'
+              }`}
               style={{ 
                 letterSpacing: '0.01em',
-                color: isSaved && !isActive ? savedStyle.color : 'inherit',
+                color: isSaved && !isActive ? savedStyle.color : getTextColor(),
+                opacity: 0.75,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif',
                 lineHeight: '1.2',
               }}
@@ -604,7 +672,20 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           )}
 
           {/* 底部：操作图标 - 独占一行，不与字幕重叠 */}
-          <div className="flex items-center justify-end -mt-1">
+          <div className="flex items-center justify-between -mt-1">
+            {/* 左侧：时间轴 - 放大1.2倍 + 向右移动0.2rem */}
+            <span 
+              className="text-[12px] font-mono opacity-40"
+              style={{ 
+                color: theme.text,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", "Menlo", monospace',
+                marginLeft: '0.2rem'
+              }}
+            >
+              {formatTime(line.start)}
+            </span>
+
+            {/* 右侧：操作图标 */}
             <div className="flex items-center gap-4 opacity-50 group-hover:opacity-100 transition-opacity">
               {/* 播放 */}
               <motion.button
@@ -637,7 +718,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 )}
               </motion.button>
 
-              {/* 收藏 */}
+              {/* 收藏 - 改为星星 */}
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={(e) => { e.stopPropagation(); handleToggleSave(line); }}
@@ -645,7 +726,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: isSaved ? theme.accent : theme.text }}
                 title="收藏"
               >
-                <Bookmark size={14} fill={isSaved ? theme.accent : 'none'} />
+                <Star size={14} fill={isSaved ? theme.accent : 'none'} />
               </motion.button>
 
               {/* 笔记 */}
@@ -765,11 +846,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         </div>
       </div>
 
-      {/* iOS风格悬浮语言切换按钮 */}
+      {/* iOS风格悬浮语言切换按钮 - 仅桌面端显示 */}
       <div 
-        // 🚨 核心修复 2：去掉 tailwind 写死的 bottom/right，改用 style 动态计算
-        // 降低层级到 z-40，防止它遮盖右侧导航栏弹出的任何全局菜单
-        className="absolute z-40 flex flex-col items-start gap-2"
+        className="hidden md:flex absolute z-40 flex-col items-start gap-2"
         style={{
           // 动态计算底部距离：基础高度 + iPhone底部安全横条高度 + (如果底部有黑框播放条，可以适当再加大 2rem)
           bottom: 'calc(2rem + env(safe-area-inset-bottom))',

@@ -83,7 +83,7 @@ export interface Lesson {
 // ---- 笔记类型 ----
 
 /** Notebook 收藏项类型 */
-export type NotebookItemType = 'vocabulary' | 'sentence' | 'grammar';
+export type NotebookItemType = 'vocabulary' | 'sentence' | 'grammar' | 'video';
 
 /** Notebook 收藏项 */
 export interface CollectedItem {
@@ -91,12 +91,14 @@ export interface CollectedItem {
   lessonId: string;               // 来源课程 ID
   category?: string;              // 课程分类（daily/cognitive/business）
   type: NotebookItemType;
-  content: string;                // 主要内容（单词 / 句子 / 语法点）
+  content: string;                // 主要内容（单词 / 句子 / 语法点 / 视频标题）
   sub?: string;                   // 音标、翻译或来源信息
   note?: string;                  // 用户笔记
   timestamp?: number;             // 关联视频时间戳
-  date: string;                   // 收藏日期
+  date?: string;                  // 收藏日期
   tags?: string[];                // 标签（可选）
+  videoUrl?: string;              // 视频 URL（仅 video 类型）
+  coverImg?: string;              // 封面图 URL（仅 video 类型）
 }
 
 // ============================================================

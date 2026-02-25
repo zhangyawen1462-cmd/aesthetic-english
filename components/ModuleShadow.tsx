@@ -297,11 +297,11 @@ export default function ModuleShadow({ theme, currentTime, videoRef, transcript 
               }}
             >
 
-              {/* 左侧：序号 + 英文原文 */}
+              {/* 左侧：序号 + 英文原文 - 放大1号 */}
               <div className="flex-1 flex items-start gap-4 mr-4">
                 <span className="text-[10px] opacity-40 w-4 flex-shrink-0 pt-1"
                       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>0{line.id}</span>
-                <p className="text-[17px] md:text-[19px] font-normal leading-snug tracking-tight break-words"
+                <p className="text-[18px] md:text-[20px] font-normal leading-snug tracking-tight break-words"
                    style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif' }}>
                   {line.en}
                 </p>
