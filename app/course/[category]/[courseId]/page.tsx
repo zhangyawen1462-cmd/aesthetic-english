@@ -518,8 +518,8 @@ export default function CoursePage() {
               className="w-full h-full object-contain"
               onClick={togglePlay}
               onTimeUpdate={handleTimeUpdate}
-              onLoadedMetadata={(e) => {
-                handleLoadedMetadata(e);
+              onLoadedMetadata={() => {
+                handleLoadedMetadata();
                 setIsVideoLoading(false);
               }}
               onLoadStart={() => {
