@@ -401,22 +401,21 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     }
   }, []);
 
-  // 🎯 自动滚动到当前活跃行（仅在非接管模式下）- 优化性能
+  // 🎯 自动滚动到当前活跃行（仅在非接管模式下）- 终极方案
   useEffect(() => {
-    // 如果用户正在手动控制，不执行自动滚动
+    // 触发条件检查
     if (isUserControlled || !isPlaying || !scrollContainerRef.current) return;
 
-    // 🎯 提前1秒滚动：判断即将播放的字幕
+    // 找到当前应该高亮的字幕
     const activeIndex = transcript.findIndex(
       (line) => currentTime >= (line.start - 1) && currentTime <= line.end
     );
     if (activeIndex < 0) return;
 
-    // 只在切换到新行时才滚动（性能优化：避免频繁滚动）
+    // 防抖：防止同一行重复滚动
     if (activeIndex === lastAutoScrollIndex.current) return;
     lastAutoScrollIndex.current = activeIndex;
 
-    // 使用 requestAnimationFrame 优化滚动性能
     requestAnimationFrame(() => {
       const container = scrollContainerRef.current;
       if (!container) return;
@@ -424,21 +423,14 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
       
       if (activeElement) {
-        const elementTop = activeElement.offsetTop;
-        
-        // 🎯 字幕立即滚动到顶部（移动端和桌面端统一）- 移除阈值判断，确保灵敏响应
-        const targetScrollTop = elementTop - 16; // 距离顶部 16px
-        
-        // 🚨 开启标志：告诉 onScroll "现在是我机器人在滚！"
         isSystemScrolling.current = true;
         
-        // 直接滚动，不做阈值判断，确保每次切换字幕都立即滚动
-        container.scrollTo({
-          top: targetScrollTop,
-          behavior: 'smooth'
+        // Mobile: Scroll to Top (video bottom edge). Desktop: Scroll to Center.
+        activeElement.scrollIntoView({
+          behavior: 'smooth',
+          block: isMobile ? 'start' : 'center', 
         });
 
-        // 🚨 关闭标志：平滑滚动通常需要几百毫秒，给它一点时间后再恢复正常
         setTimeout(() => {
           isSystemScrolling.current = false;
         }, 800);
@@ -1338,30 +1330,28 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       }}
     >
 
-      {/* 字幕流 */}
+      {/* 🎯 字幕流：保持极其干净的 DOM 树，确保滚动计算精准 */}
       <div
         ref={scrollContainerRef}
         onScroll={handleUserScroll}
         onTouchStart={handleUserTouch}
-        // 🚨 核心修复：把 pb-36 改成 pb-[60vh]（垫高相当于大半个屏幕的高度）
-        className="flex-1 w-full max-w-[1600px] mx-auto overflow-y-auto pl-2 pr-0 md:pl-4 md:pr-0 pb-[60vh] no-scrollbar"
+        // 保证容器绝对占满剩余空间，底部留出足够垫高
+        className={`relative flex-1 w-full max-w-[1600px] mx-auto overflow-y-auto overflow-x-hidden pl-2 md:pl-4 pr-0 no-scrollbar ${isMobile ? 'pb-[60vh]' : 'pb-36'}`}
         style={{
-          // 🚨 移动端只允许垂直滚动，禁用水平滑动
           touchAction: isMobile ? 'pan-y' : 'auto',
+          // 确保滚动是在这个容器内部发生
+          overscrollBehaviorY: 'contain',
         }}
       >
-        <div className="h-4" />
-
         {transcript.length === 0 && (
           <div className="flex items-center justify-center h-40 opacity-30">
             <p className="text-[10px] uppercase tracking-widest">No transcript available</p>
           </div>
         )}
 
-        {/* 原生 DOM 渲染所有字幕 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          {transcript.map((line, index) => renderLine(line, index))}
-        </div>
+        {/* 🚨 极其关键：不再用 div 包裹，直接渲染每个字幕块。
+             我们在 renderLine 内部给每个 div 加 mb-1 (margin-bottom: 4px) 来代替原来的 gap-2 */}
+        {transcript.map((line, index) => renderLine(line, index))}
       </div>
 
       {/* iOS风格悬浮语言切换按钮 - 仅桌面端显示 */}
