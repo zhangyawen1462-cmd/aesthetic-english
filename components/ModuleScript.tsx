@@ -77,6 +77,294 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const userControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastAutoScrollIndex = useRef<number>(-1);
 
+  // 🎨 自定义滑动"虚拟选区"状态（完全接管系统原生选择）
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [previewSelection, setPreviewSelection] = useState<{
+    lineId: number;
+    startOffset: number;
+    endOffset: number;
+  } | null>(null);
+  
+  // 记录滑动的起点字符位置
+  const swipeStartOffsetRef = useRef<number | null>(null);
+
+  // 🎨 移动端滑动选择状态（基于 word-index）
+  const [swipeStartWordIndex, setSwipeStartWordIndex] = useState<{ lineId: number; wordIndex: number } | null>(null);
+  const [swipeCurrentWordIndex, setSwipeCurrentWordIndex] = useState<number | null>(null);
+
+  // 🎯 将文本按空格拆分成单词数组（保留标点符号）
+  const tokenizeWords = useCallback((text: string): string[] => {
+    // 按空格拆分，保留所有字符（包括标点）
+    return text.split(/(\s+)/).filter(token => token.length > 0);
+  }, []);
+
+  // 🎯 获取触摸点对应的 word-index
+  const getWordIndexFromTouch = useCallback((touch: React.Touch): { lineId: number; wordIndex: number } | null => {
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!element) return null;
+
+    // 查找最近的带有 data-word-index 的元素
+    const wordSpan = element.closest('[data-word-index]') as HTMLElement;
+    if (!wordSpan) return null;
+
+    const wordIndex = parseInt(wordSpan.getAttribute('data-word-index') || '-1', 10);
+    const lineId = parseInt(wordSpan.getAttribute('data-line-id') || '-1', 10);
+
+    if (wordIndex < 0 || lineId < 0) return null;
+
+    return { lineId, wordIndex };
+  }, []);
+
+  // 🎨 移动端触摸开始
+  const handleTouchStart = useCallback((e: React.TouchEvent, lineId: number) => {
+    if (!isMobile) return;
+    
+    const touch = e.touches[0];
+    const wordInfo = getWordIndexFromTouch(touch);
+    
+    if (wordInfo && wordInfo.lineId === lineId) {
+      setSwipeStartWordIndex(wordInfo);
+      setSwipeCurrentWordIndex(wordInfo.wordIndex);
+      setIsSelecting(true);
+      
+      // 轻微震动反馈
+      if (window.navigator && 'vibrate' in window.navigator) {
+        try {
+          window.navigator.vibrate([5]);
+        } catch (err) {
+          console.log('Vibration not supported');
+        }
+      }
+    }
+  }, [isMobile, getWordIndexFromTouch]);
+
+  // 🎨 移动端触摸移动
+  const handleTouchMove = useCallback((e: React.TouchEvent, lineId: number) => {
+    if (!isMobile || !swipeStartWordIndex || swipeStartWordIndex.lineId !== lineId) return;
+    
+    // 阻止默认滚动行为
+    e.preventDefault();
+    
+    const touch = e.touches[0];
+    const wordInfo = getWordIndexFromTouch(touch);
+    
+    if (wordInfo && wordInfo.lineId === lineId && wordInfo.wordIndex !== swipeCurrentWordIndex) {
+      setSwipeCurrentWordIndex(wordInfo.wordIndex);
+      
+      // 更新预览选区（基于 word-index 范围）
+      const startIndex = Math.min(swipeStartWordIndex.wordIndex, wordInfo.wordIndex);
+      const endIndex = Math.max(swipeStartWordIndex.wordIndex, wordInfo.wordIndex);
+      
+      setPreviewSelection({
+        lineId,
+        startOffset: startIndex,
+        endOffset: endIndex + 1, // endOffset 是开区间
+      });
+    }
+  }, [isMobile, swipeStartWordIndex, swipeCurrentWordIndex, getWordIndexFromTouch]);
+
+  // 🎨 移动端触摸结束
+  const handleTouchEnd = useCallback((e: React.TouchEvent, lineId: number, words: string[]) => {
+    console.log('🎨 handleTouchEnd 被调用', { 
+      isMobile, 
+      hasSwipeStartWordIndex: !!swipeStartWordIndex, 
+      hasPreviewSelection: !!previewSelection 
+    });
+    
+    if (!isMobile || !swipeStartWordIndex) {
+      console.log('❌ 条件不满足，清理状态');
+      setSwipeStartWordIndex(null);
+      setSwipeCurrentWordIndex(null);
+      setIsSelecting(false);
+      setPreviewSelection(null);
+      return;
+    }
+    
+    // 🎯 如果没有预览选区，说明用户只是点击而不是滑动
+    if (!previewSelection) {
+      console.log('❌ 没有预览选区，用户只是点击');
+      setSwipeStartWordIndex(null);
+      setSwipeCurrentWordIndex(null);
+      setIsSelecting(false);
+      return;
+    }
+    
+    // 🎯 提取选中的单词（过滤空格）
+    const selectedWords = words
+      .slice(previewSelection.startOffset, previewSelection.endOffset)
+      .filter(w => w.trim().length > 0);
+    const selectedText = selectedWords.join(' ').trim();
+    
+    console.log('📍 选中文本:', selectedText, '长度:', selectedText.length);
+    
+    // 🎯 只有选中的文本长度 > 0 才继续
+    if (selectedText.length > 0) {
+      
+      // 🚨 【核心新增】：神级交互 —— 检查这次滑动是否碰到了已有的高亮？
+      // 用数学公式 (Math.max < Math.min) 精准判断两个区间是否有重叠
+      const overlappingHighlight = highlights.find(h => 
+        h.lineId === lineId && 
+        Math.max(h.startOffset, previewSelection.startOffset) < Math.min(h.endOffset, previewSelection.endOffset)
+      );
+
+      // 如果碰到了已有高亮 -> 触发"滑动橡皮擦"，直接删掉，不弹面板！
+      if (overlappingHighlight) {
+        console.log('🧹 触发滑动橡皮擦，抹除已有高亮');
+        
+        // 删除该高亮
+        removeHighlight(overlappingHighlight.id);
+        
+        // 专属的"擦除"震动反馈 (哒-哒 两下)
+        if (window.navigator && 'vibrate' in window.navigator) {
+          try { 
+            window.navigator.vibrate([15, 40, 15]); 
+          } catch (err) {
+            console.log('Vibration not supported');
+          }
+        }
+
+        // 清理状态，直接退出
+        setSwipeStartWordIndex(null);
+        setSwipeCurrentWordIndex(null);
+        setIsSelecting(false);
+        setPreviewSelection(null);
+        return; // 🚨 极其关键：拦截后续的调色盘弹出逻辑
+      }
+
+      // 🎨 如果没有碰到已有高亮，说明是全新的划线 -> 正常计算位置并弹出调色盘
+      const touch = e.changedTouches[0];
+      const pickerWidth = 140;
+      const pickerHeight = 36;
+      const viewportWidth = window.innerWidth;
+      
+      let finalX = touch.clientX - pickerWidth / 2;
+      let finalY = touch.clientY - pickerHeight - 12;
+      
+      if (finalX < 8) finalX = 8;
+      if (finalX + pickerWidth > viewportWidth - 8) {
+        finalX = viewportWidth - pickerWidth - 8;
+      }
+      if (finalY < 8) {
+        finalY = touch.clientY + 12;
+      }
+      
+      console.log('✅ 显示调色盘，位置:', { x: finalX, y: finalY });
+      
+      setColorPickerPosition({ x: finalX, y: finalY });
+      setSelectedRange({
+        text: selectedText,
+        lineId,
+        startOffset: previewSelection.startOffset,
+        endOffset: previewSelection.endOffset,
+      });
+      
+      setShowColorPicker(true);
+      
+      // 成功划线的单次震动反馈
+      if (window.navigator && 'vibrate' in window.navigator) {
+        try {
+          window.navigator.vibrate([10]);
+        } catch (err) {
+          console.log('Vibration not supported');
+        }
+      }
+    } else {
+      console.log('❌ 选中文本为空');
+    }
+    
+    // 🎯 清理滑动状态，但保留 previewSelection（用于显示预览）
+    setSwipeStartWordIndex(null);
+    setSwipeCurrentWordIndex(null);
+    setIsSelecting(false);
+    // 不清除 previewSelection，让用户看到选中效果
+  }, [isMobile, swipeStartWordIndex, previewSelection]);
+
+  // 🖱️ 桌面端：鼠标按下 (相当于 TouchStart)
+  const handleMouseDown = useCallback((lineId: number, index: number) => {
+    if (isMobile) return; // 手机端不理会鼠标事件
+    setSwipeStartWordIndex({ lineId, wordIndex: index });
+    setSwipeCurrentWordIndex(index);
+    setIsSelecting(true);
+  }, [isMobile]);
+
+  // 🖱️ 桌面端：鼠标划过其他单词 (相当于 TouchMove)
+  const handleMouseEnter = useCallback((e: React.MouseEvent, lineId: number, index: number) => {
+    if (isMobile || !swipeStartWordIndex || swipeStartWordIndex.lineId !== lineId) return;
+    
+    // 🚨 必须检查鼠标左键是否一直按着 (e.buttons === 1 表示左键按下)
+    if (e.buttons !== 1) {
+      return; 
+    }
+
+    if (index !== swipeCurrentWordIndex) {
+      setSwipeCurrentWordIndex(index);
+      const startIndex = Math.min(swipeStartWordIndex.wordIndex, index);
+      const endIndex = Math.max(swipeStartWordIndex.wordIndex, index);
+      
+      setPreviewSelection({
+        lineId,
+        startOffset: startIndex,
+        endOffset: endIndex + 1,
+      });
+    }
+  }, [isMobile, swipeStartWordIndex, swipeCurrentWordIndex]);
+
+  // 🖱️ 桌面端：鼠标松开 (相当于 TouchEnd)
+  const handleMouseUp = useCallback((lineId: number, words: string[]) => {
+    if (isMobile || !swipeStartWordIndex) {
+      setSwipeStartWordIndex(null);
+      setSwipeCurrentWordIndex(null);
+      setIsSelecting(false);
+      setPreviewSelection(null);
+      return;
+    }
+    
+    if (!previewSelection) {
+      setSwipeStartWordIndex(null);
+      setSwipeCurrentWordIndex(null);
+      setIsSelecting(false);
+      return;
+    }
+
+    const selectedWords = words
+      .slice(previewSelection.startOffset, previewSelection.endOffset)
+      .filter(w => w.trim().length > 0);
+    const selectedText = selectedWords.join(' ').trim();
+
+    if (selectedText.length > 0) {
+      // 桌面端调色盘位置：使用鼠标当前位置
+      const pickerWidth = 180;
+      const pickerHeight = 40;
+      const viewportWidth = window.innerWidth;
+      
+      // 获取鼠标位置（从最后一次 mouseenter 事件）
+      let finalX = window.event ? (window.event as MouseEvent).clientX - pickerWidth / 2 : 100;
+      let finalY = window.event ? (window.event as MouseEvent).clientY - pickerHeight - 12 : 100;
+      
+      if (finalX < 8) finalX = 8;
+      if (finalX + pickerWidth > viewportWidth - 8) {
+        finalX = viewportWidth - pickerWidth - 8;
+      }
+      if (finalY < 8) {
+        finalY = window.event ? (window.event as MouseEvent).clientY + 12 : 100;
+      }
+      
+      setColorPickerPosition({ x: finalX, y: finalY });
+      setSelectedRange({
+        text: selectedText,
+        lineId,
+        startOffset: previewSelection.startOffset,
+        endOffset: previewSelection.endOffset,
+      });
+      
+      setShowColorPicker(true);
+    }
+    
+    setSwipeStartWordIndex(null);
+    setSwipeCurrentWordIndex(null);
+    setIsSelecting(false);
+  }, [isMobile, swipeStartWordIndex, previewSelection]);
+
   // 初始化：从 localStorage 读取已收藏的句子和荧光笔高亮
   useEffect(() => {
     const items = getNotebookByLesson(lessonId);
@@ -88,7 +376,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     // 读取荧光笔高亮
     const savedHighlights = localStorage.getItem(`highlights_${lessonId}`);
     if (savedHighlights) {
-      setHighlights(JSON.parse(savedHighlights));
+      const parsed = JSON.parse(savedHighlights);
+      console.log('📚 从 localStorage 加载的高亮数据:', parsed);
+      console.log('📚 高亮总数:', parsed.length);
+      setHighlights(parsed);
+    } else {
+      console.log('📚 localStorage 中没有高亮数据');
     }
     
     // 读取笔记
@@ -127,8 +420,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     // 如果用户正在手动控制，不执行自动滚动
     if (isUserControlled || !isPlaying || !scrollContainerRef.current) return;
 
+    // 🎯 提前1秒滚动：判断即将播放的字幕
     const activeIndex = transcript.findIndex(
-      (line) => currentTime >= line.start && currentTime <= line.end
+      (line) => currentTime >= (line.start - 1) && currentTime <= line.end
     );
     if (activeIndex < 0) return;
 
@@ -242,131 +536,122 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
   const activeHighlightColors = highlightColors;
 
-  // 🎨 处理文本选择（完美修复重名单词打乱 Bug）
-  const handleTextSelection = useCallback((lineId: number, fullText: string, event: React.MouseEvent | React.TouchEvent) => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      setShowColorPicker(false);
-      return;
-    }
-
-    const selectedText = selection.toString().trim();
-    if (!selectedText) {
-      setShowColorPicker(false);
-      return;
-    }
-
-    const range = selection.getRangeAt(0);
-    const container = event.currentTarget as HTMLElement;
-
-    // 🎯 核心修复：使用 TreeWalker 遍历底层 DOM，精准计算绝对字符偏移量
-    let startOffset = 0;
-    const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-    let currentNode = treeWalker.nextNode();
-
-    while (currentNode) {
-      if (currentNode === range.startContainer) {
-        // 找到了用户划线起点的那个节点，加上光标在该节点内的相对偏移量
-        startOffset += range.startOffset;
-        break;
+  // 🎨 删除荧光笔（带擦除触觉反馈）
+  const removeHighlight = useCallback((highlightId: string) => {
+    const newHighlights = highlights.filter(h => h.id !== highlightId);
+    setHighlights(newHighlights);
+    localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
+    
+    // 擦除时的专属触觉反馈（低频震动，类似擦除黑板）
+    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+      try {
+        window.navigator.vibrate([15, 30, 15]);
+      } catch (e) {
+        console.log('Vibration not supported');
       }
-      // 如果还没找到起点，就把当前经过的节点长度累加起来
-      startOffset += currentNode.textContent?.length || 0;
-      currentNode = treeWalker.nextNode();
     }
+  }, [highlights, lessonId]);
 
-    // 处理用户手抖不小心多选的首尾空格
-    const fullSelectedText = selection.toString();
-    const trimStartCount = fullSelectedText.length - fullSelectedText.trimStart().length;
-    
-    const finalStartOffset = startOffset + trimStartCount;
-    const finalEndOffset = finalStartOffset + selectedText.length;
-
-    // 获取鼠标/触摸位置
-    let mouseX = 0;
-    let mouseY = 0;
-    const isTouchEvent = 'touches' in event;
-    
-    if (isTouchEvent) {
-      // 触摸事件
-      const touch = event.touches[0] || event.changedTouches[0];
-      mouseX = touch.clientX;
-      mouseY = touch.clientY;
-    } else {
-      // 鼠标事件
-      mouseX = event.clientX;
-      mouseY = event.clientY;
-    }
-
-    // 设置调色盘位置：移动端更近，桌面端稍远
-    if (isTouchEvent) {
-      // 移动端：更靠近触摸点
-      setColorPickerPosition({
-        x: mouseX + 8,  // 触摸点右侧 8px
-        y: mouseY - 32, // 触摸点上方 32px
-      });
-    } else {
-      // 桌面端：保持原有距离
-      setColorPickerPosition({
-        x: mouseX + 32, // 鼠标右侧 32px
-        y: mouseY - 48, // 鼠标上方 48px
-      });
-    }
-
-    setSelectedRange({
-      text: selectedText,
-      lineId,
-      startOffset: finalStartOffset,
-      endOffset: finalEndOffset,
-    });
-
-    setShowColorPicker(true);
-  }, []);
-
-  // 🎨 应用荧光笔颜色
+  // 🎨 应用荧光笔颜色（基于 word-index，支持换色和同色抵消）
   const applyHighlight = useCallback((color: string) => {
-    if (!selectedRange) return;
-
-    // 🛡️ 防御性检查：拦截与已有高亮重叠的选区
-    const hasOverlap = highlights.some(h => 
-      h.lineId === selectedRange.lineId && 
-      !(selectedRange.endOffset <= h.startOffset || selectedRange.startOffset >= h.endOffset)
-    );
-
-    if (hasOverlap) {
-      // 重叠时：清除选择，关闭调色盘，轻震动提示
-      window.getSelection()?.removeAllRanges();
-      setShowColorPicker(false);
-      setSelectedRange(null);
-      
-      // 轻微的"拒绝"震动反馈（两次短促震动）
-      if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
-        try {
-          window.navigator.vibrate([15, 30, 15]);
-        } catch (e) {
-          console.log('Vibration not supported');
-        }
-      }
+    console.log('🎨 applyHighlight 被调用', { color, selectedRange, highlightsCount: highlights.length });
+    
+    if (!selectedRange) {
+      console.log('❌ selectedRange 为空，退出');
       return;
     }
 
-    const newHighlight = {
-      id: `${lessonId}-${selectedRange.lineId}-${Date.now()}`,
+    console.log('📍 选中范围:', {
       text: selectedRange.text,
-      color,
       lineId: selectedRange.lineId,
       startOffset: selectedRange.startOffset,
       endOffset: selectedRange.endOffset,
-    };
+    });
 
-    const newHighlights = [...highlights, newHighlight];
-    setHighlights(newHighlights);
-    localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
+    // 🎨 检查是否是在修改已有高亮（换色或橡皮擦）
+    const existingHighlight = highlights.find(h => 
+      h.lineId === selectedRange.lineId && 
+      h.startOffset === selectedRange.startOffset &&
+      h.endOffset === selectedRange.endOffset
+    );
 
-    // 清除选择
-    window.getSelection()?.removeAllRanges();
+    if (existingHighlight) {
+      if (existingHighlight.color === color) {
+        // 🚨 触发了"同色抵消"神级交互！直接删除！
+        console.log('🧹 橡皮擦模式：抹除高亮');
+        removeHighlight(existingHighlight.id);
+        setShowColorPicker(false);
+        setSelectedRange(null);
+        setPreviewSelection(null);
+        
+        // 擦除时的专属触觉反馈（低频震动）
+        if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+          try {
+            window.navigator.vibrate([15, 30, 15]); // 擦除黑板的质感
+          } catch (e) {
+            console.log('Vibration not supported');
+          }
+        }
+        return;
+      } else {
+        // 换色：更新颜色
+        console.log('🎨 检测到修改已有高亮，执行换色');
+        const newHighlights = highlights.map(h => 
+          h.id === existingHighlight.id 
+            ? { ...h, color } 
+            : h
+        );
+        setHighlights(newHighlights);
+        localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
+      }
+    } else {
+      // 🛡️ 防御性检查：拦截与已有高亮重叠的选区（但不是完全相同的）
+      const hasOverlap = highlights.some(h => 
+        h.lineId === selectedRange.lineId && 
+        !(selectedRange.endOffset <= h.startOffset || selectedRange.startOffset >= h.endOffset)
+      );
+
+      if (hasOverlap) {
+        console.log('⚠️ 检测到重叠，拒绝高亮');
+        // 重叠时：关闭调色盘，轻震动提示
+        setShowColorPicker(false);
+        setSelectedRange(null);
+        setPreviewSelection(null); // 清除预览
+        
+        // 轻微的"拒绝"震动反馈（两次短促震动）
+        if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+          try {
+            window.navigator.vibrate([15, 30, 15]);
+          } catch (e) {
+            console.log('Vibration not supported');
+          }
+        }
+        return;
+      }
+
+      // 新建高亮
+      const newHighlight = {
+        id: `${lessonId}-${selectedRange.lineId}-${Date.now()}`,
+        text: selectedRange.text,
+        color,
+        lineId: selectedRange.lineId,
+        startOffset: selectedRange.startOffset,
+        endOffset: selectedRange.endOffset,
+      };
+
+      console.log('✅ 创建新高亮:', newHighlight);
+
+      const newHighlights = [...highlights, newHighlight];
+      setHighlights(newHighlights);
+      localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
+
+      console.log('💾 已保存到 localStorage 和 state，总数:', newHighlights.length);
+    }
+
+    // 清除选择和预览
     setShowColorPicker(false);
     setSelectedRange(null);
+    setPreviewSelection(null); // 清除预览
 
     // 成功的震动反馈
     if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
@@ -376,14 +661,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         console.log('Vibration not supported');
       }
     }
-  }, [selectedRange, highlights, lessonId]);
-
-  // 🎨 删除荧光笔
-  const removeHighlight = useCallback((highlightId: string) => {
-    const newHighlights = highlights.filter(h => h.id !== highlightId);
-    setHighlights(newHighlights);
-    localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
-  }, [highlights, lessonId]);
+  }, [selectedRange, highlights, lessonId, removeHighlight]);
 
   // 🆕 复制功能
   const handleCopy = (line: TranscriptLine, e: React.MouseEvent) => {
@@ -418,80 +696,240 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 🆕 处理字幕点击播放
+  // 🆕 处理字幕点击播放 (修复选区冲突)
   const handleLineClick = useCallback((time: number) => {
+    // 🚨 移动端滑动选择时，拦截点击
+    if (isMobile && isSelecting) {
+      console.log("📍 正在滑动选择，已拦截整行点击播放");
+      return; 
+    }
+    
+    // 如果没有选中文本（纯点击），才执行视频跳转
     onSeek(time);
     setIsPlaying(true);
-  }, [onSeek, setIsPlaying]);
+  }, [onSeek, setIsPlaying, isMobile, isSelecting]);
 
-  // 🎨 渲染带荧光笔效果的文本
-  const renderTextWithHighlights = (text: string, lineId: number) => {
-    const lineHighlights = highlights.filter(h => h.lineId === lineId);
-    
-    if (lineHighlights.length === 0) {
-      return text;
+  // 🎨 获取主题对应的阴影颜色
+  const getThemeShadowColor = useCallback(() => {
+    switch (theme.id) {
+      case 'daily':
+        return 'rgba(210, 180, 140, 0.4)'; // 奶茶色阴影
+      case 'cognitive':
+        return 'rgba(120, 150, 180, 0.35)'; // 灰蓝色阴影
+      case 'business':
+        return 'rgba(255, 192, 203, 0.3)'; // 浅粉色阴影
+      default:
+        return 'rgba(0, 0, 0, 0.15)';
     }
+  }, [theme.id]);
 
+  // 🎨 获取预览背景色（根据主题）
+  const getPreviewBackgroundColor = useCallback(() => {
+    switch (theme.id) {
+      case 'daily':
+        return 'rgba(210, 180, 140, 0.5)'; // 奶茶色背景
+      case 'cognitive':
+        return 'rgba(120, 150, 180, 0.45)'; // 灰蓝色背景
+      case 'business':
+        return 'rgba(255, 192, 203, 0.4)'; // 浅粉色背景
+      default:
+        return 'rgba(255, 234, 40, 0.5)'; // 默认黄色
+    }
+  }, [theme.id]);
+
+  // 🎨 渲染带荧光笔效果的文本（按词渲染 Span）
+  const renderTextWithHighlights = (text: string, lineId: number) => {
+    const words = tokenizeWords(text);
+    const lineHighlights = highlights.filter(h => h.lineId === lineId);
+    const isPreviewingThisLine = previewSelection && previewSelection.lineId === lineId;
+    
+    console.log(`🎨 渲染 lineId=${lineId}, 单词数=${words.length}, 高亮数=${lineHighlights.length}`);
+    
     // 判断是否为深色主题
     const isDarkTheme = theme.id === 'business';
+    const themeShadowColor = getThemeShadowColor();
+    const previewBgColor = getPreviewBackgroundColor();
 
-    // 按照 startOffset 排序
-    const sortedHighlights = [...lineHighlights].sort((a, b) => a.startOffset - b.startOffset);
-    
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
+    return (
+      <>
+        {words.map((word, wordIndex) => {
+          // 判断当前单词是否在预览选区内
+          const isInPreview = isPreviewingThisLine && 
+            wordIndex >= previewSelection.startOffset && 
+            wordIndex < previewSelection.endOffset;
 
-    sortedHighlights.forEach((highlight, idx) => {
-      // 验证偏移量是否有效
-      if (highlight.startOffset < 0 || highlight.endOffset > text.length || highlight.startOffset >= highlight.endOffset) {
-        return; // 跳过无效的高亮
-      }
+          // 判断当前单词是否在已保存的高亮内
+          const matchedHighlight = lineHighlights.find(h => 
+            wordIndex >= h.startOffset && wordIndex < h.endOffset
+          );
 
-      // 添加高亮前的普通文本
-      if (highlight.startOffset > lastIndex) {
-        parts.push(
-          <span key={`text-${idx}`}>
-            {text.substring(lastIndex, highlight.startOffset)}
-          </span>
-        );
-      }
+          // ✅ 正确：空格也是积木！必须加上 index，否则滑动到空格处会断掉
+          if (word.trim().length === 0) {
+            return (
+              <span 
+                key={`space-${lineId}-${wordIndex}`} 
+                data-word-index={wordIndex}
+                data-line-id={lineId}
+              >
+                {word}
+              </span>
+            );
+          }
 
-      // 添加高亮文本 - 醒目且高级的马克笔样式
-      parts.push(
-        <span
-          key={`highlight-${highlight.id}`}
-          // px-[3px] 让荧光色稍微包裹住文字，rounded-[3px] 增加现代感
-          className="relative inline-block cursor-pointer px-[3px] mx-[1px] rounded-[3px] transition-all hover:opacity-80"
-          style={{
-            // 颜色后加 D9 代表 85% 透明度，让颜色极其鲜艳但不覆盖字体的锐利度
-            backgroundColor: isDarkTheme ? '#F5E6E8' : `${highlight.color}D9`,
-            color: isDarkTheme ? '#5D1F27' : '#000000', // 醒目的底色上，文字用纯黑对比度最高、最清晰
-            mixBlendMode: 'normal',
-            boxDecorationBreak: 'clone',
-            WebkitBoxDecorationBreak: 'clone',
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            removeHighlight(highlight.id);
-          }}
-        >
-          {text.substring(highlight.startOffset, highlight.endOffset)}
-        </span>
-      );
+          // 确定背景色和样式
+          let backgroundColor = 'transparent';
+          let boxShadow = 'none';
+          let isHighlighted = false;
 
-      lastIndex = highlight.endOffset;
-    });
+          if (isInPreview) {
+            backgroundColor = previewBgColor;
+            boxShadow = `0 2px 6px ${themeShadowColor}, 0 1px 3px ${themeShadowColor}`;
+            isHighlighted = true;
+          } else if (matchedHighlight) {
+            backgroundColor = isDarkTheme 
+              ? '#F5E6E8' 
+              : (isMobile ? `${matchedHighlight.color}F0` : `${matchedHighlight.color}D9`);
+            boxShadow = isDarkTheme 
+              ? '0 1px 3px rgba(93, 31, 39, 0.25)'
+              : (theme.id === 'daily' 
+                  ? `0 1px 3px ${matchedHighlight.color}40, 0 0.5px 1.5px ${matchedHighlight.color}30`
+                  : (theme.id === 'cognitive'
+                      ? `0 1px 3px ${matchedHighlight.color}35, 0 0.5px 1px rgba(0,0,0,0.08)`
+                      : `0 1px 3px ${matchedHighlight.color}40`
+                    )
+                );
+            isHighlighted = true;
+          }
 
-    // 添加最后的普通文本
-    if (lastIndex < text.length) {
-      parts.push(
-        <span key="text-end">
-          {text.substring(lastIndex)}
-        </span>
-      );
-    }
+          // 🚨 核心新增：判断当前词是不是高亮块的"头"或"尾"
+          let isStart = false;
+          let isEnd = false;
 
-    return <>{parts}</>;
+          if (matchedHighlight) {
+            isStart = wordIndex === matchedHighlight.startOffset;
+            isEnd = wordIndex === (matchedHighlight.endOffset - 1); // 因为 endOffset 是开区间
+          } else if (isInPreview) {
+            isStart = wordIndex === previewSelection.startOffset;
+            isEnd = wordIndex === (previewSelection.endOffset - 1);
+          }
+
+          const radius = (isStart && isEnd) ? '4px' : 
+                         isStart ? '4px 0 0 4px' :   
+                         isEnd ? '0 4px 4px 0' :     
+                         '0';
+
+          // 🚨 核弹解法：计算背景层的溢出量
+          // 如果不是开头，就疯狂向左溢出 4px；如果不是结尾，就疯狂向右溢出 4px。
+          // 这 8px 的巨大重叠区，神仙来了也挡不住缝隙！
+          const bleedLeft = isStart ? '0' : '-4px';
+          const bleedRight = isEnd ? '0' : '-4px';
+
+          return (
+            <span
+              key={`word-${lineId}-${wordIndex}`}
+              data-word-index={wordIndex}
+              data-line-id={lineId}
+              // 🚨 外层容器：负责占位、监听事件，但绝不负责显色！
+              className={`relative inline-block transition-all ${isHighlighted ? 'cursor-pointer' : ''}`}
+              style={{
+                // 这里不再设置 backgroundColor！
+                // 只需要一点点 margin 来抵消巨大的溢出，防止文字重叠
+                margin: isHighlighted ? `0 ${isEnd ? '0' : '-2px'} 0 ${isStart ? '0' : '-2px'}` : '0',
+                padding: isHighlighted ? '1px 3px' : '0', // 上下各1px，左右给文字呼吸空间
+                
+                opacity: isInPreview ? 0.8 : 1,
+                verticalAlign: 'baseline',
+                // 强制 GPU 加速，稳定渲染层
+                transform: 'translateZ(0)',
+                zIndex: 0, // 基准层级
+              }}
+              // 🖱️ 桌面端鼠标事件
+              onMouseDown={() => !isMobile && handleMouseDown(lineId, wordIndex)}
+              onMouseEnter={(e) => !isMobile && handleMouseEnter(e, lineId, wordIndex)}
+              onClick={(e) => {
+                if (matchedHighlight && !isInPreview) {
+                  e.stopPropagation(); // 阻止播放视频
+                  
+                  // 再次唤出调色盘，把当前高亮的数据传给 selectedRange
+                  setSelectedRange({
+                    text: matchedHighlight.text,
+                    lineId: matchedHighlight.lineId,
+                    startOffset: matchedHighlight.startOffset,
+                    endOffset: matchedHighlight.endOffset,
+                  });
+                  
+                  // 算出位置并在原地弹出
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const pickerWidth = 180; // 调色盘宽度（包含删除按钮后会更宽）
+                  const pickerHeight = 40;
+                  const viewportWidth = window.innerWidth;
+                  
+                  let finalX = rect.left + rect.width / 2 - pickerWidth / 2;
+                  let finalY = rect.top - pickerHeight - 12;
+                  
+                  // 边界检查
+                  if (finalX < 8) finalX = 8;
+                  if (finalX + pickerWidth > viewportWidth - 8) {
+                    finalX = viewportWidth - pickerWidth - 8;
+                  }
+                  if (finalY < 8) {
+                    finalY = rect.bottom + 12;
+                  }
+                  
+                  setColorPickerPosition({ x: finalX, y: finalY });
+                  setShowColorPicker(true);
+                  
+                  if (window.navigator && 'vibrate' in window.navigator) {
+                    try {
+                      window.navigator.vibrate([10]);
+                    } catch (err) {
+                      console.log('Vibration not supported');
+                    }
+                  }
+                }
+              }}
+              onDoubleClick={(e) => {
+                // 🖱️ 桌面端双击秒删
+                if (!isMobile && matchedHighlight && !isInPreview) {
+                  e.stopPropagation();
+                  removeHighlight(matchedHighlight.id);
+                }
+              }}
+            >
+              {/* 🎨 核心：独立的绝对定位背景层 */}
+              {isHighlighted && (
+                <span 
+                  style={{
+                    position: 'absolute',
+                    backgroundColor, // 颜色在这里渲染！
+                    top: 0,
+                    bottom: 0,
+                    // 🚨 巨大的物理重叠：向左右疯狂溢出
+                    left: bleedLeft,
+                    right: bleedRight,
+                    // 只有头尾才需要圆角
+                    borderRadius: radius,
+                    // 放在文字下层
+                    zIndex: -1,
+                  }}
+                />
+              )}
+              
+              {/* 📝 文字层：干干净净，只负责显示文字 */}
+              <span 
+                style={{ 
+                  position: 'relative', 
+                  zIndex: 1,
+                  color: isDarkTheme && isHighlighted ? '#5D1F27' : 'inherit',
+                }}
+              >
+                {word}
+              </span>
+            </span>
+          );
+        })}
+      </>
+    );
   };
 
   // 获取收藏后的样式（根据主题）
@@ -524,11 +962,11 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const getActiveBgColor = () => {
     switch (theme.id) {
       case 'daily':
-        // 荧光黄色 - 更鲜艳的马克笔黄
-        return '#FFF4CC';
+        // 荧光淡红棕色 - 焦糖红茶色（极低饱和度版本）
+        return '#FFF0E8';
       case 'cognitive':
-        // 荧光黄色 - 明亮的柠檬黄
-        return '#FFF5D6';
+        // 荧光淡蓝色 - 更浅的荧光蓝
+        return '#E5F6FF';
       case 'business':
         // plum wine(#2D0F15)的浅色版本
         // HSL(348°, 20%, 29%) - 深红木色，比plum wine浅但保持酒红调
@@ -617,16 +1055,43 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           {/* 英文 - 放大1号 + 加粗 + 移动端缩小1号 */}
           {(langMode === 'en' || langMode === 'bi') && (
             <p 
-              className={`font-medium tracking-tight select-text transition-all duration-300 ${
+              className={`font-medium tracking-tight transition-all duration-300 ${
                 isActive ? 'text-[19px] md:text-[23px]' : 'text-[18px] md:text-[22px]'
               }`}
               style={{
                 color: isSaved && !isActive ? savedStyle.color : getTextColor(),
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
                 lineHeight: '1.2',
+                // 🎯 移动端完全禁用原生选择，桌面端保留原生选择
+                userSelect: isMobile ? 'none' : 'text',
+                WebkitUserSelect: isMobile ? 'none' : 'text',
+                WebkitTouchCallout: isMobile ? 'none' : 'default',
+                // 如果正在滑动选择，锁死垂直滚动；否则允许滚动
+                touchAction: isSelecting ? 'none' : 'pan-y',
               }}
-              onMouseUp={(e) => handleTextSelection(line.id, line.en, e)}
-              onTouchEnd={(e) => handleTextSelection(line.id, line.en, e)}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => isMobile && handleTouchStart(e, line.id)}
+              onTouchMove={(e) => isMobile && handleTouchMove(e, line.id)}
+              onTouchEnd={(e) => {
+                if (isMobile) {
+                  const words = tokenizeWords(line.en);
+                  handleTouchEnd(e, line.id, words);
+                }
+              }}
+              onMouseUp={() => {
+                if (!isMobile) {
+                  const words = tokenizeWords(line.en);
+                  handleMouseUp(line.id, words);
+                }
+              }}
+              onMouseLeave={() => {
+                if (!isMobile && isSelecting) {
+                  setSwipeStartWordIndex(null);
+                  setSwipeCurrentWordIndex(null);
+                  setIsSelecting(false);
+                  setPreviewSelection(null);
+                }
+              }}
             >
               {renderTextWithHighlights(line.en, line.id)}
             </p>
@@ -635,7 +1100,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           {/* 纯中文模式 - 缩小1号 + 调浅 + 移动端缩小1号 */}
           {langMode === 'cn' && (
             <p 
-              className={`select-text transition-all duration-300 ${
+              className={`transition-all duration-300 ${
                 isActive ? 'text-[20px] md:text-[23px]' : 'text-[19px] md:text-[22px]'
               }`}
               style={{
@@ -643,9 +1108,36 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 opacity: 0.75,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif',
                 lineHeight: '1.2',
+                // 🎯 移动端完全禁用原生选择，桌面端保留原生选择
+                userSelect: isMobile ? 'none' : 'text',
+                WebkitUserSelect: isMobile ? 'none' : 'text',
+                WebkitTouchCallout: isMobile ? 'none' : 'default',
+                // 如果正在滑动选择，锁死垂直滚动；否则允许滚动
+                touchAction: isSelecting ? 'none' : 'pan-y',
               }}
-              onMouseUp={(e) => handleTextSelection(line.id + 10000, line.cn, e)}
-              onTouchEnd={(e) => handleTextSelection(line.id + 10000, line.cn, e)}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => isMobile && handleTouchStart(e, line.id + 10000)}
+              onTouchMove={(e) => isMobile && handleTouchMove(e, line.id + 10000)}
+              onTouchEnd={(e) => {
+                if (isMobile) {
+                  const words = tokenizeWords(line.cn);
+                  handleTouchEnd(e, line.id + 10000, words);
+                }
+              }}
+              onMouseUp={() => {
+                if (!isMobile) {
+                  const words = tokenizeWords(line.cn);
+                  handleMouseUp(line.id + 10000, words);
+                }
+              }}
+              onMouseLeave={() => {
+                if (!isMobile && isSelecting) {
+                  setSwipeStartWordIndex(null);
+                  setSwipeCurrentWordIndex(null);
+                  setIsSelecting(false);
+                  setPreviewSelection(null);
+                }
+              }}
             >
               {renderTextWithHighlights(line.cn, line.id + 10000)}
             </p>
@@ -654,7 +1146,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           {/* 双语模式下的中文 - 缩小1号 + 调浅 + 移动端缩小1号 */}
           {langMode === 'bi' && (
             <p 
-              className={`select-text transition-all duration-300 ${
+              className={`transition-all duration-300 ${
                 isActive ? 'text-[16px] md:text-[19px]' : 'text-[15px] md:text-[18px]'
               }`}
               style={{ 
@@ -663,9 +1155,36 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 opacity: 0.75,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif',
                 lineHeight: '1.2',
+                // 🎯 移动端完全禁用原生选择，桌面端保留原生选择
+                userSelect: isMobile ? 'none' : 'text',
+                WebkitUserSelect: isMobile ? 'none' : 'text',
+                WebkitTouchCallout: isMobile ? 'none' : 'default',
+                // 如果正在滑动选择，锁死垂直滚动；否则允许滚动
+                touchAction: isSelecting ? 'none' : 'pan-y',
               }}
-              onMouseUp={(e) => handleTextSelection(line.id + 10000, line.cn, e)}
-              onTouchEnd={(e) => handleTextSelection(line.id + 10000, line.cn, e)}
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => isMobile && handleTouchStart(e, line.id + 10000)}
+              onTouchMove={(e) => isMobile && handleTouchMove(e, line.id + 10000)}
+              onTouchEnd={(e) => {
+                if (isMobile) {
+                  const words = tokenizeWords(line.cn);
+                  handleTouchEnd(e, line.id + 10000, words);
+                }
+              }}
+              onMouseUp={() => {
+                if (!isMobile) {
+                  const words = tokenizeWords(line.cn);
+                  handleMouseUp(line.id + 10000, words);
+                }
+              }}
+              onMouseLeave={() => {
+                if (!isMobile && isSelecting) {
+                  setSwipeStartWordIndex(null);
+                  setSwipeCurrentWordIndex(null);
+                  setIsSelecting(false);
+                  setPreviewSelection(null);
+                }
+              }}
             >
               {renderTextWithHighlights(line.cn, line.id + 10000)}
             </p>
@@ -673,20 +1192,20 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
           {/* 底部：操作图标 - 独占一行，不与字幕重叠 */}
           <div className="flex items-center justify-between -mt-1">
-            {/* 左侧：时间轴 - 放大1.2倍 + 向右移动0.2rem */}
+            {/* 左侧：时间轴 - 放大1.2倍 */}
             <span 
-              className="text-[12px] font-mono opacity-40"
+              className={`font-mono opacity-40 ${isMobile ? 'text-[9.6px]' : 'text-[14.4px]'}`}
               style={{ 
                 color: theme.text,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", "Menlo", monospace',
-                marginLeft: '0.2rem'
+                marginLeft: isMobile ? '0' : '0.2rem'
               }}
             >
               {formatTime(line.start)}
             </span>
 
-            {/* 右侧：操作图标 */}
-            <div className="flex items-center gap-4 opacity-50 group-hover:opacity-100 transition-opacity">
+            {/* 右侧：操作图标 - 放大1.2倍 */}
+            <div className={`flex items-center opacity-50 group-hover:opacity-100 transition-opacity ${isMobile ? 'gap-2' : 'gap-4'}`}>
               {/* 播放 */}
               <motion.button
                 whileTap={{ scale: 0.9 }}
@@ -695,7 +1214,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: theme.text }}
                 title="播放"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={isMobile ? "12" : "16.8"} height={isMobile ? "12" : "16.8"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/>
                   <polygon points="10 8 16 12 10 16 10 8"/>
                 </svg>
@@ -710,11 +1229,11 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 title="复制"
               >
                 {isCopied ? (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width={isMobile ? "12" : "16.8"} height={isMobile ? "12" : "16.8"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                 ) : (
-                  <Copy size={14} />
+                  <Copy size={isMobile ? 12 : 16.8} />
                 )}
               </motion.button>
 
@@ -726,7 +1245,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: isSaved ? theme.accent : theme.text }}
                 title="收藏"
               >
-                <Star size={14} fill={isSaved ? theme.accent : 'none'} />
+                <Star size={isMobile ? 12 : 16.8} fill={isSaved ? theme.accent : 'none'} />
               </motion.button>
 
               {/* 笔记 */}
@@ -737,7 +1256,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: hasNote || isEditingNote ? theme.accent : theme.text }}
                 title="笔记"
               >
-                <Edit3 size={14} />
+                <Edit3 size={isMobile ? 12 : 16.8} />
               </motion.button>
             </div>
           </div>
@@ -926,6 +1445,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)',
             }}
           >
+            {/* 颜色按钮组 */}
             {activeHighlightColors.map((color) => (
               <motion.button
                 key={color.id}
@@ -940,11 +1460,47 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 title={color.name}
               />
             ))}
+            
+            {/* 🚨 新增：垃圾桶删除按钮（当点击已有高亮时显示） */}
+            {selectedRange && highlights.some(h => 
+              h.lineId === selectedRange.lineId && 
+              h.startOffset === selectedRange.startOffset &&
+              h.endOffset === selectedRange.endOffset
+            ) && (
+              <>
+                <div className="w-px h-4 md:h-5 bg-black/10" /> {/* 分割线 */}
+                <motion.button
+                  onClick={() => {
+                    // 找到对应的 highlight 并删除
+                    const target = highlights.find(h => 
+                      h.lineId === selectedRange.lineId && 
+                      h.startOffset === selectedRange.startOffset &&
+                      h.endOffset === selectedRange.endOffset
+                    );
+                    if (target) {
+                      removeHighlight(target.id);
+                      setShowColorPicker(false);
+                      setSelectedRange(null);
+                      setPreviewSelection(null);
+                    }
+                  }}
+                  whileTap={{ scale: 0.85 }}
+                  className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full text-red-500 bg-red-50 transition-transform active:scale-90"
+                  title="删除高亮"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                  </svg>
+                </motion.button>
+              </>
+            )}
+            
             {/* 🎯 关闭按钮同步缩小 */}
             <motion.button
               onClick={() => {
                 setShowColorPicker(false);
-                window.getSelection()?.removeAllRanges();
+                setSelectedRange(null);
+                setPreviewSelection(null);
               }}
               whileTap={{ scale: 0.9 }}
               className="w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-bold transition-opacity active:opacity-70"

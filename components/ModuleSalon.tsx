@@ -803,11 +803,14 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
 
       {/* --- Input Area --- */}
       <div
-        className={`absolute bottom-0 left-0 right-0 border-t backdrop-blur-xl z-30 ${isMobile ? 'px-4 py-4 pb-5' : 'px-6 py-5'}`}
+        className={`absolute bottom-0 left-0 right-0 border-t backdrop-blur-xl z-30 ${isMobile ? 'px-4 py-3' : 'px-6 py-5'}`}
         style={{ 
           borderColor: `${theme.lineColor}20`,
           backgroundColor: `${theme.background}F5`,
-          ...(isMobile ? { paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' } : {})
+          ...(isMobile ? { 
+            paddingBottom: 'calc(3.8rem + env(safe-area-inset-bottom))',
+            bottom: 0
+          } : {})
         }}
       >
         <div className={`${isMobile ? '' : 'max-w-3xl mx-auto'}`}>

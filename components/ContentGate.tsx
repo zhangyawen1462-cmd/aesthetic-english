@@ -172,22 +172,7 @@ export default function ContentGate({
   className
 }: ContentGateProps) {
   const { tier } = useMembership();
-  
-  // 🔍 调试日志：查看传入的参数
-  console.log('🚪 ContentGate:', {
-    section,
-    isSample,
-    tier,
-  });
-  
   const hasAccess = checkVideoAccess(tier, section, isSample);
-  
-  console.log('🔐 ContentGate Access Check:', {
-    hasAccess,
-    tier,
-    section,
-    isSample,
-  });
   
   const [showRedeemInput, setShowRedeemInput] = useState(false);
 
