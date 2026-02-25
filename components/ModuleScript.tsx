@@ -132,7 +132,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         try {
           window.navigator.vibrate([5]);
         } catch (err) {
-          console.log('Vibration not supported');
+          // Vibration not supported
         }
       }
     }
@@ -165,14 +165,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
   // 🎨 移动端触摸结束
   const handleTouchEnd = useCallback((e: React.TouchEvent, lineId: number, words: string[]) => {
-    console.log('🎨 handleTouchEnd 被调用', { 
-      isMobile, 
-      hasSwipeStartWordIndex: !!swipeStartWordIndex, 
-      hasPreviewSelection: !!previewSelection 
-    });
-    
     if (!isMobile || !swipeStartWordIndex) {
-      console.log('❌ 条件不满足，清理状态');
       setSwipeStartWordIndex(null);
       setSwipeCurrentWordIndex(null);
       setIsSelecting(false);
@@ -182,7 +175,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     
     // 🎯 如果没有预览选区，说明用户只是点击而不是滑动
     if (!previewSelection) {
-      console.log('❌ 没有预览选区，用户只是点击');
       setSwipeStartWordIndex(null);
       setSwipeCurrentWordIndex(null);
       setIsSelecting(false);
@@ -194,8 +186,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       .slice(previewSelection.startOffset, previewSelection.endOffset)
       .filter(w => w.trim().length > 0);
     const selectedText = selectedWords.join(' ').trim();
-    
-    console.log('📍 选中文本:', selectedText, '长度:', selectedText.length);
     
     // 🎯 只有选中的文本长度 > 0 才继续
     if (selectedText.length > 0) {
@@ -209,8 +199,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
       // 如果碰到了已有高亮 -> 触发"滑动橡皮擦"，直接删掉，不弹面板！
       if (overlappingHighlight) {
-        console.log('🧹 触发滑动橡皮擦，抹除已有高亮');
-        
         // 删除该高亮
         removeHighlight(overlappingHighlight.id);
         
@@ -219,7 +207,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           try { 
             window.navigator.vibrate([15, 40, 15]); 
           } catch (err) {
-            console.log('Vibration not supported');
+            // Vibration not supported
           }
         }
 
@@ -248,8 +236,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         finalY = touch.clientY + 12;
       }
       
-      console.log('✅ 显示调色盘，位置:', { x: finalX, y: finalY });
-      
       setColorPickerPosition({ x: finalX, y: finalY });
       setSelectedRange({
         text: selectedText,
@@ -265,11 +251,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         try {
           window.navigator.vibrate([10]);
         } catch (err) {
-          console.log('Vibration not supported');
+          // Vibration not supported
         }
       }
-    } else {
-      console.log('❌ 选中文本为空');
     }
     
     // 🎯 清理滑动状态，但保留 previewSelection（用于显示预览）
@@ -377,11 +361,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     const savedHighlights = localStorage.getItem(`highlights_${lessonId}`);
     if (savedHighlights) {
       const parsed = JSON.parse(savedHighlights);
-      console.log('📚 从 localStorage 加载的高亮数据:', parsed);
-      console.log('📚 高亮总数:', parsed.length);
       setHighlights(parsed);
-    } else {
-      console.log('📚 localStorage 中没有高亮数据');
     }
     
     // 读取笔记
@@ -521,7 +501,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       try {
         window.navigator.vibrate([30, 50, 30]);
       } catch (e) {
-        console.log('Vibration not supported');
+        // Vibration not supported
       }
     }
   };
@@ -547,26 +527,16 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       try {
         window.navigator.vibrate([15, 30, 15]);
       } catch (e) {
-        console.log('Vibration not supported');
+        // Vibration not supported
       }
     }
   }, [highlights, lessonId]);
 
   // 🎨 应用荧光笔颜色（基于 word-index，支持换色和同色抵消）
   const applyHighlight = useCallback((color: string) => {
-    console.log('🎨 applyHighlight 被调用', { color, selectedRange, highlightsCount: highlights.length });
-    
     if (!selectedRange) {
-      console.log('❌ selectedRange 为空，退出');
       return;
     }
-
-    console.log('📍 选中范围:', {
-      text: selectedRange.text,
-      lineId: selectedRange.lineId,
-      startOffset: selectedRange.startOffset,
-      endOffset: selectedRange.endOffset,
-    });
 
     // 🎨 检查是否是在修改已有高亮（换色或橡皮擦）
     const existingHighlight = highlights.find(h => 
@@ -578,7 +548,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     if (existingHighlight) {
       if (existingHighlight.color === color) {
         // 🚨 触发了"同色抵消"神级交互！直接删除！
-        console.log('🧹 橡皮擦模式：抹除高亮');
         removeHighlight(existingHighlight.id);
         setShowColorPicker(false);
         setSelectedRange(null);
@@ -589,13 +558,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           try {
             window.navigator.vibrate([15, 30, 15]); // 擦除黑板的质感
           } catch (e) {
-            console.log('Vibration not supported');
+            // Vibration not supported
           }
         }
         return;
       } else {
         // 换色：更新颜色
-        console.log('🎨 检测到修改已有高亮，执行换色');
         const newHighlights = highlights.map(h => 
           h.id === existingHighlight.id 
             ? { ...h, color } 
@@ -612,7 +580,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       );
 
       if (hasOverlap) {
-        console.log('⚠️ 检测到重叠，拒绝高亮');
         // 重叠时：关闭调色盘，轻震动提示
         setShowColorPicker(false);
         setSelectedRange(null);
@@ -623,7 +590,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           try {
             window.navigator.vibrate([15, 30, 15]);
           } catch (e) {
-            console.log('Vibration not supported');
+            // Vibration not supported
           }
         }
         return;
@@ -639,13 +606,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         endOffset: selectedRange.endOffset,
       };
 
-      console.log('✅ 创建新高亮:', newHighlight);
-
       const newHighlights = [...highlights, newHighlight];
       setHighlights(newHighlights);
       localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
-
-      console.log('💾 已保存到 localStorage 和 state，总数:', newHighlights.length);
     }
 
     // 清除选择和预览
@@ -658,7 +621,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       try {
         window.navigator.vibrate([20]);
       } catch (e) {
-        console.log('Vibration not supported');
+        // Vibration not supported
       }
     }
   }, [selectedRange, highlights, lessonId, removeHighlight]);
@@ -700,7 +663,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const handleLineClick = useCallback((time: number) => {
     // 🚨 移动端滑动选择时，拦截点击
     if (isMobile && isSelecting) {
-      console.log("📍 正在滑动选择，已拦截整行点击播放");
       return; 
     }
     
@@ -742,8 +704,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     const words = tokenizeWords(text);
     const lineHighlights = highlights.filter(h => h.lineId === lineId);
     const isPreviewingThisLine = previewSelection && previewSelection.lineId === lineId;
-    
-    console.log(`🎨 渲染 lineId=${lineId}, 单词数=${words.length}, 高亮数=${lineHighlights.length}`);
     
     // 判断是否为深色主题
     const isDarkTheme = theme.id === 'business';
@@ -883,7 +843,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                     try {
                       window.navigator.vibrate([10]);
                     } catch (err) {
-                      console.log('Vibration not supported');
+                      // Vibration not supported
                     }
                   }
                 }
@@ -1341,7 +1301,13 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   };
 
   return (
-    <div className="flex-1 w-full h-full flex flex-col relative overflow-hidden">
+    <div 
+      className="flex-1 w-full h-full flex flex-col relative overflow-hidden"
+      style={{
+        // 🚨 移动端禁用水平滑动（防止触发浏览器返回手势）
+        touchAction: isMobile ? 'pan-y' : 'auto',
+      }}
+    >
 
       {/* 字幕流 */}
       <div
@@ -1350,6 +1316,10 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         onTouchStart={handleUserTouch}
         // 右侧边距改为 0，让内容容器的 pr-[0.8rem] 统一控制
         className="flex-1 w-full max-w-[1600px] mx-auto overflow-y-auto pl-2 pr-0 md:pl-4 md:pr-0 pb-36 md:pb-48 no-scrollbar"
+        style={{
+          // 🚨 移动端只允许垂直滚动，禁用水平滑动
+          touchAction: isMobile ? 'pan-y' : 'auto',
+        }}
       >
         <div className="h-4" />
 
