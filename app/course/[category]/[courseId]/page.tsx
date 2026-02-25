@@ -158,6 +158,8 @@ export default function CoursePage() {
   const progressBarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false); // 🆕 订阅弹窗
   const [isCollected, setIsCollected] = useState(false); // 🆕 收藏状态
+  const [videoLoadProgress, setVideoLoadProgress] = useState(0); // 🆕 视频加载进度
+  const [isVideoLoading, setIsVideoLoading] = useState(true); // 🆕 视频加载状态
 
   // 🆕 字幕控制：上一句/下一句
   const handlePrevSubtitle = () => {
@@ -382,7 +384,12 @@ export default function CoursePage() {
     <div
       ref={containerRef}
       className="h-[100dvh] w-full flex flex-col md:flex-row overflow-hidden transition-colors duration-700 select-none safe-x"
-      style={{ backgroundColor: theme.bg, color: theme.text }}
+      style={{ 
+        backgroundColor: theme.bg, 
+        color: theme.text,
+        // 🚨 移动端禁用水平滑动（防止触发浏览器返回手势）
+        touchAction: isMobile ? 'pan-y' : 'auto',
+      }}
     >
 
       {/* ═══════════════════════════════════════
@@ -504,25 +511,65 @@ export default function CoursePage() {
         )}
 
         {lesson.videoUrl && lesson.videoUrl.trim() !== '' ? (
-          <video
-            ref={videoRef}
-            src={lesson.videoUrl}
-            className="w-full h-full object-contain"
-            onClick={togglePlay}
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoadedMetadata}
-            onError={(e) => {
-              if (process.env.NODE_ENV === 'development') {
-                console.error('❌ Video load error:', {
-                  src: lesson.videoUrl,
-                  error: e,
-                });
-              }
-            }}
-            playsInline
-            preload="auto"
-            aria-label={`${lesson.titleEn} 视频播放器`}
-          />
+          <>
+            <video
+              ref={videoRef}
+              src={lesson.videoUrl}
+              className="w-full h-full object-contain"
+              onClick={togglePlay}
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={(e) => {
+                handleLoadedMetadata(e);
+                setIsVideoLoading(false);
+              }}
+              onLoadStart={() => {
+                setIsVideoLoading(true);
+                setVideoLoadProgress(0);
+              }}
+              onProgress={(e) => {
+                const video = e.currentTarget;
+                if (video.buffered.length > 0) {
+                  const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+                  const duration = video.duration;
+                  if (duration > 0) {
+                    setVideoLoadProgress((bufferedEnd / duration) * 100);
+                  }
+                }
+              }}
+              onCanPlay={() => {
+                setIsVideoLoading(false);
+              }}
+              onWaiting={() => {
+                setIsVideoLoading(true);
+              }}
+              onError={(e) => {
+                setIsVideoLoading(false);
+                if (process.env.NODE_ENV === 'development') {
+                  console.error('❌ Video load error:', {
+                    src: lesson.videoUrl,
+                    error: e,
+                  });
+                }
+              }}
+              playsInline
+              preload={isMobile ? "metadata" : "auto"}
+              aria-label={`${lesson.titleEn} 视频播放器`}
+            />
+            
+            {/* 视频加载指示器 */}
+            {isVideoLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 z-30 pointer-events-none">
+                <div className="flex flex-col items-center gap-3">
+                  <div 
+                    className="w-12 h-12 border-3 border-white/30 border-t-white rounded-full animate-spin"
+                  />
+                  <p className="text-white/70 text-xs">
+                    加载中 {videoLoadProgress > 0 ? `${Math.round(videoLoadProgress)}%` : '...'}
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-white/30 px-6">
             <Play size={32} className="mb-3 opacity-30" />

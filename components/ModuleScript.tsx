@@ -76,6 +76,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const [isUserControlled, setIsUserControlled] = useState(false);
   const userControlTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastAutoScrollIndex = useRef<number>(-1);
+  
+  // 🚨 新增：记录当前是不是系统在自动滚动
+  const isSystemScrolling = useRef(false);
 
   // 🎨 自定义滑动"虚拟选区"状态（完全接管系统原生选择）
   const [isSelecting, setIsSelecting] = useState(false);
@@ -373,6 +376,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
   // 🎯 监听用户滚动操作（启动离合器）
   const handleUserScroll = useCallback(() => {
+    // 🚨 核心修复：如果是系统自动滚动触发的，直接无视，不要启动离合器！
+    if (isSystemScrolling.current) return;
+
     // 用户手动滚动，进入接管模式
     setIsUserControlled(true);
     
@@ -423,11 +429,19 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         // 🎯 字幕立即滚动到顶部（移动端和桌面端统一）- 移除阈值判断，确保灵敏响应
         const targetScrollTop = elementTop - 16; // 距离顶部 16px
         
+        // 🚨 开启标志：告诉 onScroll "现在是我机器人在滚！"
+        isSystemScrolling.current = true;
+        
         // 直接滚动，不做阈值判断，确保每次切换字幕都立即滚动
         container.scrollTo({
           top: targetScrollTop,
           behavior: 'smooth'
         });
+
+        // 🚨 关闭标志：平滑滚动通常需要几百毫秒，给它一点时间后再恢复正常
+        setTimeout(() => {
+          isSystemScrolling.current = false;
+        }, 800);
       }
     });
   }, [currentTime, isPlaying, transcript, isUserControlled, isMobile]);
@@ -1030,7 +1044,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 touchAction: isSelecting ? 'none' : 'pan-y',
               }}
               onClick={(e) => e.stopPropagation()}
-              onTouchStart={(e) => isMobile && handleTouchStart(e, line.id)}
+              onTouchStart={(e) => {
+                if (isMobile) {
+                  e.stopPropagation(); // 🚨 核心修复：防止触发大框的"刹车"
+                  handleTouchStart(e, line.id);
+                }
+              }}
               onTouchMove={(e) => isMobile && handleTouchMove(e, line.id)}
               onTouchEnd={(e) => {
                 if (isMobile) {
@@ -1076,7 +1095,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 touchAction: isSelecting ? 'none' : 'pan-y',
               }}
               onClick={(e) => e.stopPropagation()}
-              onTouchStart={(e) => isMobile && handleTouchStart(e, line.id + 10000)}
+              onTouchStart={(e) => {
+                if (isMobile) {
+                  e.stopPropagation(); // 🚨 核心修复：防止触发大框的"刹车"
+                  handleTouchStart(e, line.id + 10000);
+                }
+              }}
               onTouchMove={(e) => isMobile && handleTouchMove(e, line.id + 10000)}
               onTouchEnd={(e) => {
                 if (isMobile) {
@@ -1123,7 +1147,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 touchAction: isSelecting ? 'none' : 'pan-y',
               }}
               onClick={(e) => e.stopPropagation()}
-              onTouchStart={(e) => isMobile && handleTouchStart(e, line.id + 10000)}
+              onTouchStart={(e) => {
+                if (isMobile) {
+                  e.stopPropagation(); // 🚨 核心修复：防止触发大框的"刹车"
+                  handleTouchStart(e, line.id + 10000);
+                }
+              }}
               onTouchMove={(e) => isMobile && handleTouchMove(e, line.id + 10000)}
               onTouchEnd={(e) => {
                 if (isMobile) {
@@ -1314,8 +1343,8 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         ref={scrollContainerRef}
         onScroll={handleUserScroll}
         onTouchStart={handleUserTouch}
-        // 右侧边距改为 0，让内容容器的 pr-[0.8rem] 统一控制
-        className="flex-1 w-full max-w-[1600px] mx-auto overflow-y-auto pl-2 pr-0 md:pl-4 md:pr-0 pb-36 md:pb-48 no-scrollbar"
+        // 🚨 核心修复：把 pb-36 改成 pb-[60vh]（垫高相当于大半个屏幕的高度）
+        className="flex-1 w-full max-w-[1600px] mx-auto overflow-y-auto pl-2 pr-0 md:pl-4 md:pr-0 pb-[60vh] no-scrollbar"
         style={{
           // 🚨 移动端只允许垂直滚动，禁用水平滑动
           touchAction: isMobile ? 'pan-y' : 'auto',
