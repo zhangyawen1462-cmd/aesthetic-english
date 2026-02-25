@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookmarkCheck, Languages, Copy, Bookmark, Edit3, Star } from "lucide-react";
+import { Languages, Copy, Star, Edit3 } from "lucide-react";
 import type { TranscriptLine } from "@/data/types";
 import type { ThemeConfig } from "@/lib/theme-config";
 import { toggleNotebook, getNotebookByLesson } from "@/lib/notebook-store";
-import { toggleWordHighlight, getHighlightsByLesson } from "@/lib/word-highlight-store";
+import ScriptLine, { type LangMode } from "./script/ScriptLine";
+import ColorPicker from "./script/ColorPicker";
 
-export type LangMode = 'en' | 'cn' | 'bi';
+export type { LangMode };
 
 interface ModuleScriptProps {
   currentTime: number;
@@ -96,10 +97,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const [swipeCurrentWordIndex, setSwipeCurrentWordIndex] = useState<number | null>(null);
 
   // 🎯 将文本按空格拆分成单词数组（保留标点符号）
-  const tokenizeWords = useCallback((text: string): string[] => {
-    // 按空格拆分，保留所有字符（包括标点）
+  const tokenizeWords = (text: string): string[] => {
     return text.split(/(\s+)/).filter(token => token.length > 0);
-  }, []);
+  };
 
   // 🎯 获取触摸点对应的 word-index
   const getWordIndexFromTouch = useCallback((touch: React.Touch): { lineId: number; wordIndex: number } | null => {
@@ -374,43 +374,32 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     }
   }, [lessonId]);
 
-  // 🎯 监听用户滚动操作（启动离合器）
+  // 🎯 监听用户滚动操作（已禁用离合器功能）
   const handleUserScroll = useCallback(() => {
-    // 🚨 核心修复：如果是系统自动滚动触发的，直接无视，不要启动离合器！
-    if (isSystemScrolling.current) return;
-
-    // 用户手动滚动，进入接管模式
-    setIsUserControlled(true);
-    
-    // 清除之前的定时器
-    if (userControlTimeoutRef.current) {
-      clearTimeout(userControlTimeoutRef.current);
-    }
-    
-    // 3秒无操作后，自动退出接管模式
-    userControlTimeoutRef.current = setTimeout(() => {
-      setIsUserControlled(false);
-    }, 3000);
+    // 🚨 不再启动离合器，让自动滚动始终生效
+    return;
   }, []);
 
-  // 🎯 用户触摸字幕区域，立即进入接管模式
+  // 🎯 用户触摸字幕区域（已禁用离合器功能）
   const handleUserTouch = useCallback(() => {
-    setIsUserControlled(true);
-    if (userControlTimeoutRef.current) {
-      clearTimeout(userControlTimeoutRef.current);
-    }
+    // 🚨 不再启动离合器，让自动滚动始终生效
+    return;
   }, []);
 
-  // 🎯 自动滚动到当前活跃行（仅在非接管模式下）- 终极方案
+  // 🎯 自动滚动到当前活跃行（已取消用户接管限制）- 终极方案：强制锁定滚动
   useEffect(() => {
-    // 触发条件检查
-    if (isUserControlled || !isPlaying || !scrollContainerRef.current) return;
+    // 触发条件检查（已移除 isUserControlled 检查）
+    if (!isPlaying || !scrollContainerRef.current) {
+      return;
+    }
 
-    // 找到当前应该高亮的字幕
+    // 找到当前应该高亮的字幕（提前0.5秒准备）
     const activeIndex = transcript.findIndex(
-      (line) => currentTime >= (line.start - 1) && currentTime <= line.end
+      (line) => currentTime >= (line.start - 0.5) && currentTime <= line.end
     );
-    if (activeIndex < 0) return;
+    if (activeIndex < 0) {
+      return;
+    }
 
     // 防抖：防止同一行重复滚动
     if (activeIndex === lastAutoScrollIndex.current) return;
@@ -422,13 +411,40 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       
       const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
       
-      if (activeElement) {
+      if (activeElement && isMobile) {
+        // 1. 回归最稳健的绝对物理偏移量计算 (无视动画形变)
+        let elementTop = 0;
+        let currentElement: HTMLElement | null = activeElement;
+        
+        while (currentElement && currentElement !== container) {
+          elementTop += currentElement.offsetTop;
+          currentElement = currentElement.offsetParent as HTMLElement;
+        }
+        
+        // 2. 🪄 魔法补偿值 (The Magic Offset)
+        // 这个值用来抵消：上一句还没缩小完的高度差 + py-2 的视觉空白
+        // 如果目前字幕块偏下，就把这个数字【加大】；如果字幕块被吃掉了一半，就把这个数字【减小】
+        const MAGIC_OFFSET = 38; 
+        
+        const targetScrollTop = elementTop - MAGIC_OFFSET;
+        
         isSystemScrolling.current = true;
         
-        // Mobile: Scroll to Top (video bottom edge). Desktop: Scroll to Center.
+        container.scrollTo({
+          top: Math.max(0, targetScrollTop), // 保证不会滚成负数
+          behavior: 'smooth'
+        });
+
+        setTimeout(() => {
+          isSystemScrolling.current = false;
+        }, 800);
+      } else if (activeElement && !isMobile) {
+        // 💻 桌面端：由于空间大，可以温柔一点，保持在中间即可
+        isSystemScrolling.current = true;
+        
         activeElement.scrollIntoView({
           behavior: 'smooth',
-          block: isMobile ? 'start' : 'center', 
+          block: 'nearest', // 只有快看不见时才滚动
         });
 
         setTimeout(() => {
@@ -511,16 +527,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       }
     }
   };
-
-  // 🎨 高级高亮/醒目色系 (Premium Vibrant) - 极度醒目，但有质感
-  const highlightColors = [
-    { id: 'yellow', color: '#FFEA28', name: '马克黄' }, // 极其醒目的亮黄，不发绿
-    { id: 'green', color: '#32FF7E', name: '苹果青' },  // 像运动品牌常用的鲜活亮绿
-    { id: 'pink', color: '#FF5EBC', name: '亮芭比粉' }, // 视觉冲击力极强的亮粉色
-    { id: 'blue', color: '#00D8FF', name: '冰川蓝' },   // 清透但饱和度极高的水蓝
-  ];
-
-  const activeHighlightColors = highlightColors;
 
   // 🎨 删除荧光笔（带擦除触觉反馈）
   const removeHighlight = useCallback((highlightId: string) => {
@@ -808,6 +814,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 // 强制 GPU 加速，稳定渲染层
                 transform: 'translateZ(0)',
                 zIndex: 0, // 基准层级
+                // 🎯 关键修复：裁剪溢出的背景层，防止遮盖相邻单词
+                overflow: 'visible', // 保持文字可见
+                isolation: 'isolate', // 创建新的层叠上下文，让 zIndex 只在内部生效
               }}
               // 🖱️ 桌面端鼠标事件
               onMouseDown={() => !isMobile && handleMouseDown(lineId, wordIndex)}
@@ -962,7 +971,8 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   };
 
   const renderLine = (line: TranscriptLine, index: number) => {
-    const isActive = currentTime >= line.start && currentTime <= line.end;
+    // 🚨 修复：与自动滚动逻辑保持一致，提前0.5秒高亮
+    const isActive = currentTime >= (line.start - 0.5) && currentTime <= line.end;
     const itemId = `${lessonId}-script-${line.id}`;
     const isSaved = savedIds.has(itemId);
     const fillColor = getFillColor();
@@ -977,7 +987,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         data-line-id={index}
         onClick={() => handleLineClick(line.start)}
         initial={false}
-        className={`relative py-4 px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
+        className={`relative ${isMobile ? 'py-2' : 'py-4'} px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
         style={{
           backgroundColor: isActive ? getActiveBgColor() : (isSaved ? savedStyle.backgroundColor : `${theme.bg}F5`),
           boxShadow: isActive 
@@ -1173,9 +1183,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
           {/* 底部：操作图标 - 独占一行，不与字幕重叠 */}
           <div className="flex items-center justify-between -mt-1">
-            {/* 左侧：时间轴 - 放大1.2倍 */}
+            {/* 左侧：时间轴 - 放大1.44倍 (原1.2倍 × 1.2) */}
             <span 
-              className={`font-mono opacity-40 ${isMobile ? 'text-[9.6px]' : 'text-[14.4px]'}`}
+              className={`font-mono opacity-40 ${isMobile ? 'text-[11.52px]' : 'text-[17.28px]'}`}
               style={{ 
                 color: theme.text,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", "Menlo", monospace',
@@ -1185,8 +1195,8 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
               {formatTime(line.start)}
             </span>
 
-            {/* 右侧：操作图标 - 放大1.2倍 */}
-            <div className={`flex items-center opacity-50 group-hover:opacity-100 transition-opacity ${isMobile ? 'gap-2' : 'gap-4'}`}>
+            {/* 右侧：操作图标 - 放大1.44倍 (原1.2倍 × 1.2) */}
+            <div className={`flex items-center opacity-50 group-hover:opacity-100 transition-opacity ${isMobile ? 'gap-5' : 'gap-5'}`}>
               {/* 播放 */}
               <motion.button
                 whileTap={{ scale: 0.9 }}
@@ -1195,7 +1205,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: theme.text }}
                 title="播放"
               >
-                <svg width={isMobile ? "12" : "16.8"} height={isMobile ? "12" : "16.8"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={isMobile ? "14.4" : "20.16"} height={isMobile ? "14.4" : "20.16"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10"/>
                   <polygon points="10 8 16 12 10 16 10 8"/>
                 </svg>
@@ -1210,11 +1220,11 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 title="复制"
               >
                 {isCopied ? (
-                  <svg width={isMobile ? "12" : "16.8"} height={isMobile ? "12" : "16.8"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width={isMobile ? "14.4" : "20.16"} height={isMobile ? "14.4" : "20.16"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                 ) : (
-                  <Copy size={isMobile ? 12 : 16.8} />
+                  <Copy size={isMobile ? 14.4 : 20.16} />
                 )}
               </motion.button>
 
@@ -1226,7 +1236,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: isSaved ? theme.accent : theme.text }}
                 title="收藏"
               >
-                <Star size={isMobile ? 12 : 16.8} fill={isSaved ? theme.accent : 'none'} />
+                <Star size={isMobile ? 14.4 : 20.16} fill={isSaved ? theme.accent : 'none'} />
               </motion.button>
 
               {/* 笔记 */}
@@ -1237,7 +1247,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 style={{ color: hasNote || isEditingNote ? theme.accent : theme.text }}
                 title="笔记"
               >
-                <Edit3 size={isMobile ? 12 : 16.8} />
+                <Edit3 size={isMobile ? 14.4 : 20.16} />
               </motion.button>
             </div>
           </div>
@@ -1329,7 +1339,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         touchAction: isMobile ? 'pan-y' : 'auto',
       }}
     >
-
       {/* 🎯 字幕流：保持极其干净的 DOM 树，确保滚动计算精准 */}
       <div
         ref={scrollContainerRef}

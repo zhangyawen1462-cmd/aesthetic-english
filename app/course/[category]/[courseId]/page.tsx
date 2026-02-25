@@ -440,7 +440,7 @@ export default function CoursePage() {
 
             {/* Aesthetic English 水印 */}
             <div className="absolute top-3 right-3 md:top-4 md:right-4 z-50 pointer-events-none">
-              <p className="text-[9px] md:text-[10px] uppercase tracking-[0.2em] text-white/20 font-serif">
+              <p className="text-[15px] md:text-[13px] uppercase tracking-[0.2em] text-white/20 font-serif">
                 Aesthetic English
               </p>
             </div>
@@ -738,7 +738,7 @@ export default function CoursePage() {
 
           {/* ─── 模块内容区（纯净背景 + 移动端优化间距） ─── */}
           <div
-            className="flex-1 overflow-y-auto p-4 pt-[0.2rem] sm:pt-6 md:p-8 md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
+            className="flex-1 overflow-y-auto p-4 pt-0 sm:pt-6 md:p-8 md:pt-6 pb-[0.2rem] md:pb-[0.2rem] no-scrollbar relative"
             style={{ backgroundColor: theme.bg }}
           >
             <AnimatePresence mode="wait">
