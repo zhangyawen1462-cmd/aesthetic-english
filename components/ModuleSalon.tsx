@@ -499,8 +499,10 @@ export default function ModuleSalon({ theme, data, videoContext, videoMood, less
   return (
     <div 
       className="w-full h-full flex flex-col relative overflow-hidden"
-      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", system-ui, sans-serif' }}
-      style={getBackgroundStyle()}
+      style={{ 
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", system-ui, sans-serif',
+        ...getBackgroundStyle()
+      }}
     >
       {/* --- Header: Gabby 的名片 --- */}
       <div
