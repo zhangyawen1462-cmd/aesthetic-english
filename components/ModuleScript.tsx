@@ -394,9 +394,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     return;
   }, []);
 
-  // 🎯 自动滚动到当前活跃行（已取消用户接管限制）- 终极方案：强制锁定滚动
+  // 🎯 自动滚动到当前活跃行 - 丝滑优化版
   useEffect(() => {
-    // 触发条件检查（已移除 isUserControlled 检查）
+    // 触发条件检查
     if (!isPlaying || !scrollContainerRef.current) {
       return;
     }
@@ -413,52 +413,64 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     if (activeIndex === lastAutoScrollIndex.current) return;
     lastAutoScrollIndex.current = activeIndex;
 
+    // 🎯 使用双重 RAF 确保 DOM 完全渲染后再滚动
     requestAnimationFrame(() => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-      
-      const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
-      
-      if (activeElement && isMobile) {
-        // 1. 回归最稳健的绝对物理偏移量计算 (无视动画形变)
-        let elementTop = 0;
-        let currentElement: HTMLElement | null = activeElement;
+      requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
         
-        while (currentElement && currentElement !== container) {
-          elementTop += currentElement.offsetTop;
-          currentElement = currentElement.offsetParent as HTMLElement;
+        const activeElement = container.querySelector(`[data-line-id="${activeIndex}"]`) as HTMLElement;
+        
+        if (activeElement && isMobile) {
+          // 📱 移动端：精准定位 + CSS scroll-behavior
+          let elementTop = 0;
+          let currentElement: HTMLElement | null = activeElement;
+          
+          while (currentElement && currentElement !== container) {
+            elementTop += currentElement.offsetTop;
+            currentElement = currentElement.offsetParent as HTMLElement;
+          }
+          
+          // 魔法补偿值：让字幕块始终在舒适的视觉位置
+          const MAGIC_OFFSET = 38; 
+          const targetScrollTop = elementTop - MAGIC_OFFSET;
+          
+          isSystemScrolling.current = true;
+          
+          // 🚀 使用原生 smooth scroll（浏览器优化的最佳性能）
+          container.scrollTo({
+            top: Math.max(0, targetScrollTop),
+            behavior: 'smooth'
+          });
+
+          setTimeout(() => {
+            isSystemScrolling.current = false;
+          }, 600); // 缩短超时时间，提升响应速度
+        } else if (activeElement && !isMobile) {
+          // 💻 桌面端：居中对齐 + 更平滑的滚动
+          isSystemScrolling.current = true;
+          
+          const container = scrollContainerRef.current;
+          if (!container) return;
+          
+          const containerRect = container.getBoundingClientRect();
+          const elementRect = activeElement.getBoundingClientRect();
+          
+          // 计算让元素居中的滚动位置
+          const elementCenter = elementRect.top + elementRect.height / 2;
+          const containerCenter = containerRect.top + containerRect.height / 2;
+          const scrollOffset = elementCenter - containerCenter;
+          
+          container.scrollBy({
+            top: scrollOffset,
+            behavior: 'smooth'
+          });
+
+          setTimeout(() => {
+            isSystemScrolling.current = false;
+          }, 600);
         }
-        
-        // 2. 🪄 魔法补偿值 (The Magic Offset)
-        // 这个值用来抵消：上一句还没缩小完的高度差 + py-2 的视觉空白
-        // 如果目前字幕块偏下，就把这个数字【加大】；如果字幕块被吃掉了一半，就把这个数字【减小】
-        const MAGIC_OFFSET = 38; 
-        
-        const targetScrollTop = elementTop - MAGIC_OFFSET;
-        
-        isSystemScrolling.current = true;
-        
-        container.scrollTo({
-          top: Math.max(0, targetScrollTop), // 保证不会滚成负数
-          behavior: 'smooth'
-        });
-
-        setTimeout(() => {
-          isSystemScrolling.current = false;
-        }, 800);
-      } else if (activeElement && !isMobile) {
-        // 💻 桌面端：由于空间大，可以温柔一点，保持在中间即可
-        isSystemScrolling.current = true;
-        
-        activeElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest', // 只有快看不见时才滚动
-        });
-
-        setTimeout(() => {
-          isSystemScrolling.current = false;
-        }, 800);
-      }
+      });
     });
   }, [currentTime, isPlaying, transcript, isUserControlled, isMobile]);
 
@@ -995,7 +1007,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         data-line-id={index}
         onClick={() => handleLineClick(line.start)}
         initial={false}
-        className={`relative ${isMobile ? 'py-2' : 'py-4'} px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
+        className={`relative ${isMobile ? 'py-2 pt-[calc(0.5rem+0.2rem)]' : 'py-4 pt-[calc(1rem+0.2rem)]'} px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
         style={{
           backgroundColor: isActive ? getActiveBgColor() : (isSaved ? savedStyle.backgroundColor : `${theme.bg}F5`),
           boxShadow: isActive 
@@ -1039,9 +1051,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           {/* 英文 - 放大1号 + 加粗 + 移动端缩小1号 */}
           {(langMode === 'en' || langMode === 'bi') && (
             <p 
-              className={`font-medium tracking-tight transition-all duration-300 ${
-                isActive ? 'text-[19px] md:text-[23px]' : 'text-[18px] md:text-[22px]'
-              }`}
+              className="font-medium tracking-tight transition-all duration-300 text-[18px] md:text-[22px]"
               style={{
                 color: isSaved && !isActive ? savedStyle.color : getTextColor(),
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif',
@@ -1089,9 +1099,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           {/* 纯中文模式 - 缩小1号 + 调浅 + 移动端缩小1号 */}
           {langMode === 'cn' && (
             <p 
-              className={`transition-all duration-300 ${
-                isActive ? 'text-[20px] md:text-[23px]' : 'text-[19px] md:text-[22px]'
-              }`}
+              className="transition-all duration-300 text-[19px] md:text-[22px]"
               style={{
                 color: isSaved && !isActive ? savedStyle.color : getTextColor(),
                 opacity: 0.75,
@@ -1140,9 +1148,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
           {/* 双语模式下的中文 - 缩小1号 + 调浅 + 移动端缩小1号 */}
           {langMode === 'bi' && (
             <p 
-              className={`transition-all duration-300 ${
-                isActive ? 'text-[16px] md:text-[19px]' : 'text-[15px] md:text-[18px]'
-              }`}
+              className="transition-all duration-300 text-[15px] md:text-[18px]"
               style={{ 
                 letterSpacing: '0.01em',
                 color: isSaved && !isActive ? savedStyle.color : getTextColor(),

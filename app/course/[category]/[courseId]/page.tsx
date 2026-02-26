@@ -41,13 +41,13 @@ const ExportPDFButton = lazy(() => import("@/components/ExportPDFButton"));
 const ExportAudioButton = lazy(() => import("@/components/ExportAudioButton"));
 
 const TABS = [
-  { id: 'script', label: 'SCRIPT', num: 'I', icon: FileText },
-  { id: 'blind', label: 'BLIND', num: 'II', icon: Headphones },
-  { id: 'shadow', label: 'SHADOW', num: 'III', icon: Mic },
-  { id: 'vocab', label: 'VOCAB', num: 'IV', icon: BookOpen },
-  { id: 'grammar', label: 'GRAMMAR', num: 'V', icon: Lightbulb },
-  { id: 'recall', label: 'RECALL', num: 'VI', icon: RotateCcw },
-  { id: 'salon', label: 'SALON', num: 'VII', icon: MessageCircle },
+  { id: 'script', label: 'SCRIPT', labelCn: '精听', num: 'I', icon: FileText },
+  { id: 'blind', label: 'BLIND', labelCn: '盲听', num: 'II', icon: Headphones },
+  { id: 'shadow', label: 'SHADOW', labelCn: '跟读', num: 'III', icon: Mic },
+  { id: 'vocab', label: 'VOCAB', labelCn: '单词', num: 'IV', icon: BookOpen },
+  { id: 'grammar', label: 'GRAMMAR', labelCn: '语法', num: 'V', icon: Lightbulb },
+  { id: 'recall', label: 'RECALL', labelCn: '视译', num: 'VI', icon: RotateCcw },
+  { id: 'salon', label: 'SALON', labelCn: 'AI交流', num: 'VII', icon: MessageCircle },
 ];
 
 /** 格式化时间 mm:ss */
@@ -440,7 +440,7 @@ export default function CoursePage() {
 
             {/* Aesthetic English 水印 */}
             <div className="absolute top-3 right-3 md:top-4 md:right-4 z-50 pointer-events-none">
-              <p className="text-[15px] md:text-[13px] uppercase tracking-[0.2em] text-white/20 font-serif">
+              <p className="text-[18px] md:text-[15.6px] uppercase tracking-[0.2em] text-white/15 font-serif">
                 Aesthetic English
               </p>
             </div>
@@ -629,102 +629,103 @@ export default function CoursePage() {
          ═══════════════════════════════════════ */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative z-10" style={{ backgroundColor: theme.bg }}>
 
-        {/* ─── 移动端图标导航 ─── */}
+        {/* ─── 移动端横线导航 ─── */}
         <nav
-          className="flex md:hidden items-center justify-center shrink-0 safe-bottom relative touch-manipulation py-2 px-2 gap-[18px]"
+          className="flex md:hidden flex-col shrink-0 safe-bottom relative touch-manipulation pt-0 pb-3 px-3 sm:px-4 overflow-x-auto no-scrollbar"
           style={{
-            borderTop: `1px solid ${theme.lineColor}`,
             background: theme.bg + 'F0',
             backdropFilter: 'blur(20px) saturate(180%)',
             WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-            boxShadow: `0 -3px 12px ${theme.lineColor}12, 0 -1px 0 0 ${theme.lineColor}25`,
+            boxShadow: `0 -3px 12px ${theme.lineColor}12`,
           }}
         >
-          {TABS.map((tab, index) => {
-            const isActive = activeTab === tab.id;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0"
-                style={{
-                  backgroundColor: isActive ? `${theme.accent}15` : 'transparent',
-                }}
-                aria-label={`切换到 ${tab.label} 模块`}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <motion.div
-                  animate={{
-                    opacity: isActive ? 1 : 0.4,
-                    scale: isActive ? 1.1 : 1,
-                  }}
-                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                  style={{ 
-                    color: isActive ? theme.accent : theme.text,
-                  }}
-                >
-                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                </motion.div>
-              </button>
-            );
-          })}
-
-          {/* 导出按钮 - 移动端 */}
-          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
-            <Suspense fallback={null}>
-              <ExportPDFButton
-                content={
-                  activeTab === 'script' 
-                    ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
-                    : activeTab === 'vocab'
-                    ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
-                    : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
-                }
-                filename={`${activeTab}-${lesson.id}`}
-                lessonId={lesson.id}
-                type={activeTab as 'script' | 'vocab' | 'grammar'}
-                className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0"
-                style={{ color: theme.text, opacity: 0.4 }}
-                iconSize={16}
-                isMobile={true}
-                theme={theme}
-              />
-            </Suspense>
-          )}
-
-          {/* 🆕 音频导出按钮 - 移动端（仅盲听模块显示） */}
-          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
-            <Suspense fallback={null}>
-              <ExportAudioButton
-                videoUrl={lesson.videoUrl}
-                audioUrl={lesson.audioUrl}
-                filename={`${lesson.titleEn || lesson.titleCn}-audio`}
-                lessonId={lesson.id}
-                className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0"
-                style={{ color: theme.text, opacity: 0.4 }}
-                iconSize={16}
-                isMobile={true}
-                theme={theme}
-              />
-            </Suspense>
-          )}
-
-          {/* 设置图标 - 主题切换 */}
-          <button
-            onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-            className="relative flex items-center justify-center touch-manipulation p-2 rounded-lg transition-all flex-shrink-0 ml-1"
-            aria-label="主题设置"
-          >
-            <Settings 
-              size={16} 
-              strokeWidth={1.5}
-              style={{ 
-                color: theme.text,
-                opacity: 0.25,
+          {/* 完整横线（顶部） */}
+          <div className="relative w-full h-[2px] mb-2" style={{ backgroundColor: `${theme.text}15` }}>
+            {/* 激活指示器 */}
+            <motion.div
+              className="absolute top-0 h-full rounded-full"
+              animate={{
+                left: `${(TABS.findIndex(t => t.id === activeTab) / TABS.length) * 100}%`,
+                width: `${100 / TABS.length}%`,
               }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              style={{ backgroundColor: theme.accent }}
             />
-          </button>
+          </div>
+
+          {/* 标签行 */}
+          <div className="flex items-center justify-between w-full">
+            {TABS.map((tab, index) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="relative flex items-center justify-center touch-manipulation flex-1"
+                  aria-label={`切换到 ${tab.labelCn} 模块`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <motion.span
+                    animate={{
+                      opacity: isActive ? 1 : 0.4,
+                      scale: isActive ? 1.05 : 1,
+                    }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="text-[19px] whitespace-nowrap -mt-[0.2rem]"
+                    style={{ 
+                      color: isActive ? theme.accent : theme.text,
+                    }}
+                  >
+                    {tab.labelCn}
+                  </motion.span>
+                </button>
+              );
+            })}
+          </div>
+
+          
+          {/* 右侧功能按钮组 */}
+          <div className="flex items-center gap-3 mt-2 justify-end">
+            {/* 导出按钮 - 移动端 */}
+            {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
+              <Suspense fallback={null}>
+                <ExportPDFButton
+                  content={
+                    activeTab === 'script' 
+                      ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
+                      : activeTab === 'vocab'
+                      ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
+                      : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
+                  }
+                  filename={`${activeTab}-${lesson.id}`}
+                  lessonId={lesson.id}
+                  type={activeTab as 'script' | 'vocab' | 'grammar'}
+                  className="relative flex items-center justify-center touch-manipulation p-1.5"
+                  style={{ color: theme.text, opacity: 0.3 }}
+                  iconSize={16}
+                  isMobile={true}
+                  theme={theme}
+                />
+              </Suspense>
+            )}
+
+            {/* 🆕 音频导出按钮 - 移动端（仅盲听模块显示） */}
+            {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
+              <Suspense fallback={null}>
+                <ExportAudioButton
+                  videoUrl={lesson.videoUrl}
+                  audioUrl={lesson.audioUrl}
+                  filename={`${lesson.titleEn || lesson.titleCn}-audio`}
+                  lessonId={lesson.id}
+                  className="relative flex items-center justify-center touch-manipulation p-1.5"
+                  style={{ color: theme.text, opacity: 0.3 }}
+                  iconSize={16}
+                  isMobile={true}
+                  theme={theme}
+                />
+              </Suspense>
+            )}
+          </div>
         </nav>
 
         <div className="flex-1 h-full relative overflow-hidden flex flex-col">
@@ -910,8 +911,8 @@ export default function CoursePage() {
         </div>
       </div>
 
-      {/* ─── The Fabric Swatch (面料色卡) - 仅桌面端显示 ─── */}
-      <div className="hidden md:flex fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 items-center gap-3 safe-bottom safe-right">
+      {/* ─── The Fabric Swatch (面料色卡) - 移动端和桌面端都显示 ─── */}
+      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-3 safe-bottom safe-right">
         
         {/* 色卡按钮 */}
         <button
@@ -1001,7 +1002,7 @@ export default function CoursePage() {
             initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex gap-3 p-3 rounded-lg backdrop-blur-md shadow-2xl"
+            className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 flex gap-3 p-3 rounded-lg backdrop-blur-md shadow-2xl safe-bottom"
               style={{ 
               backgroundColor: `${theme.bg}F5`,
               border: `1px solid ${theme.text}1A`
