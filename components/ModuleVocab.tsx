@@ -187,7 +187,7 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                       {/* 中央单词 */}
                       <div className="flex flex-col items-center gap-2 px-4 w-full">
                         <h2 
-                          className="text-3xl md:text-5xl tracking-tight font-normal text-center break-words w-full"
+                          className="text-2xl md:text-4xl tracking-tight font-normal text-center break-words w-full"
                           style={{ lineHeight: '1.1', fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif' }}
                         >
                           {card.word}
@@ -256,20 +256,17 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                           <div className="h-[1px] w-6 mb-3 opacity-20 shrink-0" style={{ backgroundColor: theme.text }} />
                           
                           {/* 限制文本高度，防止溢出 */}
-                          <div className="overflow-y-auto pr-1 no-scrollbar">
-                            <p className="text-sm md:text-base leading-relaxed opacity-80 mb-3"
+                          <div className="overflow-y-auto pr-1 no-scrollbar space-y-3">
+                            <p className="text-sm md:text-base leading-relaxed opacity-80"
                                style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
                               {card.defCn || card.def}
                             </p>
+                            
+                            <p className="text-sm md:text-base leading-relaxed opacity-80"
+                               style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>
+                              &quot;{card.ex}&quot;
+                            </p>
                           </div>
-                        </div>
-
-                        {/* Footer Example */}
-                        <div className="border-t pt-3 mt-2 shrink-0" style={{ borderColor: 'rgba(0,0,0,0.05)' }}>
-                          <p className="text-[11px] md:text-xs leading-relaxed italic line-clamp-3 opacity-50"
-                             style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>
-                            &quot;{card.ex}&quot;
-                          </p>
                         </div>
                       </div>
                     </motion.div>

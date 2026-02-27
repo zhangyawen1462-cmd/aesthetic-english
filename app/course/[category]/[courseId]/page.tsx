@@ -684,48 +684,7 @@ export default function CoursePage() {
           </div>
 
           
-          {/* 右侧功能按钮组 */}
-          <div className="flex items-center gap-3 mt-2 justify-end">
-            {/* 导出按钮 - 移动端 */}
-            {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
-              <Suspense fallback={null}>
-                <ExportPDFButton
-                  content={
-                    activeTab === 'script' 
-                      ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
-                      : activeTab === 'vocab'
-                      ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
-                      : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
-                  }
-                  filename={`${activeTab}-${lesson.id}`}
-                  lessonId={lesson.id}
-                  type={activeTab as 'script' | 'vocab' | 'grammar'}
-                  className="relative flex items-center justify-center touch-manipulation p-1.5"
-                  style={{ color: theme.text, opacity: 0.3 }}
-                  iconSize={16}
-                  isMobile={true}
-                  theme={theme}
-                />
-              </Suspense>
-            )}
-
-            {/* 🆕 音频导出按钮 - 移动端（仅盲听模块显示） */}
-            {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
-              <Suspense fallback={null}>
-                <ExportAudioButton
-                  videoUrl={lesson.videoUrl}
-                  audioUrl={lesson.audioUrl}
-                  filename={`${lesson.titleEn || lesson.titleCn}-audio`}
-                  lessonId={lesson.id}
-                  className="relative flex items-center justify-center touch-manipulation p-1.5"
-                  style={{ color: theme.text, opacity: 0.3 }}
-                  iconSize={16}
-                  isMobile={true}
-                  theme={theme}
-                />
-              </Suspense>
-            )}
-          </div>
+          {/* 右侧功能按钮组 - 移除移动端导出按钮 */}
         </nav>
 
         <div className="flex-1 h-full relative overflow-hidden flex flex-col">
@@ -798,103 +757,142 @@ export default function CoursePage() {
           </div>
         </div>
 
-        {/* ─── 桌面侧边栏：极简竖线 ─── */}
+        {/* ─── 桌面侧边栏：固定在右侧，不浮动 ─── */}
         <div
-          className="hidden md:flex w-24 h-full flex-col items-center justify-center gap-3 z-30 transition-colors duration-700 absolute top-0"
-          style={{ right: '-2rem' }}
+          className="hidden md:flex w-16 h-full flex-col items-center z-30 transition-colors duration-700 shrink-0 relative"
+          style={{ backgroundColor: theme.bg }}
         >
-            {TABS.map((tab, index) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <motion.button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  whileHover="hover"
-                  initial="initial"
-                  className="relative group flex items-center justify-center pointer-events-auto"
-                style={{ width: '64px', height: '40px' }}
-                  aria-label={`切换到 ${tab.label} 模块`}
-                  aria-current={isActive ? 'page' : undefined}
-                >
-                {/* 竖线 */}
-                  <motion.div
-                    animate={{
-                    height: isActive ? '40px' : '24px',
-                    opacity: isActive ? 1 : 0.3,
-                    }}
-                  transition={{ type: "spring", ...ANIMATION_CONFIG.spring.medium }}
-                  className="w-[1.5px] rounded-full"
-                    style={{ 
-                    backgroundColor: isActive ? theme.accent : theme.text,
-                    }}
+          {/* 左侧极细竖线 - 参考 DailyCinemaView 的质感 + 加强阴影 */}
+          <div 
+            className="absolute top-0 bottom-0 w-[1px] transition-colors duration-300 pointer-events-none"
+            style={{ 
+              left: '0.2rem', // 向右移动 0.2rem
+              backgroundColor: theme.text, 
+              opacity: 0.15,
+              boxShadow: '2px 0 6px rgba(0, 0, 0, 0.15), -1px 0 4px rgba(0, 0, 0, 0.08), 1px 0 2px rgba(0, 0, 0, 0.1)'
+            }}
+          />
+
+          {/* 下载按钮区域 - 固定在顶部 */}
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50">
+            {/* PDF下载按钮 */}
+            {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
+              <Suspense fallback={null}>
+                <ExportPDFButton
+                  content={
+                    activeTab === 'script' 
+                      ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
+                      : activeTab === 'vocab'
+                      ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
+                      : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
+                  }
+                  filename={`${activeTab}-${lesson.id}`}
+                  lessonId={lesson.id}
+                  type={activeTab as 'script' | 'vocab' | 'grammar'}
+                  className="transition-all duration-300 p-2 touch-manipulation hover:opacity-100 pointer-events-auto"
+                  style={{ color: theme.text, opacity: 0.4 }}
+                  iconSize={18}
+                  isMobile={false}
+                  theme={theme}
                 />
+              </Suspense>
+            )}
 
-                {/* 文字标签 — hover 时渐入，右对齐距离竖线 3rem */}
-                  <motion.div
-                    variants={{
-                    initial: { opacity: 0, x: -5 },
-                    hover: { opacity: 1, x: 0 },
+            {/* 音频下载按钮（仅盲听模块显示） */}
+            {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
+              <Suspense fallback={null}>
+                <ExportAudioButton
+                  videoUrl={lesson.videoUrl}
+                  audioUrl={lesson.audioUrl}
+                  filename={`${lesson.titleEn || lesson.titleCn}-audio`}
+                  lessonId={lesson.id}
+                  className="transition-all duration-300 p-2 touch-manipulation hover:opacity-100 pointer-events-auto"
+                  style={{ color: theme.text, opacity: 0.4 }}
+                  iconSize={18}
+                  isMobile={false}
+                  theme={theme}
+                />
+              </Suspense>
+            )}
+          </div>
+
+          {/* 模块图标区域 - 居中显示 */}
+          <div className="flex-1 flex flex-col items-center justify-center gap-8">
+          {TABS.map((tab, index) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
+            return (
+              <motion.button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                whileHover="hover"
+                initial="initial"
+                className="relative group flex items-center justify-center pointer-events-auto"
+                style={{ width: '56px', height: '40px' }}
+                aria-label={`切换到 ${tab.labelCn} 模块`}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                {/* 图标 - 放大 1.3 * 1.1 = 1.43 倍 */}
+                <motion.div
+                  animate={{
+                    opacity: isActive ? 1 : 0.45,
+                    scale: isActive ? 1.65 : 1.43,
                   }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute whitespace-nowrap text-right"
-                  style={{ right: '3rem' }}
-                  >
-                    <span 
-                    className="text-sm font-bold tracking-wide font-serif"
-                      style={{ 
-                      color: theme.text,
-                      }}
-                    >
-                      {tab.label}
-                    </span>
-                  </motion.div>
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  className="relative z-10"
+                  style={{ 
+                    color: isActive ? theme.accent : theme.text,
+                  }}
+                >
+                  <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                </motion.div>
 
-                  {/* 快捷键数字 — hover 时渐入 */}
+                {/* 绸缎标签 — hover 时从左侧抽出，深色底浅色字，与图标垂直居中对齐 */}
+                <motion.div
+                  variants={{
+                    initial: { opacity: 0, x: 15, scaleX: 0.8 },
+                    hover: { opacity: 1, x: 0, scaleX: 1 },
+                  }}
+                  transition={{ 
+                    duration: 0.3,
+                    ease: [0.34, 1.56, 0.64, 1] // 弹性缓动
+                  }}
+                  className="absolute whitespace-nowrap rounded-sm shadow-lg px-3 py-1.5 flex items-center pointer-events-none"
+                  style={{ 
+                    right: 'calc(100% + 12px)',
+                    top: 'calc(20px - 2rem + 0.9rem)', // 先上移2rem，再下移0.9rem，净上移1.1rem
+                    transform: 'translateY(-50%)',
+                    fontFamily: 'PingFang SC, -apple-system, BlinkMacSystemFont, sans-serif',
+                    backgroundColor: theme.text,
+                    border: `1px solid ${theme.text}`,
+                    transformOrigin: 'right center',
+                  }}
+                >
                   <span 
-                  className="absolute right-2 text-[7px] font-mono opacity-0 group-hover:opacity-20 transition-opacity"
-                    style={{ color: theme.text }}
+                    className="text-2xl font-medium tracking-wide"
+                    style={{ 
+                      color: theme.bg,
+                    }}
                   >
-                    {index + 1}
+                    {tab.labelCn}
                   </span>
-                </motion.button>
-              );
-            })}
-            
-          {/* 导出按钮 - 桌面端侧边栏 */}
-          {lesson && ['script', 'vocab', 'grammar'].includes(activeTab) && (
-            <Suspense fallback={null}>
-              <ExportPDFButton
-                content={
-                  activeTab === 'script' 
-                    ? transcript.map(line => `${line.en}\n${line.cn}\n`).join('\n')
-                    : activeTab === 'vocab'
-                    ? lesson.vocab.map(v => `${v.word}\n${v.defCn || v.def}\n例句: ${v.ex}\n`).join('\n')
-                    : lesson.grammar.map(note => `${note.point}\n${note.desc}\n例句: ${note.ex}\n`).join('\n')
-                }
-                filename={`${activeTab}-${lesson.id}`}
-                lessonId={lesson.id}
-                type={activeTab as 'script' | 'vocab' | 'grammar'}
-                iconSize={0}
-                isMobile={false}
-                theme={theme}
-              />
-            </Suspense>
-          )}
-
-          {/* 音频导出按钮 - 桌面端侧边栏（仅盲听模块显示） */}
-          {lesson && activeTab === 'blind' && lesson.videoUrl && lesson.videoUrl.trim() !== '' && (
-            <Suspense fallback={null}>
-              <ExportAudioButton
-                videoUrl={lesson.videoUrl}
-                audioUrl={lesson.audioUrl}
-                filename={`${lesson.titleEn || lesson.titleCn}-audio`}
-                lessonId={lesson.id}
-                theme={theme}
-                iconSize={0}
-                isMobile={false}
-              />
-            </Suspense>
-          )}
+                  
+                  {/* 绸缎连接三角 */}
+                  <div 
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full"
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderTop: '6px solid transparent',
+                      borderBottom: '6px solid transparent',
+                      borderLeft: `6px solid ${theme.text}`,
+                    }}
+                  />
+                </motion.div>
+              </motion.button>
+            );
+          })}
+          </div>
           
           {/* 底部课程信息锚点 */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">

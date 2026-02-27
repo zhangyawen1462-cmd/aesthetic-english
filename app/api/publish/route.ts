@@ -455,9 +455,13 @@ ${processedSRT}
    - phonetic: 音标（英式或美式）
    - definition: 英文释义
    - definition_cn: **中文释义**（必须是纯中文解释，不要包含英文）
-   - example: 例句（最好来自字幕中）
+   - example: 例句（不要来自字幕中，重新造一个实用的例句，格式为："Ex. 英文句子\n中文翻译"）
+   - derivatives: 衍生词（同词根的相关词汇，如 create → creation, creative, creator，用逗号分隔）
+   - related: 相似词组或同义表达（如 give up → abandon, quit，用逗号分隔）
    
-   **注意**：词汇解释必须准确，请参考权威词典（如 Oxford、Collins、Longman 等），但不要在释义中标注来源。
+   **注意**：
+   - 词汇解释必须准确，请参考权威词典（如 Oxford、Collins、Longman 等），但不要在释义中标注来源
+   - example 字段必须严格按照格式："Ex. 英文句子\n中文翻译"，英文和中文之间用换行符分隔
 
 2. **grammar**: 3-5个语法点，每个包含：
    - point: 语法点名称（中文+英文，格式：中文名称 English Name，不要括号）
