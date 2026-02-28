@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, RefreshCw, Search, Filter, ArrowLeft } from 'lucide-react';
+import { RefreshCw, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 interface Log {
@@ -22,13 +22,11 @@ export default function AdminRadar() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 });
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [searchCode, setSearchCode] = useState('');
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setIsLoading(true);
-    setError('');
     
     try {
       const params = new URLSearchParams();
@@ -47,18 +45,22 @@ export default function AdminRadar() {
         setLogs(data.data.logs);
         setStats(data.data.stats);
       } else {
-        setError(data.message || '获取日志失败');
+        console.error(data.message || '获取日志失败');
       }
-    } catch (err) {
-      setError('网络错误');
+    } catch {
+      console.error('网络错误');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filterStatus, searchCode]);
 
   useEffect(() => {
     fetchLogs();
   }, []);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -66,7 +68,7 @@ export default function AdminRadar() {
     }, 5000); // 每5秒刷新一次
 
     return () => clearInterval(interval);
-  }, [filterStatus, searchCode]);
+  }, [fetchLogs]);
 
   return (
     <div className="min-h-screen bg-[#0A1628] text-[#E8F4F8] p-6">

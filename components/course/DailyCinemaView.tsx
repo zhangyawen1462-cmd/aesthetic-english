@@ -285,13 +285,15 @@ function DailyCard({ item, index, onGuestClick, onImageClick, tier }: {
     // 🚪 游客：所有视频都拦截；试用用户：只有 freeTrial 课程可以直接访问，其他拦截
     const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? item.isSample !== 'freeTrial' : false);
     
-    // 🔍 调试日志
-    console.log('DailyCard:', {
-      id: item.id,
-      tier,
-      isSample: item.isSample,
-      shouldIntercept
-    });
+    // 🔍 调试日志 - 仅在开发环境输出
+    if (process.env.NODE_ENV === 'development') {
+      console.log('DailyCard:', {
+        id: item.id,
+        tier,
+        isSample: item.isSample,
+        shouldIntercept
+      });
+    }
 
   return (
     <motion.div

@@ -34,7 +34,7 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
 
   // 3. 从后端获取会员状态的函数（可复用）
   const fetchMembership = async (forceRefresh = false) => {
-    // 🚀 防抖逻辑：如果距离上次查询不到 60 秒，跳过
+    // 🚀 防抖逻辑：如果距离上次查询不到 60 秒，跳过（除非强制刷新）
     const now = Date.now();
     if (!forceRefresh && now - lastFetchTime.current < CACHE_DURATION) {
       console.log('⚡ [MembershipContext] 使用缓存，跳过查询');
@@ -43,22 +43,28 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsLoading(true);
-      console.log('🔍 [MembershipContext] 开始获取会员状态...');
+      console.log('🔍 [MembershipContext] 开始获取会员状态...', forceRefresh ? '(强制刷新)' : '');
       
       // 🆕 从后端 API 获取会员状态
       const response = await fetch('/api/membership', {
         // 禁用浏览器缓存，确保获取最新数据
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
       });
       const data = await response.json();
       
       console.log('📦 [MembershipContext] 后端返回数据:', data);
       
-      // 更新缓存时间戳
-      lastFetchTime.current = now;
+      // 强制刷新时，立即更新缓存时间戳
+      if (forceRefresh) {
+        lastFetchTime.current = now;
+      } else {
+        // 正常查询时也更新时间戳
+        lastFetchTime.current = now;
+      }
       
       if (data.success && data.data.isAuthenticated) {
         console.log('✅ [MembershipContext] 用户已认证，等级:', data.data.tier);
@@ -96,6 +102,7 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
         setDevTierState(savedDevTier);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 5. 更新 DevTier 的函数
@@ -109,9 +116,22 @@ export function MembershipProvider({ children }: { children: ReactNode }) {
   };
 
   // 6. 核心逻辑：开发环境下，devTier 优先；否则使用 realTier
-  const effectiveTier = (process.env.NODE_ENV === 'development' && devTier) 
+  const effectiveTier = (process.env.NODE_ENV === 'development' && devTier && devTier !== 'visitor') 
     ? devTier 
     : realTier;
+
+  // 🔍 调试日志 - 显示最终生效的 tier
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎭 [MembershipContext] Tier 状态:', {
+        realTier,
+        devTier,
+        effectiveTier,
+        isDevMode: process.env.NODE_ENV === 'development',
+        willUseDevTier: process.env.NODE_ENV === 'development' && devTier && devTier !== 'visitor'
+      });
+    }
+  }, [realTier, devTier, effectiveTier]);
 
   return (
     <MembershipContext.Provider value={{ 

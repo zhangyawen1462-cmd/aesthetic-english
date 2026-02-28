@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import type { RecallText } from "@/data/types";
 
 import type { ThemeConfig } from "@/lib/theme-config";
@@ -18,278 +18,17 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
   const [isRevealed, setIsRevealed] = useState(false);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // 🎨 荧光笔系统
-  const [highlights, setHighlights] = useState<Array<{
-    id: string;
-    text: string;
-    color: string;
-    type: 'cn' | 'en'; // 区分中文和英文
-    startOffset: number;
-    endOffset: number;
-  }>>([]);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
-  const [selectedRange, setSelectedRange] = useState<{
-    text: string;
-    type: 'cn' | 'en';
-    startOffset: number;
-    endOffset: number;
-  } | null>(null);
-
-  // 🎯 检测是否为移动端
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
   const color = theme.text;
   const paperColor = theme.bg;
 
   useEffect(() => {
     const saved = localStorage.getItem(`recall_note_${lessonId || 'default'}`);
     if (saved) setNote(saved);
-
-    // 读取荧光笔高亮
-    const savedHighlights = localStorage.getItem(`recall_highlights_${lessonId || 'default'}`);
-    if (savedHighlights) {
-      setHighlights(JSON.parse(savedHighlights));
-    }
   }, [lessonId]);
 
   const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNote(e.target.value);
     localStorage.setItem(`recall_note_${lessonId || 'default'}`, e.target.value);
-  };
-
-  // 🎨 荧光笔颜色
-  const highlightColors = [
-    { id: 'yellow', color: '#FFEA28', name: '马克黄' },
-    { id: 'green', color: '#32FF7E', name: '苹果青' },
-    { id: 'pink', color: '#FF5EBC', name: '亮芭比粉' },
-    { id: 'blue', color: '#00D8FF', name: '冰川蓝' },
-  ];
-
-  // 🎨 文本选择处理
-  const handleTextSelection = useCallback((type: 'cn' | 'en', fullText: string, event: React.MouseEvent | any) => {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      setShowColorPicker(false);
-      return;
-    }
-
-    const selectedText = selection.toString().trim();
-    if (!selectedText) {
-      setShowColorPicker(false);
-      return;
-    }
-
-    const range = selection.getRangeAt(0);
-    const container = event.currentTarget as HTMLElement;
-
-    let startOffset = 0;
-    const treeWalker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
-    let currentNode = treeWalker.nextNode();
-
-    while (currentNode) {
-      if (currentNode === range.startContainer) {
-        startOffset += range.startOffset;
-        break;
-      }
-      startOffset += currentNode.textContent?.length || 0;
-      currentNode = treeWalker.nextNode();
-    }
-
-    const fullSelectedText = selection.toString();
-    const trimStartCount = fullSelectedText.length - fullSelectedText.trimStart().length;
-    
-    const finalStartOffset = startOffset + trimStartCount;
-    const finalEndOffset = finalStartOffset + selectedText.length;
-
-    const rangeRect = range.getBoundingClientRect();
-    const pickerWidth = isMobile ? 140 : 160;
-    const pickerHeight = isMobile ? 36 : 40;
-    const viewportWidth = window.innerWidth;
-    
-    const selectionCenterX = rangeRect.left + rangeRect.width / 2;
-    const selectionTop = rangeRect.top;
-    const selectionBottom = rangeRect.bottom;
-    
-    let finalX = selectionCenterX - pickerWidth / 2;
-    let finalY = selectionTop - pickerHeight - 12;
-    
-    if (finalX < 8) finalX = 8;
-    if (finalX + pickerWidth > viewportWidth - 8) {
-      finalX = viewportWidth - pickerWidth - 8;
-    }
-    
-    if (finalY < 8) {
-      finalY = selectionBottom + 12;
-    }
-    
-    setColorPickerPosition({ x: finalX, y: finalY });
-    setSelectedRange({
-      text: selectedText,
-      type,
-      startOffset: finalStartOffset,
-      endOffset: finalEndOffset,
-    });
-    setShowColorPicker(true);
-
-    // 移动端震动反馈
-    if (isMobile && window.navigator && 'vibrate' in window.navigator) {
-      try {
-        window.navigator.vibrate([10]);
-      } catch (e) {
-        console.log('Vibration not supported');
-      }
-    }
-  }, [isMobile]);
-
-  // 🎨 应用荧光笔颜色
-  const applyHighlight = useCallback((color: string) => {
-    if (!selectedRange) return;
-
-    // 检查重叠
-    const hasOverlap = highlights.some(h => 
-      h.type === selectedRange.type && 
-      !(selectedRange.endOffset <= h.startOffset || selectedRange.startOffset >= h.endOffset)
-    );
-
-    if (hasOverlap) {
-      window.getSelection()?.removeAllRanges();
-      setShowColorPicker(false);
-      setSelectedRange(null);
-      
-      if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
-        try {
-          window.navigator.vibrate([15, 30, 15]);
-        } catch (e) {
-          console.log('Vibration not supported');
-        }
-      }
-      return;
-    }
-
-    const newHighlight = {
-      id: `${lessonId || 'default'}-${selectedRange.type}-${Date.now()}`,
-      text: selectedRange.text,
-      color,
-      type: selectedRange.type,
-      startOffset: selectedRange.startOffset,
-      endOffset: selectedRange.endOffset,
-    };
-
-    const newHighlights = [...highlights, newHighlight];
-    setHighlights(newHighlights);
-    localStorage.setItem(`recall_highlights_${lessonId || 'default'}`, JSON.stringify(newHighlights));
-
-    window.getSelection()?.removeAllRanges();
-    setShowColorPicker(false);
-    setSelectedRange(null);
-
-    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
-      try {
-        window.navigator.vibrate([20]);
-      } catch (e) {
-        console.log('Vibration not supported');
-      }
-    }
-  }, [selectedRange, highlights, lessonId]);
-
-  // 🎨 删除荧光笔
-  const removeHighlight = useCallback((highlightId: string) => {
-    const newHighlights = highlights.filter(h => h.id !== highlightId);
-    setHighlights(newHighlights);
-    localStorage.setItem(`recall_highlights_${lessonId || 'default'}`, JSON.stringify(newHighlights));
-  }, [highlights, lessonId]);
-
-  // 🎨 渲染带荧光笔效果的文本
-  const renderTextWithHighlights = (text: string, type: 'cn' | 'en') => {
-    const textHighlights = highlights.filter(h => h.type === type);
-    
-    if (textHighlights.length === 0) {
-      return text;
-    }
-
-    const isDarkTheme = theme.id === 'business';
-    const sortedHighlights = [...textHighlights].sort((a, b) => a.startOffset - b.startOffset);
-    
-    const parts: React.ReactNode[] = [];
-    let lastIndex = 0;
-
-    sortedHighlights.forEach((highlight, idx) => {
-      if (highlight.startOffset < 0 || highlight.endOffset > text.length || highlight.startOffset >= highlight.endOffset) {
-        return;
-      }
-
-      if (highlight.startOffset > lastIndex) {
-        parts.push(
-          <span key={`text-${idx}`}>
-            {text.substring(lastIndex, highlight.startOffset)}
-          </span>
-        );
-      }
-
-      parts.push(
-        <span
-          key={`highlight-${highlight.id}`}
-          className="relative cursor-pointer px-[2px] mx-[0.5px] rounded-[3px] transition-all hover:opacity-80 active:scale-95"
-          style={{
-            backgroundColor: isDarkTheme ? '#F5E6E8' : (isMobile ? `${highlight.color}F0` : `${highlight.color}D9`),
-            color: isDarkTheme ? '#5D1F27' : 'inherit',
-            mixBlendMode: 'normal',
-            boxDecorationBreak: 'clone',
-            WebkitBoxDecorationBreak: 'clone',
-            boxShadow: isMobile ? `0 1px 2px ${highlight.color}30` : 'none',
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            removeHighlight(highlight.id);
-          }}
-          onTouchStart={(e) => {
-            const touchTimer = setTimeout(() => {
-              e.stopPropagation();
-              removeHighlight(highlight.id);
-              if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
-                try {
-                  window.navigator.vibrate([50]);
-                } catch (err) {
-                  console.log('Vibration not supported');
-                }
-              }
-            }, 500);
-            
-            const clearTimer = () => {
-              clearTimeout(touchTimer);
-              e.currentTarget.removeEventListener('touchend', clearTimer);
-              e.currentTarget.removeEventListener('touchmove', clearTimer);
-            };
-            
-            e.currentTarget.addEventListener('touchend', clearTimer);
-            e.currentTarget.addEventListener('touchmove', clearTimer);
-          }}
-        >
-          {text.substring(highlight.startOffset, highlight.endOffset)}
-        </span>
-      );
-
-      lastIndex = highlight.endOffset;
-    });
-
-    if (lastIndex < text.length) {
-      parts.push(
-        <span key="text-end">
-          {text.substring(lastIndex)}
-        </span>
-      );
-    }
-
-    return <>{parts}</>;
   };
 
   return (
@@ -300,33 +39,6 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
         backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.015'/%3E%3C/svg%3E")`,
       }}
     >
-      {/* 🎨 自定义文本选中颜色 */}
-      <style jsx>{`
-        ::selection {
-          background-color: ${theme.id === 'daily' ? 'rgba(210, 180, 140, 0.4)' : 
-                            theme.id === 'cognitive' ? 'rgba(168, 197, 221, 0.35)' : 
-                            theme.id === 'business' ? 'rgba(232, 213, 216, 0.45)' : 
-                            'rgba(210, 180, 140, 0.4)'};
-          color: ${theme.id === 'business' ? '#2D0F15' : 'inherit'};
-        }
-        
-        ::-moz-selection {
-          background-color: ${theme.id === 'daily' ? 'rgba(210, 180, 140, 0.4)' : 
-                            theme.id === 'cognitive' ? 'rgba(168, 197, 221, 0.35)' : 
-                            theme.id === 'business' ? 'rgba(232, 213, 216, 0.45)' : 
-                            'rgba(210, 180, 140, 0.4)'};
-          color: ${theme.id === 'business' ? '#2D0F15' : 'inherit'};
-        }
-        
-        ::-webkit-selection {
-          background-color: ${theme.id === 'daily' ? 'rgba(210, 180, 140, 0.4)' : 
-                            theme.id === 'cognitive' ? 'rgba(168, 197, 221, 0.35)' : 
-                            theme.id === 'business' ? 'rgba(232, 213, 216, 0.45)' : 
-                            'rgba(210, 180, 140, 0.4)'};
-          color: ${theme.id === 'business' ? '#2D0F15' : 'inherit'};
-        }
-      `}</style>
-
       {/* 上半部分：题目区域（固定在顶部，键盘弹起时可见） */}
       <div className="flex-shrink-0 w-full px-4 md:px-12 pt-8 md:pt-20 pb-4 md:pb-8">
         <div className="w-full max-w-3xl mx-auto space-y-6 md:space-y-12">
@@ -342,32 +54,18 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
             className="relative"
           >
             <p 
-              className="text-base md:text-xl leading-relaxed whitespace-pre-wrap"
+              className="text-base md:text-xl leading-relaxed"
               style={{ 
                 color: color,
                 fontWeight: 500,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
-                letterSpacing: '0.02em',
-                lineHeight: '1.65',
-                userSelect: 'text',
-                WebkitUserSelect: 'text',
-              }}
-              onMouseUp={(e) => handleTextSelection('cn', recallText.cn, e)}
-              onTouchEnd={(e) => {
-                if (!isMobile) return;
-                setTimeout(() => {
-                  const selection = window.getSelection();
-                  if (selection && !selection.isCollapsed) {
-                    const selectedText = selection.toString().trim();
-                    if (selectedText) {
-                      const mockEvent = { currentTarget: e.currentTarget } as any;
-                      handleTextSelection('cn', recallText.cn, mockEvent);
-                    }
-                  }
-                }, 100);
+                letterSpacing: '0.01em',
+                lineHeight: '1.75',
+                wordBreak: 'keep-all',
+                overflowWrap: 'break-word',
               }}
             >
-              {renderTextWithHighlights(recallText.cn, 'cn')}
+              {recallText.cn}
             </p>
           </motion.div>
 
@@ -385,28 +83,10 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
               userSelect: isRevealed ? 'text' : 'none',
             }}
             onMouseDown={() => setIsRevealed(true)}
-            onMouseUp={(e) => {
-              setIsRevealed(false);
-              if (isRevealed) {
-                handleTextSelection('en', recallText.en, e);
-              }
-            }}
+            onMouseUp={() => setIsRevealed(false)}
             onMouseLeave={() => setIsRevealed(false)}
             onTouchStart={() => setIsRevealed(true)}
-            onTouchEnd={(e) => {
-              setIsRevealed(false);
-              if (!isMobile) return;
-              setTimeout(() => {
-                const selection = window.getSelection();
-                if (selection && !selection.isCollapsed) {
-                  const selectedText = selection.toString().trim();
-                  if (selectedText) {
-                    const mockEvent = { currentTarget: e.currentTarget } as any;
-                    handleTextSelection('en', recallText.en, mockEvent);
-                  }
-                }
-              }, 100);
-            }}
+            onTouchEnd={() => setIsRevealed(false)}
           >
             {/* 英文文本 - 墨水晕开效果 */}
             <motion.p
@@ -418,19 +98,19 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
                 duration: 0.8, 
                 ease: [0.16, 1, 0.3, 1],
               }}
-              className="text-sm md:text-xl leading-loose whitespace-pre-wrap"
+              className="text-sm md:text-xl leading-loose"
               style={{ 
                 color: color,
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
                 fontWeight: 400,
-                letterSpacing: '0.015em',
+                letterSpacing: '0.01em',
                 lineHeight: '1.85',
                 opacity: 0.9,
-                userSelect: isRevealed ? 'text' : 'none',
-                WebkitUserSelect: isRevealed ? 'text' : 'none',
+                wordBreak: 'normal',
+                overflowWrap: 'break-word',
               }}
             >
-              {renderTextWithHighlights(recallText.en, 'en')}
+              {recallText.en}
             </motion.p>
 
             {/* 提示文字 */}
@@ -526,54 +206,6 @@ export default function ModuleRecall({ theme, recallText, lessonId }: ModuleReca
 
         </div>
       </div>
-
-      {/* 🎨 荧光笔调色盘 */}
-      <AnimatePresence>
-        {showColorPicker && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="fixed z-[100] flex items-center gap-1.5 md:gap-2 px-1.5 md:px-2.5 py-1.5 md:py-2 rounded-full backdrop-blur-xl border shadow-2xl"
-            style={{
-              left: `${colorPickerPosition.x}px`,
-              top: `${colorPickerPosition.y}px`,
-              backgroundColor: '#FFFFFF',
-              borderColor: 'rgba(0, 0, 0, 0.1)',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            {highlightColors.map((color) => (
-              <motion.button
-                key={color.id}
-                onClick={() => applyHighlight(color.color)}
-                whileTap={{ scale: 0.9 }}
-                className="w-5 h-5 md:w-6 md:h-6 rounded-full border-2 border-white transition-transform active:scale-90"
-                style={{
-                  backgroundColor: color.color,
-                  boxShadow: `0 2px 6px ${color.color}60, 0 1px 2px rgba(0,0,0,0.05)`, 
-                }}
-                title={color.name}
-              />
-            ))}
-            <motion.button
-              onClick={() => {
-                setShowColorPicker(false);
-                window.getSelection()?.removeAllRanges();
-              }}
-              whileTap={{ scale: 0.9 }}
-              className="w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-bold transition-opacity active:opacity-70"
-              style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.08)',
-                color: '#333333',
-              }}
-            >
-              ✕
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
     </div>
   );

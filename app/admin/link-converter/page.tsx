@@ -39,7 +39,7 @@ export default function LinkConverterPage() {
         }).join('/');
         
         newLink = `${url.protocol}//${url.host}${encodedPath}${url.search}${url.hash}`;
-      } catch (e) {
+      } catch {
         // 如果不是完整 URL，直接返回
         console.warn('无法解析 URL:', trimmed);
       }
@@ -57,7 +57,7 @@ export default function LinkConverterPage() {
       await navigator.clipboard.writeText(convertedLinks);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
+    } catch {
       alert('复制失败，请手动复制');
     }
   };

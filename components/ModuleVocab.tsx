@@ -169,7 +169,7 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                   >
                     {/* 正面：极简线索 */}
                     <motion.div
-                      className="absolute inset-0 rounded-sm border shadow-2xl flex flex-col items-center justify-center cursor-pointer overflow-hidden"
+                      className="absolute inset-0 rounded-sm border flex flex-col items-center justify-center cursor-pointer overflow-hidden shadow-lg"
                       style={{
                         backgroundColor: theme.bg,
                         color: theme.text,
@@ -180,10 +180,6 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                       whileHover={isFirst ? { scale: 1.02 } : {}}
                       whileTap={isFirst ? { scale: 0.98 } : {}}
                     >
-                      {/* 做旧磨砂效果 */}
-                      <div className="pointer-events-none absolute inset-0 opacity-[0.05] bg-noise mix-blend-multiply" />
-                      <div className="pointer-events-none absolute inset-0 backdrop-blur-[0.5px] bg-orange-900/5 mix-blend-soft-light" />
-
                       {/* 中央单词 */}
                       <div className="flex flex-col items-center gap-2 px-4 w-full">
                         <h2 
@@ -206,13 +202,11 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                           <span className="text-[8px] uppercase tracking-[0.2em] opacity-30">Tap</span>
                         </motion.div>
                       )}
-
-                      <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.02)]" />
                     </motion.div>
 
                     {/* 背面：丰富内容 */}
                     <motion.div
-                      className="absolute inset-0 rounded-sm border shadow-xl p-5 flex flex-col justify-between cursor-pointer overflow-hidden"
+                      className="absolute inset-0 rounded-sm border shadow-lg p-5 flex flex-col justify-between cursor-pointer overflow-hidden"
                       style={{
                         backgroundColor: theme.bg,
                         color: theme.text,
@@ -262,10 +256,18 @@ export default function ModuleVocab({ theme, vocab, lessonId, category }: Module
                               {card.defCn || card.def}
                             </p>
                             
-                            <p className="text-sm md:text-base leading-relaxed opacity-80"
-                               style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>
-                              &quot;{card.ex}&quot;
-                            </p>
+                            <div className="space-y-1">
+                              <p className="text-sm md:text-base leading-relaxed opacity-80"
+                                 style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' }}>
+                                {card.ex}
+                              </p>
+                              {card.exCn && (
+                                <p className="text-sm md:text-base leading-relaxed opacity-60"
+                                   style={{ fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif' }}>
+                                  {card.exCn}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>

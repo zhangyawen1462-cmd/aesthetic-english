@@ -131,129 +131,138 @@ export async function POST(request: NextRequest) {
   try {
     const layout: LayoutConfig = await request.json();
 
-    // 更新每个课程的 Display_Position 和 Sort_Order
-    const updates = [];
+    // 收集所有需要更新的 lessonId
+    const allLessonIds = [
+      ...layout.dashboard.filter(id => id),
+      ...layout.dailyCinema.filter(id => id),
+      ...layout.cognitive.filter(id => id),
+      ...layout.business.filter(id => id),
+    ];
+
+    // 批量查询所有课程的 Page ID
+    const lessonIdToPageId = new Map<string, string>();
+    
+    for (const lessonId of allLessonIds) {
+      const pageId = await getPageIdByLessonId(lessonId);
+      if (pageId) {
+        lessonIdToPageId.set(lessonId, pageId);
+      }
+    }
+
+    // 查询所有旧布局（用于后续清理）
+    const existingResponse = await notion.databases.query({
+      database_id: DATABASE_ID,
+      filter: {
+        or: [
+          { property: 'Display_Position', select: { equals: 'dashboard-featured' } },
+          { property: 'Display_Position', select: { equals: 'daily-cinema' } },
+          { property: 'Display_Position', select: { equals: 'cognitive-featured' } },
+          { property: 'Display_Position', select: { equals: 'business-featured' } }
+        ]
+      }
+    });
+
+    // 构建所有更新操作
+    const updates: Promise<any>[] = [];
 
     // Dashboard
-    for (let i = 0; i < layout.dashboard.length; i++) {
-      const lessonId = layout.dashboard[i];
-      if (lessonId) {
-        const pageId = await getPageIdByLessonId(lessonId);
-        if (pageId) {
-          // 获取课程信息以判断是否为纯图片卡片
-          const page = await notion.pages.retrieve({ page_id: pageId }) as any;
-          const properties = page.properties;
-          
-          // 判断是否为纯图片卡片（没有视频URL和标题）
-          const hasVideo = properties.Video_URL?.url;
-          const hasTitle = properties.Title_CN?.rich_text?.[0]?.plain_text || properties.Title_EN?.rich_text?.[0]?.plain_text;
-          const isImageCard = !hasVideo && !hasTitle;
-          
-          updates.push(
-            notion.pages.update({
-              page_id: pageId,
-              properties: {
-                Display_Position: { select: { name: 'dashboard-featured' } },
-                Sort_Order: { number: i },
-                Cover_Ratio: { select: { name: SLOT_RATIOS.dashboard[i] } },
-                Content_Type: { select: { name: isImageCard ? 'image' : 'video' } }
-              }
-            })
-          );
-        }
+    layout.dashboard.forEach((lessonId, index) => {
+      if (lessonId && lessonIdToPageId.has(lessonId)) {
+        const pageId = lessonIdToPageId.get(lessonId)!;
+        updates.push(
+          notion.pages.update({
+            page_id: pageId,
+            properties: {
+              Display_Position: { select: { name: 'dashboard-featured' } },
+              Sort_Order: { number: index }
+            }
+          })
+        );
       }
-    }
+    });
 
     // Daily Cinema
-    for (let i = 0; i < layout.dailyCinema.length; i++) {
-      const lessonId = layout.dailyCinema[i];
-      if (lessonId) {
-        const pageId = await getPageIdByLessonId(lessonId);
-        if (pageId) {
-          const page = await notion.pages.retrieve({ page_id: pageId }) as any;
-          const properties = page.properties;
-          
-          const hasVideo = properties.Video_URL?.url;
-          const hasTitle = properties.Title_CN?.rich_text?.[0]?.plain_text || properties.Title_EN?.rich_text?.[0]?.plain_text;
-          const isImageCard = !hasVideo && !hasTitle;
-          
-          updates.push(
-            notion.pages.update({
-              page_id: pageId,
-              properties: {
-                Display_Position: { select: { name: 'daily-cinema' } },
-                Sort_Order: { number: i },
-                Cover_Ratio: { select: { name: SLOT_RATIOS.dailyCinema[i] } },
-                Content_Type: { select: { name: isImageCard ? 'image' : 'video' } }
-              }
-            })
-          );
-        }
+    layout.dailyCinema.forEach((lessonId, index) => {
+      if (lessonId && lessonIdToPageId.has(lessonId)) {
+        const pageId = lessonIdToPageId.get(lessonId)!;
+        updates.push(
+          notion.pages.update({
+            page_id: pageId,
+            properties: {
+              Display_Position: { select: { name: 'daily-cinema' } },
+              Sort_Order: { number: index }
+            }
+          })
+        );
       }
-    }
+    });
 
     // Cognitive
-    for (let i = 0; i < layout.cognitive.length; i++) {
-      const lessonId = layout.cognitive[i];
-      if (lessonId) {
-        const pageId = await getPageIdByLessonId(lessonId);
-        if (pageId) {
-          const page = await notion.pages.retrieve({ page_id: pageId });
-          const properties = (page as any).properties;
-          
-          const hasVideo = properties.Video_URL?.url;
-          const hasTitle = properties.Title_CN?.rich_text?.[0]?.plain_text || properties.Title_EN?.rich_text?.[0]?.plain_text;
-          const isImageCard = !hasVideo && !hasTitle;
-          
-          updates.push(
-            notion.pages.update({
-              page_id: pageId,
-              properties: {
-                Display_Position: { select: { name: 'cognitive-featured' } },
-                Sort_Order: { number: i },
-                Cover_Ratio: { select: { name: SLOT_RATIOS.cognitive[i] } },
-                Content_Type: { select: { name: isImageCard ? 'image' : 'video' } }
-              }
-            })
-          );
-        }
+    layout.cognitive.forEach((lessonId, index) => {
+      if (lessonId && lessonIdToPageId.has(lessonId)) {
+        const pageId = lessonIdToPageId.get(lessonId)!;
+        updates.push(
+          notion.pages.update({
+            page_id: pageId,
+            properties: {
+              Display_Position: { select: { name: 'cognitive-featured' } },
+              Sort_Order: { number: index }
+            }
+          })
+        );
       }
-    }
+    });
 
     // Business
-    for (let i = 0; i < layout.business.length; i++) {
-      const lessonId = layout.business[i];
-      if (lessonId) {
-        const pageId = await getPageIdByLessonId(lessonId);
-        if (pageId) {
-          const page = await notion.pages.retrieve({ page_id: pageId });
-          const properties = (page as any).properties;
-          
-          const hasVideo = properties.Video_URL?.url;
-          const hasTitle = properties.Title_CN?.rich_text?.[0]?.plain_text || properties.Title_EN?.rich_text?.[0]?.plain_text;
-          const isImageCard = !hasVideo && !hasTitle;
-          
-          updates.push(
-            notion.pages.update({
-              page_id: pageId,
-              properties: {
-                Display_Position: { select: { name: 'business-featured' } },
-                Sort_Order: { number: i },
-                Cover_Ratio: { select: { name: SLOT_RATIOS.business[i] } },
-                Content_Type: { select: { name: isImageCard ? 'image' : 'video' } }
-              }
-            })
-          );
-        }
+    layout.business.forEach((lessonId, index) => {
+      if (lessonId && lessonIdToPageId.has(lessonId)) {
+        const pageId = lessonIdToPageId.get(lessonId)!;
+        updates.push(
+          notion.pages.update({
+            page_id: pageId,
+            properties: {
+              Display_Position: { select: { name: 'business-featured' } },
+              Sort_Order: { number: index }
+            }
+          })
+        );
       }
-    }
+    });
 
-    // 批量执行更新
-    await Promise.all(updates);
+    // 批量执行所有更新
+    const results = await Promise.allSettled(updates);
+    
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    // 处理需要移回 available-pool 的课程
+    const currentLayoutIds = new Set(allLessonIds);
+    const toRemove = existingResponse.results.filter(page => {
+      if (!('properties' in page)) return false;
+      const props = page.properties as any;
+      const lessonId = props.Lesson_ID?.title?.[0]?.plain_text || '';
+      return lessonId && !currentLayoutIds.has(lessonId);
+    });
+
+    if (toRemove.length > 0) {
+      const removeUpdates = toRemove.map(page => 
+        notion.pages.update({
+          page_id: page.id,
+          properties: {
+            Display_Position: { select: { name: 'available-pool' } },
+            Sort_Order: { number: 0 }
+          }
+        })
+      );
+      await Promise.all(removeUpdates);
+    }
 
     return NextResponse.json({ 
       success: true,
-      message: `已更新 ${updates.length} 个课程的布局信息`
+      message: `布局保存完成！更新 ${succeeded} 个，移回 ${toRemove.length} 个`,
+      updated: succeeded,
+      removed: toRemove.length,
+      failed
     });
 
   } catch (error) {

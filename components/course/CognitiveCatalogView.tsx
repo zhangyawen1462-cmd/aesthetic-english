@@ -156,13 +156,15 @@ export default function CognitiveCatalogView({ category }: CognitiveCatalogViewP
             // 🚪 游客：所有视频都拦截；试用用户：只有 freeTrial 课程可以直接访问，其他拦截
             const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? isSample !== 'freeTrial' : false);
             
-            // 🔍 调试日志
-            console.log('CognitiveCatalogView Card:', {
-              id: course.id,
-              tier,
-              isSample,
-              shouldIntercept
-            });
+            // 🔍 调试日志 - 仅在开发环境输出
+            if (process.env.NODE_ENV === 'development') {
+              console.log('CognitiveCatalogView Card:', {
+                id: course.id,
+                tier,
+                isSample,
+                shouldIntercept
+              });
+            }
             
             return (
               <motion.div

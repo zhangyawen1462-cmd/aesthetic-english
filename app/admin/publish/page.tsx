@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState } from 'react';
-import { Upload, Sparkles, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Sparkles, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface PublishFormData {
   lessonId: string;
@@ -604,7 +604,7 @@ export default function PublishPage() {
               <ul className="text-xs sm:text-sm text-blue-800 space-y-1">
                 <li>1. 只需填写 Lesson ID（如 mood-01）</li>
                 <li>2. 上传一张图片</li>
-                <li>3. 点击"上传到资源池"</li>
+                <li>3. 点击&quot;上传到资源池&quot;</li>
                 <li>4. 前往 <a href="/admin/layout-manager" className="text-blue-600 underline">布局管理器</a> 拖拽到卡片槽位</li>
                 <li>5. 保存布局后立即生效</li>
               </ul>
@@ -615,9 +615,9 @@ export default function PublishPage() {
               <h4 className="font-semibold text-blue-900 mb-2">🎨 精选视频（Dashboard/Daily/Cognitive/Business）</h4>
               <ul className="text-xs sm:text-sm text-blue-800 space-y-1">
                 <li>1. 填写完整信息（ID、标题、期数、分类）</li>
-                <li>2. 选择"精选页面"</li>
+                <li>2. 选择&quot;精选页面&quot;</li>
                 <li>3. 上传素材（封面、视频、SRT 字幕）</li>
-                <li>4. 点击"上传到资源池"，AI 自动生成学习内容</li>
+                <li>4. 点击&quot;上传到资源池&quot;，AI 自动生成学习内容</li>
                 <li>5. 前往 <a href="/admin/layout-manager" className="text-blue-600 underline">布局管理器</a> 拖拽排版</li>
                 <li>6. 在 Notion 中审核，改为 Published 状态</li>
               </ul>
@@ -628,9 +628,9 @@ export default function PublishPage() {
               <h4 className="font-semibold text-blue-900 mb-2">📦 仅 Archives 视频（无需排版）</h4>
               <ul className="text-xs sm:text-sm text-blue-800 space-y-1">
                 <li>1. 填写完整信息（ID、标题、期数、分类）</li>
-                <li>2. 选择"仅 Archives"</li>
+                <li>2. 选择&quot;仅 Archives&quot;</li>
                 <li>3. 上传素材（封面、视频、SRT 字幕）</li>
-                <li>4. 点击"直接发布到 Archives"</li>
+                <li>4. 点击&quot;直接发布到 Archives&quot;</li>
                 <li>5. 在 Notion 中审核，改为 Published 状态</li>
                 <li>6. 自动按时间排序显示在 Archives 页面</li>
               </ul>

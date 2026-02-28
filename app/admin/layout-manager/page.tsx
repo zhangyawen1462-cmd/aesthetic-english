@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter, DragOverEvent } from '@dnd-kit/core';
-import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable';
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, closestCenter } from '@dnd-kit/core';
+import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Save, RefreshCw, Eye, X } from 'lucide-react';
 import type { Lesson } from '@/data/types';
@@ -47,14 +47,17 @@ const LAYOUT_SLOTS = {
   ],
 };
 
+// 🔥 修复1：辅助函数 - 根据配置生成初始空布局（防止稀疏数组）
+const getInitialLayout = (): LayoutConfig => ({
+  dashboard: new Array(LAYOUT_SLOTS.dashboard.length).fill(''),
+  dailyCinema: new Array(LAYOUT_SLOTS.dailyCinema.length).fill(''),
+  cognitive: new Array(LAYOUT_SLOTS.cognitive.length).fill(''),
+  business: new Array(LAYOUT_SLOTS.business.length).fill(''),
+});
+
 export default function LayoutManager() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [layout, setLayout] = useState<LayoutConfig>({
-    dashboard: [],
-    dailyCinema: [],
-    cognitive: [],
-    business: [],
-  });
+  const [layout, setLayout] = useState<LayoutConfig>(getInitialLayout());
   const [activeTab, setActiveTab] = useState<keyof LayoutConfig>('dashboard');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,7 +79,16 @@ export default function LayoutManager() {
         const layoutRes = await fetch('/api/layout');
         const layoutData = await layoutRes.json();
         if (layoutData.success) {
-          setLayout(layoutData.data);
+          // 🔥 修复2：合并数据，确保数组长度对齐（防止后端返回的数组过短）
+          const mergedLayout = { ...getInitialLayout() };
+          (Object.keys(layoutData.data) as Array<keyof LayoutConfig>).forEach(key => {
+            const saved = layoutData.data[key] || [];
+            const slotsCount = LAYOUT_SLOTS[key].length;
+            // 填充到槽位长度，空位用空字符串
+            mergedLayout[key] = Array.from({ length: slotsCount }, (_, i) => saved[i] || '');
+          });
+          setLayout(mergedLayout);
+          console.log('✅ [Layout Manager] 布局加载完成:', mergedLayout);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -89,8 +101,22 @@ export default function LayoutManager() {
 
   // 获取未使用的课程（只显示 Display_Position 为空或 available-pool 的课程）
   const availableLessons = lessons.filter(lesson => {
-    // 1. 必须是未分配位置的课程（Display_Position 为空或 available-pool）
-    const isAvailable = !lesson.displayPosition || lesson.displayPosition === 'available-pool';
+    // 1. 必须是未分配位置的课程（Display_Position 为空、undefined 或 available-pool）
+    const isAvailable = !lesson.displayPosition || 
+                        lesson.displayPosition === '' || 
+                        lesson.displayPosition === 'available-pool';
+    
+    // 🔍 调试日志
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [Layout Manager] 过滤课程:', {
+        id: lesson.id,
+        displayPosition: lesson.displayPosition,
+        isAvailable,
+        category: lesson.category,
+        activeTab
+      });
+    }
+    
     if (!isAvailable) return false;
 
     // 2. 根据当前标签页过滤分类
@@ -127,28 +153,32 @@ export default function LayoutManager() {
     // 如果拖到槽位上
     if (overId.startsWith('slot-')) {
       const slotIndex = parseInt(overId.split('-')[1]);
-      const newLayout = [...layout[activeTab]];
       
-      // 如果是从可用列表拖过来
-      if (!layout[activeTab].includes(activeIdStr)) {
-        newLayout[slotIndex] = activeIdStr;
-      } 
-      // 如果是槽位之间交换
-      else {
-        const oldIndex = newLayout.indexOf(activeIdStr);
-        const temp = newLayout[slotIndex];
-        newLayout[slotIndex] = activeIdStr;
-        if (temp) {
-          newLayout[oldIndex] = temp;
-        } else {
-          newLayout[oldIndex] = '';
+      // 🔥 修复3：优化拖拽逻辑，防止产生 null 或稀疏数组
+      setLayout(prev => {
+        const currentTabLayout = [...prev[activeTab]];
+        
+        // 检查 activeId 是否已在其他槽位，如果在，先清空旧槽位（实现移动效果而非复制）
+        const oldIndex = currentTabLayout.indexOf(activeIdStr);
+        if (oldIndex !== -1 && oldIndex !== slotIndex) {
+          currentTabLayout[oldIndex] = '';
+          console.log(`🔄 [Layout Manager] 从槽位 ${oldIndex} 移动到 ${slotIndex}`);
         }
-      }
-      
-      setLayout(prev => ({
-        ...prev,
-        [activeTab]: newLayout
-      }));
+        
+        // 如果目标槽位已有课程，交换位置
+        const existingLesson = currentTabLayout[slotIndex];
+        if (existingLesson && oldIndex !== -1) {
+          currentTabLayout[oldIndex] = existingLesson;
+          console.log(`🔄 [Layout Manager] 交换: ${activeIdStr} ↔ ${existingLesson}`);
+        }
+        
+        // 放入新槽位
+        currentTabLayout[slotIndex] = activeIdStr;
+        
+        console.log(`✅ [Layout Manager] 更新布局:`, currentTabLayout);
+        
+        return { ...prev, [activeTab]: currentTabLayout };
+      });
     }
 
     setActiveId(null);
@@ -192,21 +222,55 @@ export default function LayoutManager() {
 
   // 保存布局
   const saveLayout = async () => {
+    // 🔥 修复4：保存前验证数据，过滤掉空字符串，确保发送的是干净的数据
+    const cleanLayout = {
+      dashboard: layout.dashboard.map(id => id || ''),
+      dailyCinema: layout.dailyCinema.map(id => id || ''),
+      cognitive: layout.cognitive.map(id => id || ''),
+      business: layout.business.map(id => id || ''),
+    };
+    
+    console.log('🔄 [Layout Manager] 开始保存布局...');
+    console.log('📦 [Layout Manager] 原始数据:', layout);
+    console.log('✨ [Layout Manager] 清理后数据:', cleanLayout);
+    
     setIsSaving(true);
     try {
       const response = await fetch('/api/layout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(layout)
+        body: JSON.stringify(cleanLayout)
       });
       
-      if (response.ok) {
-        alert('✅ 布局已保存！');
-      } else {
-        throw new Error('保存失败');
+      console.log('📡 [Layout Manager] 后端响应状态:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ [Layout Manager] 保存失败:', errorData);
+        throw new Error(errorData.error || '保存失败');
       }
+      
+      const result = await response.json();
+      console.log('✅ [Layout Manager] 保存成功:', result);
+      
+      // 🔥 修复5：刷新课程列表，确保显示最新的 Display_Position（解决 Notion 同步问题）
+      console.log('🔄 [Layout Manager] 刷新课程列表...');
+      const lessonsRes = await fetch('/api/lessons');
+      const lessonsData = await lessonsRes.json();
+      if (lessonsData.success) {
+        setLessons(lessonsData.data);
+        console.log('✅ [Layout Manager] 课程列表已刷新，课程数:', lessonsData.data.length);
+        console.log('📊 [Layout Manager] 可用课程池更新:', 
+          lessonsData.data.filter((l: Lesson) => 
+            !l.displayPosition || l.displayPosition === '' || l.displayPosition === 'available-pool'
+          ).length
+        );
+      }
+      
+      alert(`✅ 布局已保存！\n清空 ${result.cleared} 个旧课程\n更新 ${result.updated} 个新课程`);
     } catch (error) {
-      alert('❌ 保存失败，请重试');
+      console.error('❌ [Layout Manager] 保存过程出错:', error);
+      alert(`❌ 保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsSaving(false);
     }
@@ -482,6 +546,11 @@ function DropSlot({
           {/* 槽位编号 */}
           <div className="absolute top-2 left-2 bg-purple-500 text-white text-xs font-bold px-2 py-1 rounded">
             {slotLabel || `#${slotNumber}`}
+          </div>
+          
+          {/* Lesson ID - 新增 */}
+          <div className="absolute top-2 left-16 bg-blue-500 text-white text-xs font-mono px-2 py-1 rounded">
+            {lesson.id}
           </div>
           
           {/* 类型标签 */}

@@ -14,6 +14,8 @@ interface ModuleBlindProps {
   videoUrl?: string;
   lessonId?: string;
   lessonTitle?: string;
+  mobileVideoHeight?: number;
+  isMobile?: boolean;
 }
 
 export default function ModuleBlind({ 
@@ -23,7 +25,9 @@ export default function ModuleBlind({
   setPlaybackRate,
   videoUrl = '',
   lessonId = '',
-  lessonTitle = 'audio'
+  lessonTitle = 'audio',
+  mobileVideoHeight = 40,
+  isMobile = false
 }: ModuleBlindProps) {
   const rotationDuration = 15 / playbackRate;
 
@@ -32,7 +36,9 @@ export default function ModuleBlind({
     videoUrl,
     lessonId,
     lessonTitle,
-    hasVideoUrl: !!videoUrl && videoUrl.trim() !== ''
+    hasVideoUrl: !!videoUrl && videoUrl.trim() !== '',
+    mobileVideoHeight,
+    isMobile
   });
 
   // 获取光晕颜色（主题3使用更深的粉色）
@@ -41,6 +47,32 @@ export default function ModuleBlind({
     return theme.accent;
   };
   const glowColor = getGlowColor();
+
+  // 🎯 根据视频高度计算黑胶唱片大小
+  // 视频高度范围: 20-60dvh
+  // 黑胶大小范围: 移动端 120px-240px, 桌面端固定 320px
+  const getVinylSize = () => {
+    if (!isMobile) {
+      return { size: 320, glowSize: 350 }; // 桌面端固定大小
+    }
+    
+    // 移动端：根据视频高度动态计算
+    // 视频越小(20dvh)，黑胶越大(240px)
+    // 视频越大(60dvh)，黑胶越小(120px)
+    const minVideoHeight = 20;
+    const maxVideoHeight = 60;
+    const maxVinylSize = 240;
+    const minVinylSize = 120;
+    
+    // 反向映射：视频高度越小，黑胶越大
+    const ratio = (mobileVideoHeight - minVideoHeight) / (maxVideoHeight - minVideoHeight);
+    const size = maxVinylSize - (ratio * (maxVinylSize - minVinylSize));
+    const glowSize = size + 80;
+    
+    return { size: Math.round(size), glowSize: Math.round(glowSize) };
+  };
+
+  const { size: vinylSize, glowSize } = getVinylSize();
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center relative overflow-hidden" style={{ backgroundColor: theme.bg }}>
@@ -82,37 +114,47 @@ export default function ModuleBlind({
         className="relative z-10 flex flex-col items-center justify-center mb-12 sm:mb-20"
         style={{ backgroundColor: theme.bg }}
       >
-        {/* 光晕层 - 移动端加大尺寸，降低模糊 */}
+        {/* 光晕层 - 移动端根据视频高度动态调整 */}
         <motion.div 
            animate={{ 
              scale: isPlaying ? [1, 1.05, 1] : 1,
              opacity: isPlaying ? 0.6 : 0.3
            }}
            transition={{ 
-             scale: { repeat: Infinity, ease: "easeInOut", duration: 4 } 
+             scale: { repeat: Infinity, ease: "easeInOut", duration: 4 },
+             width: { duration: 0.3, ease: "easeOut" },
+             height: { duration: 0.3, ease: "easeOut" }
            }}
-           className="absolute z-0 rounded-full pointer-events-none w-[280px] h-[280px] sm:w-[350px] sm:h-[350px]"
+           className="absolute z-0 rounded-full pointer-events-none"
            style={{ 
+             width: `${glowSize}px`,
+             height: `${glowSize}px`,
              backgroundColor: glowColor,
              filter: 'blur(50px) saturate(150%)',
              opacity: 0.5
            }}
         />
 
-        {/* 4. 黑胶主体 (Ultra-Realistic Vinyl) */}
+        {/* 4. 黑胶主体 (Ultra-Realistic Vinyl) - 动态尺寸 */}
         <motion.div
-          animate={{ rotate: isPlaying ? 360 : 0 }}
+          animate={{ 
+            rotate: isPlaying ? 360 : 0
+          }}
           transition={{
             rotate: isPlaying 
               ? { repeat: Infinity, ease: "linear", duration: rotationDuration } 
-              : { duration: 1.2, ease: [0.32, 0.72, 0, 1] }
+              : { duration: 1.2, ease: [0.32, 0.72, 0, 1] },
+            width: { duration: 0.3, ease: "easeOut" },
+            height: { duration: 0.3, ease: "easeOut" }
           }}
           style={{
             willChange: 'transform',
             transform: 'translateZ(0)',
             backfaceVisibility: 'hidden',
+            width: `${vinylSize}px`,
+            height: `${vinylSize}px`,
           }}
-          className="relative w-[200px] h-[200px] sm:w-80 sm:h-80 rounded-full shadow-[0_20px_60px_-10px_rgba(0,0,0,0.4)] z-10 flex items-center justify-center overflow-hidden"
+          className="relative rounded-full shadow-[0_20px_60px_-10px_rgba(0,0,0,0.4)] z-10 flex items-center justify-center overflow-hidden"
         >
            {/* A. 唱片本体 - 中间饱和度更高的径向渐变 */}
            <div 
@@ -236,10 +278,12 @@ export default function ModuleBlind({
              }}
            />
 
-           {/* H. 中心标签 */}
+           {/* H. 中心标签 - 动态尺寸 */}
            <div 
-             className="absolute w-[80px] h-[80px] sm:w-32 sm:h-32 rounded-full flex items-center justify-center z-30"
+             className="absolute rounded-full flex items-center justify-center z-30"
              style={{ 
+               width: `${vinylSize * 0.4}px`,
+               height: `${vinylSize * 0.4}px`,
                backgroundColor: theme.accent,
                backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)' opacity='0.3'/%3E%3C/svg%3E")`,
                backgroundBlendMode: 'multiply',
@@ -247,11 +291,19 @@ export default function ModuleBlind({
                  inset 0 0 15px rgba(0,0,0,0.8),
                  0 2px 8px rgba(0,0,0,0.3),
                  0 0 0 1px rgba(255,255,255,0.1)
-               `
+               `,
+               transition: 'width 0.3s ease-out, height 0.3s ease-out'
              }}
            >
              <div className="absolute inset-2 rounded-full border-[1px] border-black/30 opacity-50" />
-             <div className="absolute w-2 h-2 sm:w-3.5 sm:h-3.5 bg-[#050505] rounded-full border-[1px] border-black/50 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]" />
+             <div 
+               className="absolute bg-[#050505] rounded-full border-[1px] border-black/50 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]"
+               style={{
+                 width: `${vinylSize * 0.04}px`,
+                 height: `${vinylSize * 0.04}px`,
+                 transition: 'width 0.3s ease-out, height 0.3s ease-out'
+               }}
+             />
            </div>
         </motion.div>
       </div>

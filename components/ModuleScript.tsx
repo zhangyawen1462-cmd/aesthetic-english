@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import { Languages, Copy, Star, Edit3 } from "lucide-react";
 import type { TranscriptLine } from "@/data/types";
 import type { ThemeConfig } from "@/lib/theme-config";
@@ -96,6 +97,10 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
   const [swipeStartWordIndex, setSwipeStartWordIndex] = useState<{ lineId: number; wordIndex: number } | null>(null);
   const [swipeCurrentWordIndex, setSwipeCurrentWordIndex] = useState<number | null>(null);
 
+  // 🖱️ 桌面端：悬停延迟机制（防止过于灵敏）
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isHoverReady, setIsHoverReady] = useState(false);
+
   // 🎨 荧光笔颜色配置
   const activeHighlightColors = [
     { id: 'yellow', color: '#FFEA28', name: '马克黄' },
@@ -126,6 +131,22 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     return { lineId, wordIndex };
   }, []);
 
+  // 🎨 删除荧光笔（带擦除触觉反馈）- 提前定义，供其他函数使用
+  const removeHighlight = useCallback((highlightId: string) => {
+    const newHighlights = highlights.filter(h => h.id !== highlightId);
+    setHighlights(newHighlights);
+    localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
+    
+    // 擦除时的专属触觉反馈（低频震动，类似擦除黑板）
+    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+      try {
+        window.navigator.vibrate([15, 30, 15]);
+      } catch (e) {
+        // Vibration not supported
+      }
+    }
+  }, [highlights, lessonId]);
+
   // 🎨 移动端触摸开始
   const handleTouchStart = useCallback((e: React.TouchEvent, lineId: number) => {
     if (!isMobile) return;
@@ -137,6 +158,13 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       setSwipeStartWordIndex(wordInfo);
       setSwipeCurrentWordIndex(wordInfo.wordIndex);
       setIsSelecting(true);
+      
+      // 🎨 立即创建单个单词的预览选区，让用户看到阴影效果
+      setPreviewSelection({
+        lineId,
+        startOffset: wordInfo.wordIndex,
+        endOffset: wordInfo.wordIndex + 1,
+      });
       
       // 轻微震动反馈
       if (window.navigator && 'vibrate' in window.navigator) {
@@ -184,17 +212,16 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       return;
     }
     
-    // 🎯 如果没有预览选区，说明用户只是点击而不是滑动
-    if (!previewSelection) {
-      setSwipeStartWordIndex(null);
-      setSwipeCurrentWordIndex(null);
-      setIsSelecting(false);
-      return;
-    }
+    // 🎯 支持单个单词选择：如果没有预览选区，创建一个单词的选区
+    const effectiveSelection = previewSelection || {
+      lineId,
+      startOffset: swipeStartWordIndex.wordIndex,
+      endOffset: swipeStartWordIndex.wordIndex + 1,
+    };
     
     // 🎯 提取选中的单词（过滤空格）
     const selectedWords = words
-      .slice(previewSelection.startOffset, previewSelection.endOffset)
+      .slice(effectiveSelection.startOffset, effectiveSelection.endOffset)
       .filter(w => w.trim().length > 0);
     const selectedText = selectedWords.join(' ').trim();
     
@@ -205,7 +232,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       // 用数学公式 (Math.max < Math.min) 精准判断两个区间是否有重叠
       const overlappingHighlight = highlights.find(h => 
         h.lineId === lineId && 
-        Math.max(h.startOffset, previewSelection.startOffset) < Math.min(h.endOffset, previewSelection.endOffset)
+        Math.max(h.startOffset, effectiveSelection.startOffset) < Math.min(h.endOffset, effectiveSelection.endOffset)
       );
 
       // 如果碰到了已有高亮 -> 触发"滑动橡皮擦"，直接删掉，不弹面板！
@@ -232,27 +259,44 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
 
       // 🎨 如果没有碰到已有高亮，说明是全新的划线 -> 正常计算位置并弹出调色盘
       const touch = e.changedTouches[0];
-      const pickerWidth = 140;
-      const pickerHeight = 36;
+      const pickerWidth = 200;
+      const pickerHeight = 44;
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      // 🚨 移动端底部导航栏高度（约60-70px）+ 安全区域
+      const bottomNavHeight = 80;
+      const topSafeArea = 60; // 顶部视频控制栏
       
       let finalX = touch.clientX - pickerWidth / 2;
-      let finalY = touch.clientY - pickerHeight - 12;
+      let finalY = touch.clientY - pickerHeight - 16;
       
-      if (finalX < 8) finalX = 8;
-      if (finalX + pickerWidth > viewportWidth - 8) {
-        finalX = viewportWidth - pickerWidth - 8;
+      // 左右边界检查，留出更多边距
+      if (finalX < 12) finalX = 12;
+      if (finalX + pickerWidth > viewportWidth - 12) {
+        finalX = viewportWidth - pickerWidth - 12;
       }
-      if (finalY < 8) {
-        finalY = touch.clientY + 12;
+      
+      // 上下边界检查 - 避开顶部和底部功能区
+      if (finalY < topSafeArea) {
+        // 如果太靠上，放到触摸点下方
+        finalY = touch.clientY + 16;
+      }
+      if (finalY + pickerHeight > viewportHeight - bottomNavHeight) {
+        // 如果会被底部导航栏遮挡，强制放到触摸点上方
+        finalY = touch.clientY - pickerHeight - 16;
+        // 如果还是太低，就放到安全区域的最下方
+        if (finalY + pickerHeight > viewportHeight - bottomNavHeight) {
+          finalY = viewportHeight - bottomNavHeight - pickerHeight - 12;
+        }
       }
       
       setColorPickerPosition({ x: finalX, y: finalY });
       setSelectedRange({
         text: selectedText,
         lineId,
-        startOffset: previewSelection.startOffset,
-        endOffset: previewSelection.endOffset,
+        startOffset: effectiveSelection.startOffset,
+        endOffset: effectiveSelection.endOffset,
       });
       
       setShowColorPicker(true);
@@ -272,26 +316,44 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     setSwipeCurrentWordIndex(null);
     setIsSelecting(false);
     // 不清除 previewSelection，让用户看到选中效果
-  }, [isMobile, swipeStartWordIndex, previewSelection]);
+  }, [isMobile, swipeStartWordIndex, previewSelection, highlights, removeHighlight]);
 
   // 🖱️ 桌面端：鼠标按下 (相当于 TouchStart)
   const handleMouseDown = useCallback((lineId: number, index: number) => {
     if (isMobile) return; // 手机端不理会鼠标事件
-    setSwipeStartWordIndex({ lineId, wordIndex: index });
-    setSwipeCurrentWordIndex(index);
-    setIsSelecting(true);
+    // 🎨 轻触模式：鼠标按下时不做任何事，让 mouseEnter 来处理
+    // 这样可以实现"轻轻滑过就选中"的效果
   }, [isMobile]);
 
   // 🖱️ 桌面端：鼠标划过其他单词 (相当于 TouchMove)
   const handleMouseEnter = useCallback((e: React.MouseEvent, lineId: number, index: number) => {
-    if (isMobile || !swipeStartWordIndex || swipeStartWordIndex.lineId !== lineId) return;
+    if (isMobile) return;
     
-    // 🚨 必须检查鼠标左键是否一直按着 (e.buttons === 1 表示左键按下)
-    if (e.buttons !== 1) {
-      return; 
+    // 🎨 悬停延迟模式：鼠标需要停留 150ms 才能开始选择
+    if (!swipeStartWordIndex && !isHoverReady) {
+      // 清除之前的计时器
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+      }
+      
+      // 设置新的计时器：150ms 后允许选择
+      hoverTimerRef.current = setTimeout(() => {
+        setIsHoverReady(true);
+        // 自动开始选择
+        setSwipeStartWordIndex({ lineId, wordIndex: index });
+        setSwipeCurrentWordIndex(index);
+        setIsSelecting(true);
+        setPreviewSelection({
+          lineId,
+          startOffset: index,
+          endOffset: index + 1,
+        });
+      }, 150); // 缩短到 150ms，更灵敏
+      return;
     }
-
-    if (index !== swipeCurrentWordIndex) {
+    
+    // 如果已经准备好或已经在选择中，且在同一行
+    if (swipeStartWordIndex && swipeStartWordIndex.lineId === lineId && index !== swipeCurrentWordIndex) {
       setSwipeCurrentWordIndex(index);
       const startIndex = Math.min(swipeStartWordIndex.wordIndex, index);
       const endIndex = Math.max(swipeStartWordIndex.wordIndex, index);
@@ -302,7 +364,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         endOffset: endIndex + 1,
       });
     }
-  }, [isMobile, swipeStartWordIndex, swipeCurrentWordIndex]);
+  }, [isMobile, swipeStartWordIndex, swipeCurrentWordIndex, isHoverReady]);
 
   // 🖱️ 桌面端：鼠标松开 (相当于 TouchEnd)
   const handleMouseUp = useCallback((lineId: number, words: string[]) => {
@@ -311,45 +373,57 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
       setSwipeCurrentWordIndex(null);
       setIsSelecting(false);
       setPreviewSelection(null);
+      setIsHoverReady(false);
+      if (hoverTimerRef.current) {
+        clearTimeout(hoverTimerRef.current);
+        hoverTimerRef.current = null;
+      }
       return;
     }
     
-    if (!previewSelection) {
-      setSwipeStartWordIndex(null);
-      setSwipeCurrentWordIndex(null);
-      setIsSelecting(false);
-      return;
-    }
+    // 🎯 支持单个单词选择：如果没有预览选区，创建一个单词的选区
+    const effectiveSelection = previewSelection || {
+      lineId,
+      startOffset: swipeStartWordIndex.wordIndex,
+      endOffset: swipeStartWordIndex.wordIndex + 1,
+    };
 
     const selectedWords = words
-      .slice(previewSelection.startOffset, previewSelection.endOffset)
+      .slice(effectiveSelection.startOffset, effectiveSelection.endOffset)
       .filter(w => w.trim().length > 0);
     const selectedText = selectedWords.join(' ').trim();
 
     if (selectedText.length > 0) {
       // 桌面端调色盘位置：使用鼠标当前位置
-      const pickerWidth = 180;
-      const pickerHeight = 40;
+      const pickerWidth = 220;
+      const pickerHeight = 48;
       const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
       
       // 获取鼠标位置（从最后一次 mouseenter 事件）
       let finalX = window.event ? (window.event as MouseEvent).clientX - pickerWidth / 2 : 100;
-      let finalY = window.event ? (window.event as MouseEvent).clientY - pickerHeight - 12 : 100;
+      let finalY = window.event ? (window.event as MouseEvent).clientY - pickerHeight - 16 : 100;
       
-      if (finalX < 8) finalX = 8;
-      if (finalX + pickerWidth > viewportWidth - 8) {
-        finalX = viewportWidth - pickerWidth - 8;
+      // 左右边界检查
+      if (finalX < 12) finalX = 12;
+      if (finalX + pickerWidth > viewportWidth - 12) {
+        finalX = viewportWidth - pickerWidth - 12;
       }
-      if (finalY < 8) {
-        finalY = window.event ? (window.event as MouseEvent).clientY + 12 : 100;
+      
+      // 上下边界检查
+      if (finalY < 12) {
+        finalY = window.event ? (window.event as MouseEvent).clientY + 16 : 100;
+      }
+      if (finalY + pickerHeight > viewportHeight - 12) {
+        finalY = viewportHeight - pickerHeight - 12;
       }
       
       setColorPickerPosition({ x: finalX, y: finalY });
       setSelectedRange({
         text: selectedText,
         lineId,
-        startOffset: previewSelection.startOffset,
-        endOffset: previewSelection.endOffset,
+        startOffset: effectiveSelection.startOffset,
+        endOffset: effectiveSelection.endOffset,
       });
       
       setShowColorPicker(true);
@@ -358,6 +432,11 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     setSwipeStartWordIndex(null);
     setSwipeCurrentWordIndex(null);
     setIsSelecting(false);
+    setIsHoverReady(false);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
   }, [isMobile, swipeStartWordIndex, previewSelection]);
 
   // 初始化：从 localStorage 读取已收藏的句子和荧光笔高亮
@@ -548,22 +627,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     }
   };
 
-  // 🎨 删除荧光笔（带擦除触觉反馈）
-  const removeHighlight = useCallback((highlightId: string) => {
-    const newHighlights = highlights.filter(h => h.id !== highlightId);
-    setHighlights(newHighlights);
-    localStorage.setItem(`highlights_${lessonId}`, JSON.stringify(newHighlights));
-    
-    // 擦除时的专属触觉反馈（低频震动，类似擦除黑板）
-    if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
-      try {
-        window.navigator.vibrate([15, 30, 15]);
-      } catch (e) {
-        // Vibration not supported
-      }
-    }
-  }, [highlights, lessonId]);
-
   // 🎨 应用荧光笔颜色（基于 word-index，支持换色和同色抵消）
   const applyHighlight = useCallback((color: string) => {
     if (!selectedRange) {
@@ -703,19 +766,10 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
     setIsPlaying(true);
   }, [onSeek, setIsPlaying, isMobile, isSelecting]);
 
-  // 🎨 获取主题对应的阴影颜色
+  // 🎨 获取主题对应的阴影颜色 - 统一使用黑色阴影
   const getThemeShadowColor = useCallback(() => {
-    switch (theme.id) {
-      case 'daily':
-        return 'rgba(210, 180, 140, 0.4)'; // 奶茶色阴影
-      case 'cognitive':
-        return 'rgba(120, 150, 180, 0.35)'; // 灰蓝色阴影
-      case 'business':
-        return 'rgba(255, 192, 203, 0.3)'; // 浅粉色阴影
-      default:
-        return 'rgba(0, 0, 0, 0.15)';
-    }
-  }, [theme.id]);
+    return 'rgba(0, 0, 0, 0.15)'; // 所有主题统一使用淡黑色阴影
+  }, []);
 
   // 🎨 获取预览背景色（根据主题）
   const getPreviewBackgroundColor = useCallback(() => {
@@ -768,31 +822,6 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
             );
           }
 
-          // 确定背景色和样式
-          let backgroundColor = 'transparent';
-          let boxShadow = 'none';
-          let isHighlighted = false;
-
-          if (isInPreview) {
-            backgroundColor = previewBgColor;
-            boxShadow = `0 2px 6px ${themeShadowColor}, 0 1px 3px ${themeShadowColor}`;
-            isHighlighted = true;
-          } else if (matchedHighlight) {
-            backgroundColor = isDarkTheme 
-              ? '#F5E6E8' 
-              : (isMobile ? `${matchedHighlight.color}F0` : `${matchedHighlight.color}D9`);
-            boxShadow = isDarkTheme 
-              ? '0 1px 3px rgba(93, 31, 39, 0.25)'
-              : (theme.id === 'daily' 
-                  ? `0 1px 3px ${matchedHighlight.color}40, 0 0.5px 1.5px ${matchedHighlight.color}30`
-                  : (theme.id === 'cognitive'
-                      ? `0 1px 3px ${matchedHighlight.color}35, 0 0.5px 1px rgba(0,0,0,0.08)`
-                      : `0 1px 3px ${matchedHighlight.color}40`
-                    )
-                );
-            isHighlighted = true;
-          }
-
           // 🚨 核心新增：判断当前词是不是高亮块的"头"或"尾"
           let isStart = false;
           let isEnd = false;
@@ -805,16 +834,41 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
             isEnd = wordIndex === (previewSelection.endOffset - 1);
           }
 
+          // 确定背景色和样式
+          let backgroundColor = 'transparent';
+          let boxShadow = 'none';
+          let isHighlighted = false;
+
+          if (isInPreview) {
+            backgroundColor = previewBgColor;
+            // 🎯 只在开头或结尾添加阴影，避免重叠
+            if (isStart || isEnd) {
+              boxShadow = `0 2px 6px ${themeShadowColor}, 0 1px 3px ${themeShadowColor}`;
+            }
+            isHighlighted = true;
+          } else if (matchedHighlight) {
+            backgroundColor = isDarkTheme 
+              ? '#F5E6E8' 
+              : (isMobile ? `${matchedHighlight.color}F0` : `${matchedHighlight.color}D9`);
+            // 🎯 只在移动端添加阴影，桌面端不显示阴影避免重叠
+            if (isMobile && (isStart || isEnd)) {
+              boxShadow = isDarkTheme 
+                ? '0 1px 3px rgba(93, 31, 39, 0.25)'
+                : `0 1px 2px ${matchedHighlight.color}30`;
+            }
+            isHighlighted = true;
+          }
+
           const radius = (isStart && isEnd) ? '4px' : 
                          isStart ? '4px 0 0 4px' :   
                          isEnd ? '0 4px 4px 0' :     
                          '0';
 
           // 🚨 核弹解法：计算背景层的溢出量
-          // 如果不是开头，就疯狂向左溢出 4px；如果不是结尾，就疯狂向右溢出 4px。
-          // 这 8px 的巨大重叠区，神仙来了也挡不住缝隙！
-          const bleedLeft = isStart ? '0' : '-4px';
-          const bleedRight = isEnd ? '0' : '-4px';
+          // 如果不是开头，就疯狂向左溢出 2px；如果不是结尾，就疯狂向右溢出 2px。
+          // 这 4px 的重叠区，确保无缝连接
+          const bleedLeft = isStart ? '0' : '-2px';
+          const bleedRight = isEnd ? '0' : '-2px';
 
           return (
             <span
@@ -825,9 +879,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
               className={`relative inline-block transition-all ${isHighlighted ? 'cursor-pointer' : ''}`}
               style={{
                 // 这里不再设置 backgroundColor！
-                // 只需要一点点 margin 来抵消巨大的溢出，防止文字重叠
-                margin: isHighlighted ? `0 ${isEnd ? '0' : '-2px'} 0 ${isStart ? '0' : '-2px'}` : '0',
-                padding: isHighlighted ? '1px 3px' : '0', // 上下各1px，左右给文字呼吸空间
+                // 只需要一点点 margin 来抵消溢出，防止文字重叠
+                margin: '0',
+                padding: isHighlighted ? '2px 0' : '0', // 上下各2px，左右不加padding避免间隙
                 
                 opacity: isInPreview ? 0.8 : 1,
                 verticalAlign: 'baseline',
@@ -899,11 +953,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                     backgroundColor, // 颜色在这里渲染！
                     top: 0,
                     bottom: 0,
-                    // 🚨 巨大的物理重叠：向左右疯狂溢出
+                    // 🚨 适度的物理重叠：向左右溢出2px确保无缝连接
                     left: bleedLeft,
                     right: bleedRight,
                     // 只有头尾才需要圆角
                     borderRadius: radius,
+                    boxShadow, // 添加阴影效果
                     // 放在文字下层
                     zIndex: -1,
                   }}
@@ -916,6 +971,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                   position: 'relative', 
                   zIndex: 1,
                   color: isDarkTheme && isHighlighted ? '#5D1F27' : 'inherit',
+                  // 只在高亮时给左右各加1px的呼吸空间，避免文字过于拥挤
+                  padding: isHighlighted ? '0 1px' : '0',
+                  display: 'inline-block',
                 }}
               >
                 {word}
@@ -1007,7 +1065,7 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         data-line-id={index}
         onClick={() => handleLineClick(line.start)}
         initial={false}
-        className={`relative ${isMobile ? 'py-2 pt-[calc(0.5rem+0.2rem)]' : 'py-4 pt-[calc(1rem+0.2rem)]'} px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
+        className={`relative ${isMobile ? 'py-2 pt-[calc(0.5rem+0.4rem)]' : 'py-4 pt-[calc(1rem+0.4rem)]'} px-2 md:px-5 mb-1 transition-all duration-300 cursor-pointer group overflow-hidden rounded-[6px]`}
         style={{
           backgroundColor: isActive ? getActiveBgColor() : (isSaved ? savedStyle.backgroundColor : `${theme.bg}F5`),
           boxShadow: isActive 
@@ -1090,6 +1148,12 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                   setIsSelecting(false);
                   setPreviewSelection(null);
                 }
+                // 🎨 清除悬停计时器和状态
+                if (!isMobile && hoverTimerRef.current) {
+                  clearTimeout(hoverTimerRef.current);
+                  hoverTimerRef.current = null;
+                  setIsHoverReady(false);
+                }
               }}
             >
               {renderTextWithHighlights(line.en, line.id)}
@@ -1105,43 +1169,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 opacity: 0.75,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif',
                 lineHeight: '1.2',
-                // 🎯 移动端完全禁用原生选择，桌面端保留原生选择
-                userSelect: isMobile ? 'none' : 'text',
-                WebkitUserSelect: isMobile ? 'none' : 'text',
-                WebkitTouchCallout: isMobile ? 'none' : 'default',
-                // 如果正在滑动选择，锁死垂直滚动；否则允许滚动
-                touchAction: isSelecting ? 'none' : 'pan-y',
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onTouchStart={(e) => {
-                if (isMobile) {
-                  e.stopPropagation(); // 🚨 核心修复：防止触发大框的"刹车"
-                  handleTouchStart(e, line.id + 10000);
-                }
-              }}
-              onTouchMove={(e) => isMobile && handleTouchMove(e, line.id + 10000)}
-              onTouchEnd={(e) => {
-                if (isMobile) {
-                  const words = tokenizeWords(line.cn);
-                  handleTouchEnd(e, line.id + 10000, words);
-                }
-              }}
-              onMouseUp={() => {
-                if (!isMobile) {
-                  const words = tokenizeWords(line.cn);
-                  handleMouseUp(line.id + 10000, words);
-                }
-              }}
-              onMouseLeave={() => {
-                if (!isMobile && isSelecting) {
-                  setSwipeStartWordIndex(null);
-                  setSwipeCurrentWordIndex(null);
-                  setIsSelecting(false);
-                  setPreviewSelection(null);
-                }
               }}
             >
-              {renderTextWithHighlights(line.cn, line.id + 10000)}
+              {line.cn}
             </p>
           )}
 
@@ -1155,43 +1185,9 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
                 opacity: 0.75,
                 fontFamily: '"PingFang SC", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Microsoft YaHei", sans-serif',
                 lineHeight: '1.2',
-                // 🎯 移动端完全禁用原生选择，桌面端保留原生选择
-                userSelect: isMobile ? 'none' : 'text',
-                WebkitUserSelect: isMobile ? 'none' : 'text',
-                WebkitTouchCallout: isMobile ? 'none' : 'default',
-                // 如果正在滑动选择，锁死垂直滚动；否则允许滚动
-                touchAction: isSelecting ? 'none' : 'pan-y',
-              }}
-              onClick={(e) => e.stopPropagation()}
-              onTouchStart={(e) => {
-                if (isMobile) {
-                  e.stopPropagation(); // 🚨 核心修复：防止触发大框的"刹车"
-                  handleTouchStart(e, line.id + 10000);
-                }
-              }}
-              onTouchMove={(e) => isMobile && handleTouchMove(e, line.id + 10000)}
-              onTouchEnd={(e) => {
-                if (isMobile) {
-                  const words = tokenizeWords(line.cn);
-                  handleTouchEnd(e, line.id + 10000, words);
-                }
-              }}
-              onMouseUp={() => {
-                if (!isMobile) {
-                  const words = tokenizeWords(line.cn);
-                  handleMouseUp(line.id + 10000, words);
-                }
-              }}
-              onMouseLeave={() => {
-                if (!isMobile && isSelecting) {
-                  setSwipeStartWordIndex(null);
-                  setSwipeCurrentWordIndex(null);
-                  setIsSelecting(false);
-                  setPreviewSelection(null);
-                }
               }}
             >
-              {renderTextWithHighlights(line.cn, line.id + 10000)}
+              {line.cn}
             </p>
           )}
 
@@ -1440,92 +1436,96 @@ export default function ModuleScript({ currentTime, isPlaying, theme, onSeek, se
         </motion.button>
       </div>
 
-      {/* 🎨 荧光笔调色盘 - 移动端更小更近 */}
-      <AnimatePresence>
-        {showColorPicker && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="fixed z-[100] flex items-center gap-1.5 md:gap-2 px-1.5 md:px-2.5 py-1.5 md:py-2 rounded-full backdrop-blur-xl border shadow-2xl"
-            style={{
-              left: `${colorPickerPosition.x}px`,
-              top: `${colorPickerPosition.y}px`,
-              backgroundColor: '#FFFFFF',
-              borderColor: 'rgba(0, 0, 0, 0.1)',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            {/* 颜色按钮组 */}
-            {activeHighlightColors.map((color) => (
-              <motion.button
-                key={color.id}
-                onClick={() => applyHighlight(color.color)}
-                whileTap={{ scale: 0.9 }}
-                // 🎯 移动端更小：w-5 h-5 (20px)，桌面端 w-6 h-6 (24px)
-                className="w-5 h-5 md:w-6 md:h-6 rounded-full border-2 border-white transition-transform active:scale-90"
-                style={{
-                  backgroundColor: color.color,
-                  boxShadow: `0 2px 6px ${color.color}60, 0 1px 2px rgba(0,0,0,0.05)`, 
-                }}
-                title={color.name}
-              />
-            ))}
-            
-            {/* 🚨 新增：垃圾桶删除按钮（当点击已有高亮时显示） */}
-            {selectedRange && highlights.some(h => 
-              h.lineId === selectedRange.lineId && 
-              h.startOffset === selectedRange.startOffset &&
-              h.endOffset === selectedRange.endOffset
-            ) && (
-              <>
-                <div className="w-px h-4 md:h-5 bg-black/10" /> {/* 分割线 */}
-                <motion.button
-                  onClick={() => {
-                    // 找到对应的 highlight 并删除
-                    const target = highlights.find(h => 
-                      h.lineId === selectedRange.lineId && 
-                      h.startOffset === selectedRange.startOffset &&
-                      h.endOffset === selectedRange.endOffset
-                    );
-                    if (target) {
-                      removeHighlight(target.id);
-                      setShowColorPicker(false);
-                      setSelectedRange(null);
-                      setPreviewSelection(null);
-                    }
-                  }}
-                  whileTap={{ scale: 0.85 }}
-                  className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full text-red-500 bg-red-50 transition-transform active:scale-90"
-                  title="删除高亮"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                  </svg>
-                </motion.button>
-              </>
-            )}
-            
-            {/* 🎯 关闭按钮同步缩小 */}
-            <motion.button
-              onClick={() => {
-                setShowColorPicker(false);
-                setSelectedRange(null);
-                setPreviewSelection(null);
-              }}
-              whileTap={{ scale: 0.9 }}
-              className="w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-bold transition-opacity active:opacity-70"
+      {/* 🎨 荧光笔调色盘 - 使用 Portal 渲染到 body，确保不被任何容器遮挡 */}
+      {typeof window !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showColorPicker && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="flex items-center gap-1.5 md:gap-2 px-1.5 md:px-2.5 py-1.5 md:py-2 rounded-full backdrop-blur-xl border shadow-2xl"
               style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.08)',
-                color: '#333333',
+                position: 'fixed',
+                left: `${colorPickerPosition.x}px`,
+                top: `${colorPickerPosition.y}px`,
+                backgroundColor: '#FFFFFF',
+                borderColor: 'rgba(0, 0, 0, 0.1)',
+                boxShadow: '0 12px 32px rgba(0, 0, 0, 0.15), 0 6px 16px rgba(0, 0, 0, 0.1)',
+                zIndex: 999999, // 🚨 超高层级，确保在所有元素之上
+                pointerEvents: 'auto',
               }}
             >
-              ✕
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* 颜色按钮组 */}
+              {activeHighlightColors.map((color) => (
+                <motion.button
+                  key={color.id}
+                  onClick={() => applyHighlight(color.color)}
+                  whileTap={{ scale: 0.9 }}
+                  className="w-5 h-5 md:w-6 md:h-6 rounded-full border-2 border-white transition-transform active:scale-90"
+                  style={{
+                    backgroundColor: color.color,
+                    boxShadow: `0 2px 6px ${color.color}60, 0 1px 2px rgba(0,0,0,0.05)`, 
+                  }}
+                  title={color.name}
+                />
+              ))}
+              
+              {/* 🖱️ 移动端：显示删除按钮；桌面端：隐藏删除按钮（使用双击删除） */}
+              {isMobile && selectedRange && highlights.some(h => 
+                h.lineId === selectedRange.lineId && 
+                h.startOffset === selectedRange.startOffset &&
+                h.endOffset === selectedRange.endOffset
+              ) && (
+                <>
+                  <div className="w-px h-4 md:h-5 bg-black/10" />
+                  <motion.button
+                    onClick={() => {
+                      const target = highlights.find(h => 
+                        h.lineId === selectedRange.lineId && 
+                        h.startOffset === selectedRange.startOffset &&
+                        h.endOffset === selectedRange.endOffset
+                      );
+                      if (target) {
+                        removeHighlight(target.id);
+                        setShowColorPicker(false);
+                        setSelectedRange(null);
+                        setPreviewSelection(null);
+                      }
+                    }}
+                    whileTap={{ scale: 0.85 }}
+                    className="w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full text-red-500 bg-red-50 transition-transform active:scale-90"
+                    title="删除高亮"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                    </svg>
+                  </motion.button>
+                </>
+              )}
+              
+              {/* 关闭按钮 */}
+              <motion.button
+                onClick={() => {
+                  setShowColorPicker(false);
+                  setSelectedRange(null);
+                  setPreviewSelection(null);
+                }}
+                whileTap={{ scale: 0.9 }}
+                className="w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[9px] md:text-[10px] font-bold transition-opacity active:opacity-70"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.08)',
+                  color: '#333333',
+                }}
+              >
+                ✕
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

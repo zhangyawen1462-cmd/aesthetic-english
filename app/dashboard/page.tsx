@@ -207,6 +207,14 @@ export default function Dashboard() {
                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }} 
               />
 
+              {/* 返回按钮 - 左上角 */}
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="absolute top-6 left-6 z-10 flex items-center gap-2 opacity-60 active:opacity-100 transition-opacity"
+              >
+                <ArrowLeft size={20} strokeWidth={1} className="text-[#F7F8F9]" />
+              </button>
+
               {/* 中间：目录列表 - 完全居中 */}
               <nav className="flex flex-col gap-6 relative z-10 items-center justify-center">
                  {[
@@ -246,7 +254,7 @@ export default function Dashboard() {
                  <Link 
                    href="/dashboard/notebook" 
                    onClick={() => setIsMobileMenuOpen(false)}
-                   className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
+                   className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9]/80 hover:text-[#F7F8F9] transition-colors"
                  >
                    Notes
                  </Link>
@@ -265,7 +273,7 @@ export default function Dashboard() {
                        setIsMobileMenuOpen(false);
                        setShowSubscriptionModal(true);
                      }}
-                     className="text-[12px] uppercase tracking-[0.25em] text-[#F7F8F9] underline font-medium hover:opacity-70 transition-opacity"
+                     className="text-[10px] uppercase tracking-[0.25em] text-[#F7F8F9]/80 hover:text-[#F7F8F9] transition-colors"
                    >
                      {tier === 'visitor' || tier === 'trial' ? 'Subscribe' : 'Upgrade'}
                    </button>
@@ -480,21 +488,29 @@ function EpisodeCard({ item, index, onGuestClick }: { item: VisualStreamItem; in
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const { tier } = useMembership();
   
-  // 🔥 判断是否需要拦截
-  // 游客：所有视频都拦截
-  // 试用用户：只有 freeTrial 视频不拦截，其他都拦截
-  const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? item.isSample !== 'freeTrial' : false);
-  
-  console.log('🎯 Dashboard EpisodeCard:', {
-    title: item.title,
-    isSample: item.isSample,
-    tier,
-    shouldIntercept
-  });
-  
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (shouldIntercept && onGuestClick) {
-      onGuestClick(e);
+    // 🔥 在点击时实时判断是否需要拦截（使用最新的 tier 状态）
+    // 游客：所有视频都拦截
+    // 试用用户：只有 freeTrial 视频不拦截，其他都拦截
+    // 付费会员（quarterly/yearly/lifetime）：不拦截
+    const shouldIntercept = tier === 'visitor' ? true : (tier === 'trial' ? item.isSample !== 'freeTrial' : false);
+    
+    // 调试日志 - 仅在开发环境输出
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎯 Dashboard EpisodeCard Click:', {
+        title: item.title,
+        href: item.href,
+        isSample: item.isSample,
+        tier,
+        shouldIntercept,
+        willPreventDefault: shouldIntercept
+      });
+    }
+    
+    if (shouldIntercept) {
+      e.preventDefault();
+      e.stopPropagation();
+      onGuestClick?.(e);
     }
   };
   

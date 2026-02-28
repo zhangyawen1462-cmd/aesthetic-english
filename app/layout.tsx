@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import DevPanel from "@/components/DevPanel";
-import MigrationScript from "@/components/MigrationScript";
 import { MembershipProvider } from "@/context/MembershipContext";
+
+// 仅在开发环境动态导入
+const DevPanel = process.env.NODE_ENV === 'development' 
+  ? require("@/components/DevPanel").default 
+  : () => null;
 
 export const metadata: Metadata = {
   title: "Aesthetic English — Beauty and Brains",
@@ -27,10 +30,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="safe-top">
+    <html lang="en" suppressHydrationWarning>
+      <body className="safe-top" suppressHydrationWarning>
         <MembershipProvider>
-          <MigrationScript />
           {children}
           <DevPanel />
         </MembershipProvider>

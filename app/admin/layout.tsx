@@ -15,12 +15,12 @@ export default function AdminLayout({
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     // 检查是否已认证
     const auth = sessionStorage.getItem("admin_authenticated");
     if (auth === "true") {
       setIsAuthenticated(true);
     }
+    setMounted(true);
   }, []);
 
   const handleAuth = () => {
@@ -121,6 +121,8 @@ export default function AdminLayout({
     </div>
   );
 }
+
+
 
 
 

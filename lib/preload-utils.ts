@@ -62,7 +62,7 @@ export async function prefetchAPI(url: string) {
     });
     return await response.json();
   } catch (error) {
-    console.warn('Prefetch failed:', url, error);
+    // Prefetch failed silently
     return null;
   }
 }
@@ -90,6 +90,8 @@ export function createLazyLoader(
     ...options,
   });
 }
+
+
 
 
 

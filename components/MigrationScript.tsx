@@ -24,7 +24,6 @@ export default function MigrationScript() {
       if (oldTier === '季度会员' || oldTier === '年度会员' || oldTier === '永久会员') {
         const newTier = convertTierToEnglish(oldTier);
         localStorage.setItem('membershipType', newTier || '');
-        console.log(`[Migration] 会员类型已迁移: ${oldTier} → ${newTier}`);
       }
     }
 
@@ -34,6 +33,8 @@ export default function MigrationScript() {
 
   return null; // 这个组件不渲染任何内容
 }
+
+
 
 
 

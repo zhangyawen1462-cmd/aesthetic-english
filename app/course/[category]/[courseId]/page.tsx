@@ -97,24 +97,6 @@ export default function CoursePage() {
         const data = await response.json();
         if (data.success) {
           const lessonData = data.data;
-          
-          // 调试日志：检查视频 URL 和权限数据
-          console.log('📹 Lesson Data:', {
-            id: lessonData.id,
-            category: lessonData.category,
-            isSample: lessonData.isSample,
-            videoUrl: lessonData.videoUrl,
-            coverImg: lessonData.coverImg,
-            hasVideo: !!lessonData.videoUrl,
-          });
-          
-          console.log('🔐 Permission Check:', {
-            tier,
-            category: category as VideoSection,
-            isSample: lessonData.isSample || false,
-            hasAccess: checkVideoAccess(tier, category as VideoSection, lessonData.isSample || false)
-          });
-          
           setLesson(lessonData);
         }
       } catch (error) {
@@ -145,6 +127,7 @@ export default function CoursePage() {
   const [isDraggingMobile, setIsDraggingMobile] = useState(false);
   const [showProgressBar, setShowProgressBar] = useState(false); // 控制进度条显示
   const progressBarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const themeMenuRef = useRef<HTMLDivElement>(null); // 主题菜单引用
 
   // --- Hooks ---
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -197,6 +180,25 @@ export default function CoursePage() {
       }, 3000);
     }
   }, [isPlaying]);
+
+  // --- 点击外部关闭主题菜单 ---
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (isThemeMenuOpen && themeMenuRef.current && !themeMenuRef.current.contains(event.target as Node)) {
+        setIsThemeMenuOpen(false);
+      }
+    }
+
+    if (isThemeMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside as any);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside as any);
+    };
+  }, [isThemeMenuOpen]);
 
   // --- 监听屏幕方向变化 ---
   useEffect(() => {
@@ -352,12 +354,15 @@ export default function CoursePage() {
     const handleTouchMove = (e: TouchEvent) => {
       if (isDraggingMobile) {
         e.preventDefault();
+        e.stopPropagation();
         handleMobileDragMove(e.touches[0].clientY);
       }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
       if (isDraggingMobile) {
+        e.preventDefault();
+        e.stopPropagation();
         handleMobileDragMove(e.clientY);
       }
     };
@@ -367,6 +372,10 @@ export default function CoursePage() {
     };
 
     if (isDraggingMobile) {
+      // 阻止页面滚动
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+      
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('touchend', handleEnd);
@@ -374,6 +383,10 @@ export default function CoursePage() {
     }
 
     return () => {
+      // 恢复页面滚动
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+      
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('touchend', handleEnd);
@@ -453,13 +466,8 @@ export default function CoursePage() {
               onClick={togglePlay}
               onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
-              onError={(e) => {
-                if (process.env.NODE_ENV === 'development') {
-                  console.error('❌ Video load error:', {
-                    src: lesson.videoUrl,
-                    error: e,
-                  });
-                }
+              onError={() => {
+                // Video load error - silently handled
               }}
               playsInline
               aria-label={`${lesson.titleEn} 视频播放器`}
@@ -723,6 +731,8 @@ export default function CoursePage() {
                       videoUrl={lesson.videoUrl}
                       lessonId={lesson.id}
                       lessonTitle={lesson.titleEn || lesson.titleCn}
+                      mobileVideoHeight={mobileVideoHeight}
+                      isMobile={isMobile}
                     />
                   )}
                   {activeTab === 'shadow' && (
@@ -910,7 +920,7 @@ export default function CoursePage() {
       </div>
 
       {/* ─── The Fabric Swatch (面料色卡) - 移动端和桌面端都显示 ─── */}
-      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-3 safe-bottom safe-right">
+      <div ref={themeMenuRef} className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex items-center gap-3 safe-bottom safe-right">
         
         {/* 色卡按钮 */}
         <button
@@ -935,9 +945,9 @@ export default function CoursePage() {
           </div>
         </button>
 
-        {/* 色卡展开菜单 */}
+        {/* 色卡展开菜单 - 仅桌面端显示 */}
         <AnimatePresence>
-          {isThemeMenuOpen && (
+          {isThemeMenuOpen && !isMobile && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9, x: 10 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}

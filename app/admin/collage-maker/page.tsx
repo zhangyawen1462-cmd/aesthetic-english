@@ -16,8 +16,6 @@ export default function CollageMakerPage() {
   // 裁剪相关状态
   const [cropImage, setCropImage] = useState<string>('');
   const [cropArea, setCropArea] = useState({ x: 0, y: 0, width: 100, height: 100 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [croppedUrl, setCroppedUrl] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -427,7 +425,7 @@ export default function CollageMakerPage() {
                   </div>
                   <p className="text-slate-600 font-medium mb-2">暂无预览</p>
                   <p className="text-slate-500 text-sm">
-                    添加图片后点击"生成拼图"查看效果
+                    添加图片后点击&quot;生成拼图&quot;查看效果
                   </p>
                 </div>
               </div>
@@ -621,7 +619,7 @@ export default function CollageMakerPage() {
                     </div>
                     <p className="text-slate-600 font-medium mb-2">暂无结果</p>
                     <p className="text-slate-500 text-sm">
-                      上传图片并调整裁剪区域后点击"裁剪图片"
+                      上传图片并调整裁剪区域后点击&quot;裁剪图片&quot;
                     </p>
                   </div>
                 </div>

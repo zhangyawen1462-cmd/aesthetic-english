@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence, LazyMotion, domAnimation, m } from 'framer-motion';
-import { X, KeyRound, Sparkles, Search, RotateCcw, ChevronDown, Loader2 } from 'lucide-react';
+import { AnimatePresence, LazyMotion, domAnimation, m } from 'framer-motion';
+import { KeyRound, ChevronDown, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useMembership } from '@/context/MembershipContext';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -19,6 +20,8 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const router = useRouter();
+  const { refreshMembership } = useMembership();
 
   const handleRedeem = async () => {
     if (!code.trim()) {
@@ -44,13 +47,27 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
 
       if (data.success) {
         setSuccess(true);
+        
+        // 关键：立即刷新会员状态
+        console.log('🔄 [SubscriptionModal] 兑换成功，开始刷新会员状态...');
+        
+        // 先刷新会员状态（MembershipContext 为唯一数据源）
+        await refreshMembership();
+        
+        console.log('✅ [SubscriptionModal] 会员状态已刷新');
+        
+        // 延迟关闭弹窗，使用客户端路由跳转（保持 SPA 体验）
         setTimeout(() => {
-          window.location.href = '/dashboard';
+          onClose(); // 关闭弹窗
+          // 如果不在 dashboard，使用 Next.js Router 跳转（无刷新）
+          if (window.location.pathname !== '/dashboard') {
+            router.push('/dashboard');
+          }
         }, 1500);
       } else {
         setError(data.message || '兑换失败，请检查兑换码');
       }
-    } catch (err) {
+    } catch {
       setError('网络错误，请稍后重试');
     } finally {
       setIsLoading(false);
@@ -119,7 +136,24 @@ const RedeemInput = ({ onClose }: { onClose: () => void }) => {
 // ==========================================
 // 子组件：单张物理卡片 (处理 3D 翻转与手风琴展开)
 // ==========================================
-const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
+interface PlanCardProps {
+  plan: {
+    id: string;
+    title: string;
+    subtitle: string;
+    price: string;
+    originalPrice: string;
+    period: string;
+    desc: string;
+    features: Array<{ text: string; status: string }>;
+    theme: string;
+    isRecommended?: boolean;
+  };
+  isFocused: boolean;
+  onFocus: () => void;
+}
+
+const PlanCard = ({ plan, isFocused, onFocus }: PlanCardProps) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isRevealed, setIsRevealed] = useState(false);
 
@@ -141,17 +175,6 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
     <div 
       className="relative w-full lg:w-1/3 perspective-[1500px]"
       onMouseEnter={onFocus}
-      onClick={(e) => {
-        // 点击卡片非文字区域翻转
-        if ((e.target as HTMLElement).tagName !== 'BUTTON' && 
-            (e.target as HTMLElement).tagName !== 'SPAN' &&
-            (e.target as HTMLElement).tagName !== 'P' &&
-            (e.target as HTMLElement).tagName !== 'H3' &&
-            (e.target as HTMLElement).tagName !== 'H4') {
-          setIsFlipped(!isFlipped);
-        }
-        onFocus();
-      }}
     >
       <m.div
         animate={{ 
@@ -162,46 +185,52 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
         transition={{ type: "spring", stiffness: 80, damping: 20, mass: 1 }}
         style={{ transformStyle: 'preserve-3d' }}
         className={`relative w-full transition-shadow duration-700 
-          ${isMobile ? 'min-h-[180px]' : 'h-full'}
+          min-h-[180px] lg:min-h-0 lg:h-full
           ${isFocused ? (isWine ? 'shadow-[0_0_50px_rgba(74,29,36,0.5)]' : 'shadow-[0_0_30px_rgba(255,255,255,0.05)]') : 'shadow-none'}
         `}
       >
         {/* ================= 正面 (Front Face) ================= */}
         <div 
           style={{ backfaceVisibility: 'hidden' }}
-          className={`relative flex flex-col border ${isWine ? 'border-[#F7F8F9]/20' : isDark ? 'border-white/5' : 'border-black/5'} ${frontBg} ${isMobile ? 'p-4' : 'p-6 sm:p-8 md:p-10'}`}
+          className={`relative flex flex-col border ${isWine ? 'border-[#F7F8F9]/20' : isDark ? 'border-white/5' : 'border-black/5'} ${frontBg} p-4 sm:p-6 md:p-8 lg:p-10`}
         >
+          {/* 右上角翻转按钮 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsFlipped(true);
+            }}
+            className="absolute top-3 right-3 w-6 h-6 rounded-full border border-current/20 flex items-center justify-center opacity-30 hover:opacity-60 transition-opacity group/flip"
+            aria-label="查看详情"
+          >
+            <span className="text-[10px]">i</span>
+          </button>
+
           {/* 顶部标题与价格 */}
-          <div className={`text-center ${isMobile ? 'mb-3' : 'mb-4 sm:mb-6'}`}>
-            {!isMobile && (
-              <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.3em] opacity-40 block mb-2 sm:mb-3">
-                {plan.subtitle}
-              </span>
-            )}
-            <h3 className={`font-sans ${isMobile ? 'text-base mb-2' : 'text-lg sm:text-xl md:text-2xl mb-3 sm:mb-4'}`}>
+          <div className="text-center mb-3 sm:mb-4 lg:mb-6">
+            <span className="hidden lg:block text-[8px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.3em] opacity-40 mb-2 sm:mb-3">
+              {plan.subtitle}
+            </span>
+            <h3 className="font-sans text-base sm:text-lg md:text-xl lg:text-2xl mb-2 sm:mb-3 lg:mb-4">
               {plan.title}
             </h3>
-            <div className={`flex ${isMobile ? 'flex-row items-baseline justify-center gap-3' : 'flex-col items-center gap-1 sm:gap-2'}`}>
+            <div className="flex flex-row lg:flex-col items-baseline lg:items-center justify-center gap-3 lg:gap-1 sm:gap-2">
               {/* 划线原价 */}
               <div className="flex items-baseline gap-1 opacity-40">
-                <span className={`font-light line-through ${isMobile ? 'text-[9px]' : 'text-[10px] sm:text-xs'}`}>¥</span>
-                <span className={`font-serif tracking-tighter line-through ${isMobile ? 'text-sm' : 'text-base sm:text-lg md:text-xl'}`}>{plan.originalPrice}</span>
+                <span className="font-light line-through text-[9px] sm:text-[10px] lg:text-xs">¥</span>
+                <span className="font-serif tracking-tighter line-through text-sm sm:text-base md:text-lg lg:text-xl">{plan.originalPrice}</span>
               </div>
               {/* 特惠价 */}
               <div className="flex items-baseline gap-1">
-                <span className={`font-light opacity-50 ${isMobile ? 'text-[10px]' : 'text-xs sm:text-sm'}`}>¥</span>
-                <span className={`font-serif tracking-tighter ${isMobile ? 'text-2xl' : 'text-3xl sm:text-4xl md:text-5xl'}`}>{plan.price}</span>
+                <span className="font-light opacity-50 text-[10px] sm:text-xs lg:text-sm">¥</span>
+                <span className="font-serif tracking-tighter text-2xl sm:text-3xl md:text-4xl lg:text-5xl">{plan.price}</span>
               </div>
             </div>
           </div>
 
-          {!isMobile && (
-            <div className="text-[10px] sm:text-[10px] md:text-[11px] leading-relaxed opacity-70 text-center mb-6 sm:mb-8 px-2 space-y-1">
-              {plan.desc.split('。').filter(Boolean).map((line: string, i: number) => (
-                <p key={i}>{line}。</p>
-              ))}
-            </div>
-          )}
+          <div className="hidden lg:block text-[10px] sm:text-[10px] md:text-[11px] leading-relaxed opacity-70 text-center mb-6 sm:mb-8 px-2 whitespace-pre-line">
+            {plan.desc}
+          </div>
 
           {/* 移动端和网页端都显示 View Privileges */}
           <>
@@ -210,7 +239,19 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
               className="flex-1 flex flex-col justify-end border-t border-current/10 pt-3 sm:pt-4 cursor-pointer group"
               onMouseEnter={() => setIsRevealed(true)}
               onMouseLeave={() => setIsRevealed(false)}
-              onClick={(e) => { e.stopPropagation(); setIsRevealed(!isRevealed); }}
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                e.preventDefault();
+                setIsRevealed(!isRevealed); 
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                setIsRevealed(!isRevealed);
+              }}
             >
               <div className="flex items-center justify-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity pb-2">
                 <span className="text-[8px] sm:text-[9px] uppercase tracking-[0.2em]">View Privileges</span>
@@ -226,7 +267,7 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
                 className="overflow-hidden"
               >
                 <div className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 pb-4 sm:pb-6">
-                  {plan.features.map((f: any, i: number) => (
+                  {plan.features.map((f: { text: string; status: string }, i: number) => (
                     <div key={i} className="flex justify-between items-start gap-3 sm:gap-4">
                       <span className={`text-[10px] sm:text-[11px] leading-relaxed tracking-wide ${f.status === 'lock' ? 'opacity-30 line-through' : 'opacity-80'}`}>
                         {f.text}
@@ -247,32 +288,35 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
         {/* ================= 背面 (Back Face - 礼宾指引) ================= */}
         <div 
           style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-          className={`absolute inset-0 flex flex-col items-center justify-center border border-current/10 ${backBg} ${isMobile ? 'p-4' : 'p-6 sm:p-6 md:p-8'}`}
-          onClick={(e) => {
-            // 点击非文字区域翻转回正面
-            if ((e.target as HTMLElement).tagName !== 'P' && 
-                (e.target as HTMLElement).tagName !== 'SPAN') {
-              setIsFlipped(false);
-            }
-          }}
+          className={`absolute inset-0 flex flex-col items-center justify-center border border-current/10 ${backBg} p-4 sm:p-6 md:p-8`}
         >
+          {/* 左上角返回按钮 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsFlipped(false);
+            }}
+            className="absolute top-3 left-3 w-6 h-6 rounded-full border border-current/20 flex items-center justify-center opacity-30 hover:opacity-60 transition-opacity"
+            aria-label="返回"
+          >
+            <span className="text-[10px]">←</span>
+          </button>
+
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             {/* 大标题：诚挚邀请 */}
-            <h3 className={`font-serif font-bold mb-4 sm:mb-6 ${isMobile ? 'text-xl' : 'text-2xl sm:text-3xl'}`}>
+            <h3 className="font-serif font-bold mb-4 sm:mb-6 text-xl sm:text-2xl lg:text-3xl">
               诚挚邀请
             </h3>
             
-            {!isMobile && (
-              <p className="text-[9px] sm:text-[9px] md:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.15em] opacity-60 leading-relaxed mb-4 sm:mb-6 md:mb-8 px-2">
-                我们的密钥仅通过主理人沙龙发行<br/>
-                为保持私人书房的私密性，暂不开放直接购买
-              </p>
-            )}
-            <div className={`bg-current/5 w-full ${isMobile ? 'p-2.5' : 'p-3 sm:p-3 md:p-4'}`}>
-              <p className={`tracking-widest opacity-80 mb-2 ${isMobile ? 'text-[9px]' : 'text-[9px] sm:text-[10px] md:text-[11px]'}`}>Step 1. 前往小红书搜索账号</p>
-              <p className={`font-serif font-bold ${isMobile ? 'text-[11px]' : 'text-xs sm:text-xs md:text-[13px]'}`}>@审美英语Aesthetic</p>
+            <p className="hidden lg:block text-[9px] sm:text-[9px] md:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.15em] opacity-60 leading-relaxed mb-4 sm:mb-6 md:mb-8 px-2">
+              我们的密钥仅通过主理人沙龙发行<br/>
+              为保持私人书房的私密性，暂不开放直接购买
+            </p>
+            <div className="bg-current/5 w-full p-2.5 sm:p-3 md:p-4">
+              <p className="tracking-widest opacity-80 mb-2 text-[9px] sm:text-[10px] md:text-[11px]">Step 1. 前往小红书搜索账号</p>
+              <p className="font-serif font-bold text-[11px] sm:text-xs md:text-[13px]">@审美英语Aesthetic</p>
             </div>
-            <p className={`uppercase tracking-[0.12em] sm:tracking-[0.15em] opacity-60 px-2 ${isMobile ? 'text-[8px] mt-2' : 'text-[9px] sm:text-[9px] md:text-[10px] mt-3 sm:mt-3 md:mt-4'}`}>
+            <p className="uppercase tracking-[0.12em] sm:tracking-[0.15em] opacity-60 px-2 text-[8px] sm:text-[9px] md:text-[10px] mt-2 sm:mt-3 md:mt-4">
               Step 2. 进入小红书店铺获取您的 {plan.period} 密钥
             </p>
           </div>
@@ -287,20 +331,14 @@ const PlanCard = ({ plan, isFocused, onFocus, isMobile }: any) => {
 // ==========================================
 export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModalProps) {
   const router = useRouter();
+  const { tier } = useMembership(); // 获取会员状态
+  
   // 方案二：聚光灯状态 (默认聚焦中间的年度会员，index = 1)
   const [focusedIndex, setFocusedIndex] = useState<number>(1);
   const [showRedeemInput, setShowRedeemInput] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-
-  // 检测移动端
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  
+  // 直接使用 MembershipContext 的 tier 判断是否有订阅
+  const hasSubscription = tier !== 'visitor' && tier !== 'trial';
 
   const plans = [
     {
@@ -391,31 +429,22 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
               
             <div className="text-center mb-12 md:mb-16 text-[#F7F8F9] pointer-events-none px-4">
               {/* 移动端：只显示中文，字体较小，透明度降低 */}
-              {isMobile ? (
-                <p className="text-sm opacity-50" style={{ fontFamily: "'PingFang SC', sans-serif" }}>
-                  美学英语 凭邀入内
-                </p>
-              ) : (
-                <>
-                  <h2 className="font-serif font-bold text-2xl md:text-4xl tracking-tight mb-3 drop-shadow-lg leading-tight" style={{ letterSpacing: '-0.04em' }}>
-                    Aesthetic English is reserved for Patrons
-                  </h2>
-                  <p className="text-[9px] md:text-[20px] uppercase tracking-[0.3em] md:tracking-[0.4em] opacity-40">
-                    美学英语 凭邀入内
-                  </p>
-                </>
-              )}
+              <h2 className="hidden lg:block font-serif font-bold text-2xl md:text-4xl tracking-tight mb-3 drop-shadow-lg leading-tight" style={{ letterSpacing: '-0.04em' }}>
+                Aesthetic English is reserved for Patrons
+              </h2>
+              <p className="text-sm lg:text-[20px] opacity-50 lg:opacity-40 uppercase tracking-[0.3em] lg:tracking-[0.4em]" style={{ fontFamily: "'PingFang SC', sans-serif" }}>
+                美学英语 凭邀入内
+              </p>
             </div>
 
             {/* 卡片区 */}
-            <div className={`flex flex-col lg:flex-row w-full items-center lg:items-stretch ${isMobile ? 'gap-3 px-4' : 'gap-4 sm:gap-6 lg:gap-6 px-4 lg:px-0'}`}>
+            <div className="flex flex-col lg:flex-row w-full items-center lg:items-stretch gap-3 lg:gap-4 xl:gap-6 px-4 lg:px-0">
               {plans.map((plan, idx) => (
                 <PlanCard 
                   key={plan.id} 
                   plan={plan} 
                   isFocused={focusedIndex === idx}
                   onFocus={() => setFocusedIndex(idx)}
-                  isMobile={isMobile}
                 />
               ))}
             </div>
@@ -424,21 +453,41 @@ export default function SubscriptionModal({ isOpen, onClose }: SubscriptionModal
             <div className="mt-12 md:mt-20 text-center px-4">
               <div className="h-px w-10 bg-white/10 mx-auto mb-6 md:mb-8" />
               
-              {!showRedeemInput ? (
-                <button
-                  onClick={() => setShowRedeemInput(true)}
-                  className="text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80"
-                >
-                Already hold an invitation?
-                </button>
+              {/* 如果已有订阅，显示欢迎信息 */}
+              {hasSubscription ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <p className="text-xs text-[#F7F8F9]/60">您已是会员，欢迎回来</p>
+                  <button
+                    onClick={onClose}
+                    className="text-[8px] md:text-[9px] text-[#F7F8F9]/40 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/70 transition-colors"
+                  >
+                    Continue Browsing
+                  </button>
+                </div>
               ) : (
-                <m.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                >
-                <RedeemInput onClose={onClose} />
-                </m.div>
+                <>
+                  {!showRedeemInput ? (
+                    <button
+                      onClick={() => setShowRedeemInput(true)}
+                      className="text-[8px] md:text-[9px] text-[#F7F8F9]/30 uppercase tracking-[0.3em] hover:text-[#F7F8F9]/60 transition-colors active:text-[#F7F8F9]/80"
+                    >
+                    Already hold an invitation?
+                    </button>
+                  ) : (
+                    <m.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                    <RedeemInput onClose={onClose} />
+                    </m.div>
+                  )}
+                </>
               )}
             </div>
 
