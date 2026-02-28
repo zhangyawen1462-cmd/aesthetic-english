@@ -19,6 +19,7 @@ export interface VocabCard {
   def?: string;       // 英文释义（可选）
   defCn?: string;    // 中文释义（可选）
   ex: string;        // 例句
+  exCn?: string;     // 例句中文翻译（可选）
 }
 
 /** 语法笔记 */
